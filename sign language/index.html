@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fly Moses · International Airport</title>
+    <!-- Font Awesome 5 (free) -->
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
+    <!-- Google Fonts: Inter + Playfair Display -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fafbfc;
+            color: #1e2a41;
+            line-height: 1.5;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* subtle moving background layer - purely visual, no content removed */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 20% 30%, rgba(100, 160, 230, 0.03) 0%, transparent 30%),
+                        radial-gradient(circle at 80% 70%, rgba(40, 100, 180, 0.03) 0%, transparent 40%);
+            animation: breathe 15s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes breathe {
+            0% { opacity: 0.3; transform: scale(1); }
+            100% { opacity: 0.7; transform: scale(1.05); }
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 32px;
+        }
+
+        /* header with slight glass effect (original structure preserved) */
+        .navbar {
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02), 0 2px 6px rgba(0, 20, 40, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid #e9edf4;
+        }
+
+        .nav-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 80px;
+        }
+
+        .logo h1 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 1.9rem;
+            letter-spacing: -0.5px;
+            color: #0b2b4f;
+        }
+
+        .logo span {
+            color: #2b6c9e;
+            font-size: 1rem;
+            font-weight: 500;
+            margin-left: 4px;
+            letter-spacing: 1px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 40px;
+            font-weight: 500;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #1e3a5f;
+            font-size: 1rem;
+            transition: 0.2s;
+            border-bottom: 2px solid transparent;
+            padding-bottom: 4px;
+        }
+
+        .nav-links a.active, .nav-links a:hover {
+            border-bottom-color: #2b6c9e;
+            color: #0b2b4f;
+        }
+
+        .airport-status {
+            background-color: #eef3f9;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1b4b72;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .airport-status i {
+            color: #1f8b4c;
+            animation: softPulse 2.5s infinite;
+        }
+        
+        @keyframes softPulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        /* hero with subtle moving gradient - original content unchanged */
+        .hero {
+            background: linear-gradient(105deg, #102b47 0%, #1a3f62 100%);
+            color: white;
+            padding: 40px 0 56px 0;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* very faint moving light overlay - doesn't remove anything */
+        .hero::after {
+            content: "";
+            position: absolute;
+            top: -30%;
+            left: -20%;
+            width: 70%;
+            height: 200%;
+            background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.03) 30%, transparent 50%);
+            animation: driftLight 12s infinite linear;
+            pointer-events: none;
+        }
+        
+        @keyframes driftLight {
+            0% { transform: translateX(-10%) translateY(-10%) rotate(15deg); }
+            100% { transform: translateX(30%) translateY(20%) rotate(25deg); }
+        }
+
+        .hero-grid {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero h2 {
+            font-size: 2.8rem;
+            font-weight: 600;
+            line-height: 1.2;
+            font-family: 'Playfair Display', serif;
+            letter-spacing: -0.02em;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            opacity: 0.85;
+            margin: 20px 0 28px;
+            max-width: 550px;
+        }
+
+        .flight-board-preview {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(8px);
+            padding: 24px 28px;
+            border-radius: 28px;
+            border: 1px solid rgba(255,255,255,0.15);
+            min-width: 300px;
+            flex: 1;
+        }
+
+        .mini-flight-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed rgba(255,255,255,0.2);
+            padding: 12px 0;
+        }
+
+        .mini-flight-row:last-child {
+            border-bottom: none;
+        }
+
+        .flight-dest {
+            font-weight: 600;
+        }
+
+        .flight-time {
+            font-family: monospace;
+            font-size: 1.1rem;
+        }
+
+        .flight-status {
+            background: #1f8b4c;
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #ffffff;
+            color: #0b2b4f;
+            padding: 12px 32px;
+            border-radius: 40px;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.1);
+            transition: 0.2s;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: white;
+            color: #0b2b4f;
+        }
+
+        /* section titles */
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 32px;
+            color: #0b2b4f;
+            border-left: 6px solid #2b6c9e;
+            padding-left: 20px;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 30px;
+            margin: 48px 0;
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: 0 12px 30px rgba(0,20,40,0.06);
+            transition: all 0.25s ease;
+            border: 1px solid #eef2f6;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 35px rgba(20, 60, 120, 0.15);
+        }
+
+        .feature-card i {
+            font-size: 2.4rem;
+            color: #2b6c9e;
+            margin-bottom: 16px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+
+        .flight-table {
+            background: white;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.02);
+            border: 1px solid #e2e8f0;
+            width: 100%;
+            border-collapse: collapse;
+            transition: box-shadow 0.2s;
+        }
+        
+        .flight-table:hover {
+            box-shadow: 0 12px 30px rgba(0, 60, 130, 0.1);
+        }
+
+        .flight-table th {
+            text-align: left;
+            padding: 16px 12px;
+            background-color: #f0f5fa;
+            color: #1a3f62;
+            font-weight: 600;
+        }
+
+        .flight-table td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #ecf1f7;
+        }
+
+        .flight-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge {
+            background: #deeaf5;
+            color: #1b4b72;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+        }
+
+        .badge.green {
+            background: #dff0e4;
+            color: #1f6e3f;
+        }
+
+        .badge.orange {
+            background: #fff1d6;
+            color: #aa5b00;
+        }
+
+        /* footer with subtle animation on links */
+        .footer {
+            background-color: #0f263b;
+            color: #ccdbe9;
+            margin-top: 80px;
+            padding: 48px 0 24px;
+            border-top: 1px solid #1c3f58;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 40px;
+        }
+
+        .footer h4 {
+            color: white;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .footer a {
+            color: #b6ccde;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 8px;
+            transition: 0.15s;
+        }
+
+        .footer a:hover {
+            color: white;
+            text-decoration: underline;
+            transform: translateX(4px);
+        }
+
+        .copy {
+            text-align: center;
+            padding-top: 40px;
+            font-size: 0.9rem;
+            color: #7e9cb5;
+        }
+
+        .page-header {
+            background: #ecf3fa;
+            padding: 32px 0;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #d6e2ee;
+        }
+
+        .page-header h2 {
+            font-size: 2.2rem;
+            font-weight: 600;
+        }
+
+        hr {
+            border: none;
+            border-top: 2px solid #dae2ec;
+            margin: 32px 0;
+        }
+
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 40px;
+        }
+
+        .grid-3col {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+
+        @media (max-width: 800px) {
+            .nav-container { flex-direction: column; height: auto; padding: 16px 0; gap: 12px; }
+            .nav-links { flex-wrap: wrap; gap: 20px; justify-content: center; }
+            .hero h2 { font-size: 2rem; }
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+            .grid-2col, .grid-3col { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container nav-container">
+            <div class="logo">
+                <h1><a href="#home" style="text-decoration: none; color: inherit;">Fly Moses<span>✈️ INT'L</span></a></h1>
+            </div>
+            <div class="nav-links">
+                <a href="#home" class="nav-home">HOME</a>
+                <a href="#flights-page">FLIGHTS</a>
+                <a href="#terminals-page">TERMINALS</a>
+                <a href="#transport-page">TRANSPORT</a>
+                <a href="#contact-page">CONTACT</a>
+            </div>
+            <div class="airport-status">
+                <i class="fas fa-circle"></i> OPERATIONAL 24/7
+            </div>
+        </div>
+    </nav>
+
+    <div id="main-content"></div>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div>
+                    <h4>FlyMoses</h4>
+                    <a href="#about-us">About us</a>
+                    <a href="#media">Media</a>
+                    <a href="#careers">Careers</a>
+                </div>
+                <div>
+                    <h4>Passengers</h4>
+                    <a href="#flight-status">Flight status</a>
+                    <a href="#check-in">Check-in</a>
+                    <a href="#baggage-info">Baggage info</a>
+                    <a href="#lounges">Lounges</a>
+                </div>
+                <div>
+                    <h4>Transport & parking</h4>
+                    <a href="#parking-reservations">Parking reservations</a>
+                    <a href="#rental-cars">Rental cars</a>
+                    <a href="#train-bus">Train & bus</a>
+                    <a href="#maps">Maps</a>
+                </div>
+                <div>
+                    <h4>Company</h4>
+                    <a href="#about-us">About us</a>
+                    <a href="#media">Media</a>
+                    <a href="#careers">Careers</a>
+                    <a href="#contact-page">Contact</a>
+                </div>
+            </div>
+            <div class="copy">
+                © 2026 FlyMoses International Airport . All rights reserved
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        (function() {
+            // ---------- professional page templates (ALL ORIGINAL CONTENT FULLY PRESERVED) ----------
+            const pages = {
+                home: getHomePage(),
+                'flights-page': flightsPage(),
+                'terminals-page': terminalsPage(),
+                'transport-page': transportPage(),
+                'contact-page': contactPage(),
+                'flight-status': flightStatusPage(),
+                'check-in': checkinPage(),
+                'baggage-info': baggagePage(),
+                'lounges': loungesPage(),
+                'parking-reservations': parkingPage(),
+                'rental-cars': rentalCarsPage(),
+                'train-bus': trainBusPage(),
+                'maps': mapsPage(),
+                'about-us': aboutPage(),
+                'media': mediaPage(),
+                'careers': careersPage(),
+            };
+
+            function getHomePage() {
+                return `
+                <section class="hero">
+                    <div class="container hero-grid">
+                        <div style="flex: 1.2;">
+                            <h2>Your gateway,<br> perfectly synced.</h2>
+                            <p>Real‑time flight info, seamless parking, and world‑class lounges — FlyMoses operates at full capacity around the clock.</p>
+                            <a href="#flight-status" class="btn">CHECK FLIGHT STATUS <i class="fas fa-arrow-right" style="margin-left: 8px;"></i></a>
+                            <a href="#parking-reservations" class="btn btn-outline" style="margin-left: 16px;">PARKING</a>
+                        </div>
+                        <div class="flight-board-preview">
+                            <h4 style="font-weight: 600; margin-bottom: 16px; display: flex; gap: 12px;"><i class="fas fa-plane-departure"></i> DEPARTURES (next 3h)</h4>
+                            <div class="mini-flight-row"><span class="flight-dest">BA 178 · Incheon</span><span class="flight-time">10:30</span><span class="flight-status">ON TIME</span></div>
+                            <div class="mini-flight-row"><span class="flight-dest">LH 489 · Entebbe</span><span class="flight-time">11:15</span><span class="flight-status">ON TIME</span></div>
+                            <div class="mini-flight-row"><span class="flight-dest">AF 632 · Nairobi</span><span class="flight-time">11:55</span><span class="flight-status">DELAYED 12:20</span></div>
+                            <div class="mini-flight-row"><span class="flight-dest">EK 212 · Dubai</span><span class="flight-time">12:40</span><span class="flight-status">ON TIME</span></div>
+                        </div>
+                    </div>
+                </section>
+                <div class="container">
+                    <h2 class="section-title">Live flight information</h2>
+                    ${flightTables()}
+                    <hr>
+                    <h2 class="section-title">Terminals & services</h2>
+                    <div class="card-grid">
+                        <div class="feature-card"><i class="fas fa-building"></i><h3>Terminal 1</h3><p>International, lounges. Gates A1–A28. Open 24h.</p><p><span class="badge green">SkyTeam / Star</span></p></div>
+                        <div class="feature-card"><i class="fas fa-store"></i><h3>Terminal 2</h3><p>Domestic & regional, family zones. Gates B1–B18.</p><p><span class="badge">Shopping arcade</span></p></div>
+                        <div class="feature-card"><i class="fas fa-parking"></i><h3>Parking & transport</h3><p>P1 hourly, P4 long stay. EV charging.</p><p><span class="badge green">2,500 spots</span></p></div>
+                        <div class="feature-card"><i class="fas fa-concierge-bell"></i><h3>VIP & lounges</h3><p>Platinum, Aspire, SkyClub. Showers, spa.</p><p><span class="badge orange">Priority pass</span></p></div>
+                    </div>
+                </div>`;
+            }
+
+            function flightTables() {
+                return `<div class="grid-2col">
+                    <div><h3 style="margin-bottom:16px;"><i class="fas fa-plane-up"></i> DEPARTURES</h3>
+                        <table class="flight-table"><thead><tr><th>Flight</th><th>Destination</th><th>Time</th><th>Gate</th><th>Status</th></tr></thead>
+                        <tbody>
+                            <tr><td>AA 143</td><td>Entebbe EBB</td><td>09:45</td><td>B12</td><td><span class="badge green">Boarding</span></td></tr>
+                            <tr><td>DL 876</td><td>China</td><td>10:20</td><td>C4</td><td><span class="badge">On time</span></td></tr>
+                            <tr><td>UA 511</td><td>Russia</td><td>10:55</td><td>A7</td><td><span class="badge orange">Delayed 11:30</span></td></tr>
+                            <tr><td>CX 888</td><td>Hong Kong</td><td>11:35</td><td>E22</td><td><span class="badge">On time</span></td></tr>
+                        </tbody></table>
+                    </div>
+                    <div><h3 style="margin-bottom:16px;"><i class="fas fa-plane-down"></i> ARRIVALS</h3>
+                        <table class="flight-table"><thead><tr><th>Flight</th><th>Origin</th><th>Time</th><th>Baggage</th><th>Status</th></tr></thead>
+                        <tbody>
+                            <tr><td>LH 456</td><td>Munich</td><td>09:30</td><td>B03</td><td><span class="badge green">Landed</span></td></tr>
+                            <tr><td>BA 235</td><td>Addis Ababa</td><td>10:15</td><td>A11</td><td><span class="badge">On time</span></td></tr>
+                            <tr><td>QR 741</td><td>Doha</td><td>10:55</td><td>C07</td><td><span class="badge orange">Expected 11:25</span></td></tr>
+                            <tr><td>AF 334</td><td>Paris CDG</td><td>11:30</td><td>B09</td><td><span class="badge">On time</span></td></tr>
+                        </tbody></table>
+                    </div>
+                </div>`;
+            }
+
+            function flightsPage() {
+                return `<div class="page-header"><div class="container"><h2>✈️ Flight information</h2></div></div>
+                <div class="container">${flightTables()}<p style="margin-top:32px;"><a href="#home">← Back to Home</a></p></div>`;
+            }
+
+            function terminalsPage() {
+                return `<div class="page-header"><div class="container"><h2>🏢 Terminals & Lounges</h2></div></div>
+                <div class="container">
+                    <div class="card-grid">
+                        <div class="feature-card"><i class="fas fa-building"></i><h3>Terminal 1</h3><p>Gates A1-A28 · 24h · lounges: SkyClub, Plaza Premium · duty free · currency exchange.</p></div>
+                        <div class="feature-card"><i class="fas fa-child"></i><h3>Terminal 2</h3><p>Gates B1-B18 · family areas · pet relief · quick dining · domestic check-in.</p></div>
+                        <div class="feature-card"><i class="fas fa-spa"></i><h3>VIP Lounges</h3><p>Priority Pass · Aspire Lounge (T1) · showers, quiet rooms, business hubs.</p></div>
+                    </div>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function transportPage() {
+                return `<div class="page-header"><div class="container"><h2>🚗 Ground transport</h2></div></div>
+                <div class="container">
+                    <div class="grid-3col">
+                        <div class="feature-card"><i class="fas fa-train"></i><h3>Rail link</h3><p>SkyTrain to city center every 10 min (05:30–23:30). $12 one-way.</p></div>
+                        <div class="feature-card"><i class="fas fa-taxi"></i><h3>Taxis & rideshare</h3><p>Designated pick-up zone at arrivals level. Uber/Lyft waiting area.</p></div>
+                        <div class="feature-card"><i class="fas fa-bus"></i><h3>Regional buses</h3><p>Lines 420, 750 to suburbs. Tickets at bus stop or app.</p></div>
+                    </div>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function contactPage() {
+                return `<div class="page-header"><div class="container"><h2>📞 Contact & help</h2></div></div>
+                <div class="container">
+                    <div style="background:white; border-radius:24px; padding:40px;">
+                        <div class="grid-2col">
+                            <div><h3>Information desks</h3><p>Terminal 1 & 2 (arrivals) · 24/7<br>📞 +82 103469-4991<br>✉️ mosesmukiibi21@gmail.com</p></div>
+                            <div><h3>Emergency</h3><p>Police / medical: +82 103469-4991<br>First aid stations T1 & T2.</p></div>
+                        </div>
+                        <hr>
+                        <p><i class="fas fa-globe"></i> Free WiFi: FlyMoses-Free · charging stations throughout.</p>
+                    </div>
+                    <p style="margin-top:24px;"><a href="#home">← Home</a></p>
+                </div>`;
+            }
+
+            function flightStatusPage() {
+                return `<div class="page-header"><div class="container"><h2>🛫 Real-time flight status</h2></div></div>
+                <div class="container">${flightTables()}<p style="margin-top:24px;"><a href="#home">← Back</a></p></div>`;
+            }
+
+            function checkinPage() {
+                return `<div class="page-header"><div class="container"><h2>✅ Check-in options</h2></div></div>
+                <div class="container">
+                    <div class="card-grid">
+                        <div class="feature-card"><i class="fas fa-mobile-alt"></i><h3>Online / app</h3><p>From 24h to 75min before departure. Mobile boarding pass.</p></div>
+                        <div class="feature-card"><i class="fas fa-laptop"></i><h3>Self-service kiosks</h3><p>Terminal 1 & 2 · bag drop nearby.</p></div>
+                        <div class="feature-card"><i class="fas fa-user-check"></i><h3>Premium check-in</h3><p>First/business class desks T1, row 3.</p></div>
+                    </div>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function baggagePage() {
+                return `<div class="page-header"><div class="container"><h2>🧳 Baggage services</h2></div></div>
+                <div class="container">
+                    <div class="grid-2col">
+                        <div><h3>Lost & Found</h3><p>Terminal 1, level 1 (open 08:00–22:00). File report online.</p></div>
+                        <div><h3>Prohibited items</h3><p>Lithium batteries, power banks in carry‑on only.</p></div>
+                    </div>
+                    <p>Baggage delivery: usually within 30 min. Oversized at carousel 14.</p>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function loungesPage() {
+                return `<div class="page-header"><div class="container"><h2>🛋️ Airport lounges</h2></div></div>
+                <div class="container">
+                    <div class="card-grid">
+                        <div class="feature-card"><h3>SkyClub T1</h3><p>Near gate A12 · showers, buffet, bar · 06:00–23:00</p></div>
+                        <div class="feature-card"><h3>Aspire Lounge T2</h3><p>Gate B5 · quiet zone, kids area · Priority Pass accepted</p></div>
+                        <div class="feature-card"><h3>Plaza Premium</h3><p>Airside T1 · spa, nap pods · pay-per-use</p></div>
+                    </div>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function parkingPage() {
+                return `<div class="page-header"><div class="container"><h2>🅿️ Parking reservations</h2></div></div>
+                <div class="container">
+                    <table class="flight-table"><tr><th>Lot</th><th>Rate/day</th><th>Shuttle</th></tr>
+                    <tr><td>P1 (hourly/valet)</td><td>$28</td><td>–</td></tr>
+                    <tr><td>P4 (long stay)</td><td>$12</td><td>every 7 min</td></tr>
+                    </table>
+                    <p>EV charging in P1 level 2. Reserve online for discount.</p>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function rentalCarsPage() {
+                return `<div class="page-header"><div class="container"><h2>🚙 Rental car counters</h2></div></div>
+                <div class="container">
+                    <div class="grid-3col">
+                        <div><i class="fas fa-car"></i> Avis · +82 800 555 2300</div>
+                        <div><i class="fas fa-car"></i> Hertz · +82 800 555 3400</div>
+                        <div><i class="fas fa-car"></i> Enterprise · +82 800 555 1111</div>
+                    </div>
+                    <p>All counters at arrivals level, open 06:00–23:00.</p>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function trainBusPage() {
+                return `<div class="page-header"><div class="container"><h2>🚆 Train & bus</h2></div></div>
+                <div class="container">
+                    <div class="feature-card"><h3>SkyTrain</h3><p>to Central Station: every 10 min, journey 22 min.</p></div>
+                    <div class="feature-card"><h3>Bus 420</h3><p>to Northside & Tech Park, stops at terminal 2.</p></div>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function mapsPage() {
+                return `<div class="page-header"><div class="container"><h2>🗺️ Interactive maps</h2></div></div>
+                <div class="container">
+                    <p>Terminal 1: Gates A1-A28, lounges, food court level 2.<br>Terminal 2: Gates B1-B18, family zone, currency exchange.</p>
+                 
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function aboutPage() {
+                return `<div class="page-header"><div class="container"><h2>About FlyMoses</h2></div></div>
+                <div class="container"><p>Serving 45+ million passengers annually. Rated 5‑star airport by Skytrax. Hub for 35 airlines, nonstop to 180+ destinations.</p><p><a href="#home">← Home</a></p></div>`;
+            }
+
+            function mediaPage() {
+                return `<div class="page-header"><div class="container"><h2>Media & press</h2></div></div>
+                <div class="container"><p>Press releases · media kit · brand guidelines. Contact press@flymoses.aero for accreditation.</p><p><a href="#home">← Back</a></p></div>`;
+            }
+
+            function careersPage() {
+                return `<div class="page-header"><div class="container"><h2>Careers</h2></div></div>
+                <div class="container">
+                    <div class="card-grid">
+                        <div class="feature-card"><h3>Customer service</h3><p>full-time, part-time · language skills</p></div>
+                        <div class="feature-card"><h3>Ramp agents</h3><p>shift work · driver license required</p></div>
+                    </div>
+                    <p>Apply via careers portal. Walk‑in hiring events every Tuesday 10am.</p>
+                    <p><a href="#home">← Back</a></p>
+                </div>`;
+            }
+
+            function loadPage() {
+                let hash = window.location.hash.substring(1);
+                if (!hash || !pages[hash]) hash = 'home';
+                document.getElementById('main-content').innerHTML = pages[hash];
+                document.querySelectorAll('.nav-links a').forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === '#' + hash) link.classList.add('active');
+                });
+            }
+
+            window.addEventListener('hashchange', loadPage);
+            window.addEventListener('DOMContentLoaded', loadPage);
+        })();
+    </script>
+</body>
+</html>
