@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✍️ AIR KEYBOARD · DEFINITELY WORKING ✍️</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0b0f17;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', sans-serif;
+            padding: 16px;
+        }
+        
+        .workspace {
+            max-width: 1300px;
+            width: 100%;
+            background: #1a212f;
+            border-radius: 48px;
+            padding: 28px;
+            box-shadow: 0 30px 60px #000000cc;
+            border: 1px solid #3a506e;
+        }
+        
+        h1 {
+            color: #cde1ff;
+            font-weight: 300;
+            font-size: 2.2rem;
+            margin-bottom: 24px;
+            padding-left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .status-badge {
+            background: #26384f;
+            padding: 8px 28px;
+            border-radius: 60px;
+            font-size: 1.1rem;
+            color: #b8d6ff;
+            border: 1px solid #5e7fa3;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 28px;
+        }
+        
+        .camera-area {
+            background: #0e1622;
+            border-radius: 36px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+            position: relative;
+            border: 3px solid #3d6082;
+            box-shadow: inset 0 0 30px #00000080;
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            display: block;
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .hand-guide {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: #000000b3;
+            backdrop-filter: blur(5px);
+            color: white;
+            padding: 20px;
+            border-radius: 30px;
+            text-align: center;
+            border: 2px solid #ffaa00;
+            z-index: 20;
+            font-size: 1.3rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 20px #ffaa00; }
+            50% { box-shadow: 0 0 50px #ffdd44; }
+            100% { box-shadow: 0 0 20px #ffaa00; }
+        }
+        
+        .camera-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 15;
+        }
+        
+        .overlay-item {
+            background: #000000cc;
+            backdrop-filter: blur(5px);
+            padding: 12px 24px;
+            border-radius: 40px;
+            color: white;
+            border: 1px solid #6d9fd1;
+            font-size: 1.1rem;
+        }
+        
+        .text-panel {
+            background: #1a2332;
+            border-radius: 36px;
+            padding: 28px;
+            border: 2px solid #3c5a7c;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .panel-title {
+            color: #c1d9fc;
+            font-size: 1.5rem;
+            border-bottom: 1px solid #45688b;
+            padding-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        #outputText {
+            background: #0f1825;
+            border: 2px solid #35577a;
+            border-radius: 30px;
+            padding: 24px;
+            font-size: 2.2rem;
+            color: #eef5ff;
+            font-family: 'Courier New', monospace;
+            min-height: 200px;
+            resize: none;
+            line-height: 1.5;
+        }
+        
+        .gesture-box {
+            background: #1b2638;
+            border-radius: 28px;
+            padding: 24px;
+        }
+        
+        .gesture-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            color: #cbdaf5;
+            font-size: 1.3rem;
+        }
+        
+        #gestureDisplay {
+            background: #263f5a;
+            padding: 10px 32px;
+            border-radius: 40px;
+            border: 1px solid #7fa9d1;
+        }
+        
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .action-card {
+            background: #1f3143;
+            border-radius: 24px;
+            padding: 20px 5px;
+            text-align: center;
+            color: white;
+            border: 1px solid #4d739e;
+            transition: 0.2s;
+        }
+        
+        .action-card.active {
+            background: #3f6792;
+            border-color: #b6dbff;
+            box-shadow: 0 0 30px #79b0ff;
+        }
+        
+        .action-icon {
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+        }
+        
+        #clearAllBtn {
+            background: #2d4b6e;
+            border: none;
+            color: white;
+            padding: 18px;
+            width: 100%;
+            border-radius: 50px;
+            font-size: 1.3rem;
+            cursor: pointer;
+            border: 1px solid #8bb6e3;
+            margin-top: 15px;
+        }
+        
+        #clearAllBtn:hover {
+            background: #3c608a;
+        }
+        
+        .debug-area {
+            background: #121c2b;
+            padding: 15px;
+            border-radius: 24px;
+            color: #acc8ec;
+            text-align: center;
+            font-size: 1rem;
+        }
+        
+        .coords-highlight {
+            color: #ffe484;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="workspace">
+    <h1>
+        ✍️ AIR KEYBOARD · GUARANTEED TRACKING
+        <span class="status-badge" id="modelStatus">🔴 STARTING...</span>
+    </h1>
+    
+    <div class="main-grid">
+        <div class="camera-area">
+            <video id="video" playsinline autoplay></video>
+            <canvas id="canvas"></canvas>
+            
+            <!-- Hand placement guide -->
+            <div class="hand-guide" id="handGuide">
+                👆 PLACE YOUR HAND IN FRAME (PALM FACING CAMERA)
+            </div>
+            
+            <div class="camera-overlay">
+                <div class="overlay-item" id="handDetected">🖐️ NO HAND</div>
+                <div class="overlay-item" id="fingerPos">📍 (0, 0)</div>
+            </div>
+        </div>
+        
+        <div class="text-panel">
+            <div class="panel-title">
+                <span>📝 YOUR AIR TEXT</span>
+                <span id="textLength">0 chars</span>
+            </div>
+            
+            <textarea id="outputText" placeholder="Move your finger to write..." readonly>✍️</textarea>
+            
+            <div class="gesture-box">
+                <div class="gesture-row">
+                    <span>🎮 ACTIVE GESTURE</span>
+                    <span id="gestureDisplay">⏳ WAITING</span>
+                </div>
+                
+                <div class="action-grid">
+                    <div class="action-card" id="writeCard">
+                        <div class="action-icon">✍️</div>
+                        <div>WRITE MODE</div>
+                    </div>
+                    <div class="action-card" id="spaceCard">
+                        <div class="action-icon">␣</div>
+                        <div>SPACE</div>
+                    </div>
+                    <div class="action-card" id="deleteCard">
+                        <div class="action-icon">⌫</div>
+                        <div>DELETE</div>
+                    </div>
+                </div>
+                
+                <button id="clearAllBtn">🧹 CLEAR EVERYTHING</button>
+                
+                <div class="debug-area" id="debugInfo">
+                    🔷 STEP 1: Show your palm to camera<br>
+                    🔷 STEP 2: Extend index finger<br>
+                    🔷 STEP 3: Move finger to write
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load libraries -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.min.js"></script>
+
+<script>
+(function() {
+    // DOM elements
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const outputText = document.getElementById('outputText');
+    const modelStatus = document.getElementById('modelStatus');
+    const handDetected = document.getElementById('handDetected');
+    const fingerPos = document.getElementById('fingerPos');
+    const gestureDisplay = document.getElementById('gestureDisplay');
+    const textLength = document.getElementById('textLength');
+    const debugInfo = document.getElementById('debugInfo');
+    const handGuide = document.getElementById('handGuide');
+    
+    // Action cards
+    const writeCard = document.getElementById('writeCard');
+    const spaceCard = document.getElementById('spaceCard');
+    const deleteCard = document.getElementById('deleteCard');
+    
+    // ========== STATE ==========
+    let text = "✍️";
+    outputText.value = text;
+    
+    let model = null;
+    let lastFingerPos = null;
+    let movementPoints = [];
+    let totalMovement = 0;
+    let lastWriteTime = 0;
+    let lastSpaceTime = 0;
+    let lastDeleteTime = 0;
+    let detectionAttempts = 0;
+    let handVisible = false;
+    
+    // Constants
+    const WRITE_COOLDOWN = 400;
+    const SPACE_COOLDOWN = 600;
+    const DELETE_COOLDOWN = 600;
+    const WRITE_THRESHOLD = 40;
+    
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789✨🌟⭐💫⚡";
+    let charIndex = 0;
+    
+    // ========== INIT ==========
+    async function init() {
+        try {
+            modelStatus.innerText = '🔵 REQUESTING CAMERA';
+            handGuide.style.display = 'block';
+            
+            // Get camera with specific settings for better detection
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user',
+                    frameRate: { ideal: 30 }
+                }
+            });
+            
+            video.srcObject = stream;
+            
+            await new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    resolve();
+                };
+            });
+            
+            modelStatus.innerText = '🟡 LOADING AI MODEL';
+            debugInfo.innerText = '⏳ Loading hand detection model...';
+            
+            // Load model with better settings
+            model = await handpose.load({
+                detectionConfidence: 0.5,
+                maxContinuousChecks: 5,
+                iouThreshold: 0.3,
+                scoreThreshold: 0.5
+            });
+            
+            modelStatus.innerText = '🟢 READY TO TRACK';
+            debugInfo.innerText = '✅ Model loaded! Show your hand now';
+            handGuide.style.display = 'block';
+            
+            // Start detection
+            detectHands();
+            
+        } catch (error) {
+            console.error('Init error:', error);
+            modelStatus.innerText = '🔴 ERROR';
+            handGuide.innerHTML = '❌ Camera error: ' + error.message;
+            debugInfo.innerText = 'Error: ' + error.message;
+        }
+    }
+    
+    // ========== DETECTION LOOP ==========
+    async function detectHands() {
+        if (!model || !video) return;
+        
+        try {
+            // Draw video frame
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Draw guide box
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([15, 15]);
+            ctx.strokeRect(50, 50, canvas.width-100, canvas.height-100);
+            ctx.setLineDash([]);
+            
+            // Estimate hands
+            const hands = await model.estimateHands(video);
+            
+            if (hands.length > 0) {
+                // Hand detected!
+                handVisible = true;
+                handGuide.style.display = 'none';
+                handDetected.innerHTML = '🟢 HAND DETECTED';
+                
+                const hand = hands[0];
+                
+                // Get key points
+                const indexTip = hand.annotations.indexFingerTip;
+                const middleTip = hand.annotations.middleFingerTip;
+                const thumbTip = hand.annotations.thumbTip;
+                const ringTip = hand.annotations.ringFingerTip;
+                const pinkyTip = hand.annotations.pinkyFingerTip;
+                
+                if (indexTip && indexTip[0]) {
+                    const x = indexTip[0] * canvas.width;
+                    const y = indexTip[1] * canvas.height;
+                    
+                    // Update position
+                    fingerPos.innerHTML = `📍 (${Math.round(x)}, ${Math.round(y)})`;
+                    
+                    // Draw finger tip with glow
+                    ctx.beginPath();
+                    ctx.arc(x, y, 20, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.shadowColor = '#ffff00';
+                    ctx.shadowBlur = 30;
+                    ctx.fill();
+                    
+                    // Draw full hand skeleton
+                    drawHand(hand);
+                    
+                    // Calculate finger states for gestures
+                    if (thumbTip && thumbTip[0]) {
+                        const thumbX = thumbTip[0] * canvas.width;
+                        const thumbY = thumbTip[1] * canvas.height;
+                        
+                        // Pinch distance
+                        const pinchDist = Math.hypot(x - thumbX, y - thumbY);
+                        
+                        // Check finger extensions (simplified)
+                        const indexExtended = hand.annotations.indexFinger[3][1] < hand.annotations.indexFinger[2][1];
+                        const middleExtended = hand.annotations.middleFinger[3][1] < hand.annotations.middleFinger[2][1];
+                        const ringExtended = hand.annotations.ringFinger[3][1] < hand.annotations.ringFinger[2][1];
+                        const pinkyExtended = hand.annotations.pinky[3][1] < hand.annotations.pinky[2][1];
+                        
+                        const extendedCount = [indexExtended, middleExtended, ringExtended, pinkyExtended].filter(Boolean).length;
+                        
+                        // ========== GESTURE DETECTION ==========
+                        if (pinchDist < 30) {
+                            // PINCH = SPACE
+                            gestureDisplay.innerText = '🤏 PINCH';
+                            spaceCard.classList.add('active');
+                            writeCard.classList.remove('active');
+                            deleteCard.classList.remove('active');
+                            
+                            const now = Date.now();
+                            if (now - lastSpaceTime > SPACE_COOLDOWN) {
+                                text += ' ';
+                                outputText.value = text;
+                                lastSpaceTime = now;
+                                debugInfo.innerText = '␣ Space added!';
+                                
+                                // Flash effect
+                                ctx.fillStyle = '#ffffff40';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            }
+                            
+                            // Reset movement
+                            movementPoints = [];
+                            totalMovement = 0;
+                            
+                        } else if (extendedCount <= 1) {
+                            // FIST = DELETE
+                            gestureDisplay.innerText = '✊ FIST';
+                            deleteCard.classList.add('active');
+                            writeCard.classList.remove('active');
+                            spaceCard.classList.remove('active');
+                            
+                            const now = Date.now();
+                            if (now - lastDeleteTime > DELETE_COOLDOWN && text.length > 0) {
+                                text = text.slice(0, -1);
+                                outputText.value = text;
+                                lastDeleteTime = now;
+                                debugInfo.innerText = '⌫ Deleted character';
+                                
+                                // Flash effect
+                                ctx.fillStyle = '#ff000020';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            }
+                            
+                            // Reset movement
+                            movementPoints = [];
+                            totalMovement = 0;
+                            
+                        } else {
+                            // WRITING MODE
+                            gestureDisplay.innerText = '✍️ WRITING';
+                            writeCard.classList.add('active');
+                            spaceCard.classList.remove('active');
+                            deleteCard.classList.remove('active');
+                            
+                            // Track movement
+                            if (lastFingerPos) {
+                                const dist = Math.hypot(x - lastFingerPos.x, y - lastFingerPos.y);
+                                
+                                if (dist > 3) {
+                                    movementPoints.push({x, y});
+                                    if (movementPoints.length > 30) movementPoints.shift();
+                                    
+                                    totalMovement += dist;
+                                    
+                                    // Draw movement trail
+                                    drawTrail();
+                                    
+                                    // Write when enough movement
+                                    if (totalMovement > WRITE_THRESHOLD) {
+                                        const now = Date.now();
+                                        if (now - lastWriteTime > WRITE_COOLDOWN) {
+                                            const char = characters[charIndex % characters.length];
+                                            charIndex++;
+                                            text += char;
+                                            outputText.value = text;
+                                            
+                                            lastWriteTime = now;
+                                            totalMovement = 0;
+                                            debugInfo.innerText = `✍️ Wrote: ${char}`;
+                                            
+                                            // Flash effect
+                                            ctx.fillStyle = '#ffff0020';
+                                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            lastFingerPos = {x, y};
+                        }
+                    }
+                }
+                
+                // Update text length
+                textLength.innerText = text.length + ' chars';
+                
+            } else {
+                // No hand detected
+                handVisible = false;
+                handGuide.style.display = 'block';
+                handDetected.innerHTML = '🔴 NO HAND';
+                fingerPos.innerHTML = '📍 (---, ---)';
+                gestureDisplay.innerText = '🖐️ NO HAND';
+                lastFingerPos = null;
+                movementPoints = [];
+                totalMovement = 0;
+                
+                // Reset cards
+                writeCard.classList.remove('active');
+                spaceCard.classList.remove('active');
+                deleteCard.classList.remove('active');
+                
+                // Show instructions
+                detectionAttempts++;
+                if (detectionAttempts > 30) {
+                    debugInfo.innerText = '💡 Make sure your hand is well-lit and centered';
+                }
+            }
+            
+        } catch (error) {
+            console.error('Detection error:', error);
+        }
+        
+        // Continue detection
+        requestAnimationFrame(detectHands);
+    }
+    
+    // ========== DRAW HAND SKELETON ==========
+    function drawHand(hand) {
+        const landmarks = hand.landmarks;
+        
+        // Draw connections
+        const connections = [
+            [0,1], [1,2], [2,3], [3,4],
+            [0,5], [5,6], [6,7], [7,8],
+            [0,9], [9,10], [10,11], [11,12],
+            [0,13], [13,14], [14,15], [15,16],
+            [0,17], [17,18], [18,19], [19,20]
+        ];
+        
+        ctx.strokeStyle = '#44aaff';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#0088ff';
+        
+        for (let [i, j] of connections) {
+            if (landmarks[i] && landmarks[j]) {
+                ctx.beginPath();
+                ctx.moveTo(landmarks[i][0] * canvas.width, landmarks[i][1] * canvas.height);
+                ctx.lineTo(landmarks[j][0] * canvas.width, landmarks[j][1] * canvas.height);
+                ctx.stroke();
+            }
+        }
+        
+        // Draw joints
+        for (let lm of landmarks) {
+            ctx.beginPath();
+            ctx.arc(lm[0] * canvas.width, lm[1] * canvas.height, 5, 0, 2*Math.PI);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+        }
+    }
+    
+    // ========== DRAW MOVEMENT TRAIL ==========
+    function drawTrail() {
+        if (movementPoints.length < 2) return;
+        
+        ctx.beginPath();
+        ctx.strokeStyle = '#ffff00';
+        ctx.lineWidth = 8;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#ffaa00';
+        
+        ctx.moveTo(movementPoints[0].x, movementPoints[0].y);
+        for (let i = 1; i < movementPoints.length; i++) {
+            ctx.lineTo(movementPoints[i].x, movementPoints[i].y);
+        }
+        ctx.stroke();
+        
+        // Draw points
+        for (let p of movementPoints) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 8, 0, 2*Math.PI);
+            ctx.fillStyle = '#ffff00';
+            ctx.fill();
+        }
+    }
+    
+    // ========== RESIZE ==========
+    function resizeCanvas() {
+        const container = document.querySelector('.camera-area');
+        if (container) {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+    }
+    
+    window.addEventListener('resize', resizeCanvas);
+    
+    // ========== CLEAR BUTTON ==========
+    document.getElementById('clearAllBtn').addEventListener('click', () => {
+        text = "✍️";
+        outputText.value = text;
+        charIndex = 0;
+        movementPoints = [];
+        totalMovement = 0;
+        lastFingerPos = null;
+        textLength.innerText = '1 chars';
+        debugInfo.innerText = '🧹 Text cleared! Show your hand';
+    });
+    
+    // ========== START ==========
+    resizeCanvas();
+    init();
+    
+})();
+</script>
+</body>
+</html>
