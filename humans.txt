@@ -4,3 +4,4 @@ University: Kyungdong University
 GitHub: https://github.com/moze12432
 LinkedIn: https://www.linkedin.com/in/mukiibi-moses-273121351
 Orcid: Mukiibi Moses 
+Research gate:https://www.researchgate.net/publication/401640141_A_Unified_Low-Resource_Optimization_Framework_for_Improving_Diffusion_Model_Image_Generation_Under_Memory_Constraints
