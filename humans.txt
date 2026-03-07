@@ -3,3 +3,4 @@ Role: AI Engineer / Data Science Student
 University: Kyungdong University
 GitHub: https://github.com/moze12432
 LinkedIn: https://www.linkedin.com/in/mukiibi-moses-273121351
+Orcid: Mukiibi Moses 
