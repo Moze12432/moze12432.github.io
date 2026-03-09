@@ -7,7 +7,7 @@
 
 <body>
 
-<h2>Chatbot</h2>
+<h2>DailyDialog Chatbot</h2>
 
 <input id="message" type="text">
 <button onclick="sendMessage()">Send</button>
@@ -20,21 +20,25 @@ async function sendMessage(){
 
 let message = document.getElementById("message").value;
 
-let response = await fetch("http://127.0.0.1:5000/chat",{
-
+let response = await fetch(
+"https://api-inference.huggingface.co/models/YOUR_USERNAME/dailydialog-chatbot",
+{
 method:"POST",
 
 headers:{
-"Content-Type":"application/json"
+"Content-Type":"application/json",
+"Authorization":"Bearer YOUR_HF_TOKEN"
 },
 
-body:JSON.stringify({message:message})
-
+body:JSON.stringify({
+inputs: message
+})
 });
 
 let data = await response.json();
 
-document.getElementById("reply").innerText = data.response;
+document.getElementById("reply").innerText =
+JSON.stringify(data);
 
 }
 
