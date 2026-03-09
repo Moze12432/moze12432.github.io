@@ -1,49 +1,37 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-<title>DailyDialog Chatbot</title>
+  <title>DailyDialog Chatbot</title>
 </head>
-
 <body>
 
 <h2>DailyDialog Chatbot</h2>
 
-<input id="message" type="text">
+<input id="message" type="text" placeholder="Type a message">
 <button onclick="sendMessage()">Send</button>
 
 <p id="reply"></p>
 
 <script>
+async function sendMessage() {
+  let message = document.getElementById("message").value;
 
-async function sendMessage(){
+  let response = await fetch(
+    "https://router.huggingface.co/hf-inference/models/moses132/dailydialog-chatbot",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": "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",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ inputs: message })
+    }
+  );
 
-let message = document.getElementById("message").value;
-
-let response = await fetch(
-"https://api-inference.huggingface.co/models/YOUR_USERNAME/dailydialog-chatbot",
-{
-method:"POST",
-
-headers:{
-"Content-Type":"application/json",
-"Authorization":"Bearer YOUR_HF_TOKEN"
-},
-
-body:JSON.stringify({
-inputs: message
-})
-});
-
-let data = await response.json();
-
-document.getElementById("reply").innerText =
-JSON.stringify(data);
-
+  let data = await response.json();
+  document.getElementById("reply").innerText = data[0].generated_text;
 }
-
 </script>
 
 </body>
-
 </html>
