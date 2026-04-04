@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Product Tracker (Simulation)</title>
+<style>
+body {
+  margin:0;
+  font-family:Segoe UI;
+  background: linear-gradient(135deg,#ff7a00,#ffb347);
+}
+.container {
+  max-width:900px;
+  margin:40px auto;
+  background:white;
+  padding:30px;
+  border-radius:15px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.2);
+}
+h1 {text-align:center;color:#ff7a00;}
+.status {display:flex;gap:10px;margin:20px 0;}
+.stage {flex:1;padding:15px;text-align:center;border-radius:10px;background:#eee;}
+.active {background:#ff7a00;color:white;font-weight:bold;}
+button {padding:10px 15px;margin:5px;border:none;border-radius:8px;background:#ff7a00;color:white;cursor:pointer;}
+.log {margin-top:20px;background:#111;color:#0f0;padding:10px;height:150px;overflow:auto;font-family:monospace;}
+.info {text-align:center;margin-top:10px;color:#555;}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>🟧 Smart Product Tracker</h1>
+
+<div class="info">Simulated Smart Contract</div>
+
+<button onclick="nextStage()">Next Stage</button>
+<button onclick="reset()">Reset</button>
+
+<div class="status">
+<div id="design" class="stage active">Design</div>
+<div id="manufacturing" class="stage">Manufacturing</div>
+<div id="sold" class="stage">Sold</div>
+</div>
+
+<div class="log" id="log"></div>
+</div>
+
+<script>
+
+// Simulated Smart Contract
+class SmartContract {
+  constructor() {
+    this.stage = 0;
+    this.stages = ["Design","Manufacturing","Sold"];
+    this.log("Contract deployed. Stage: Design");
+  }
+
+  nextStage() {
+    if(this.stage < 2){
+      this.stage++;
+      this.log("Stage updated to: " + this.stages[this.stage]);
+    } else {
+      this.log("Product already SOLD. Immutable state reached.");
+    }
+  }
+
+  reset() {
+    this.stage = 0;
+    this.log("Contract reset to Design stage.");
+  }
+
+  log(msg){
+    const el = document.getElementById("log");
+    el.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+const contract = new SmartContract();
+
+function updateUI(){
+  document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
+
+  if(contract.stage === 0) document.getElementById("design").classList.add("active");
+  else if(contract.stage === 1) document.getElementById("manufacturing").classList.add("active");
+  else document.getElementById("sold").classList.add("active");
+}
+
+function nextStage(){
+  contract.nextStage();
+  updateUI();
+}
+
+function reset(){
+  contract.reset();
+  updateUI();
+}
+
+</script>
+
+</body>
+</html>
