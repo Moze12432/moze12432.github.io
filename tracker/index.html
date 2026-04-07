@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Product Tracker (Simulation)</title>
+<title>Smart Product Tracker (Enhanced)</title>
 <style>
 body {
   margin:0;
@@ -10,7 +10,7 @@ body {
   background: linear-gradient(135deg,#ff7a00,#ffb347);
 }
 .container {
-  max-width:900px;
+  max-width:1000px;
   margin:40px auto;
   background:white;
   padding:30px;
@@ -21,17 +21,41 @@ h1 {text-align:center;color:#ff7a00;}
 .status {display:flex;gap:10px;margin:20px 0;}
 .stage {flex:1;padding:15px;text-align:center;border-radius:10px;background:#eee;}
 .active {background:#ff7a00;color:white;font-weight:bold;}
-button {padding:10px 15px;margin:5px;border:none;border-radius:8px;background:#ff7a00;color:white;cursor:pointer;}
-.log {margin-top:20px;background:#111;color:#0f0;padding:10px;height:150px;overflow:auto;font-family:monospace;}
+button, input {
+  padding:10px;
+  margin:5px;
+  border:none;
+  border-radius:8px;
+}
+button {background:#ff7a00;color:white;cursor:pointer;}
+.log {
+  margin-top:20px;
+  background:#111;
+  color:#0f0;
+  padding:10px;
+  height:180px;
+  overflow:auto;
+  font-family:monospace;
+}
 .info {text-align:center;margin-top:10px;color:#555;}
+.field {margin:10px 0;}
 </style>
 </head>
 <body>
 
 <div class="container">
 <h1>🟧 Smart Product Tracker</h1>
+<div class="info">Simulated Smart Contract with Product Address & Ownership</div>
 
-<div class="info">Simulated Smart Contract</div>
+<div class="field">
+<input type="text" id="productAddress" placeholder="Enter Product Address (e.g. 0x123...)" />
+<button onclick="setAddress()">Set Address</button>
+</div>
+
+<div class="field">
+<input type="text" id="owner" placeholder="Owner Name" />
+<button onclick="transferOwnership()">Transfer Ownership</button>
+</div>
 
 <button onclick="nextStage()">Next Stage</button>
 <button onclick="reset()">Reset</button>
@@ -39,25 +63,43 @@ button {padding:10px 15px;margin:5px;border:none;border-radius:8px;background:#f
 <div class="status">
 <div id="design" class="stage active">Design</div>
 <div id="manufacturing" class="stage">Manufacturing</div>
+<div id="shipping" class="stage">Shipping</div>
 <div id="sold" class="stage">Sold</div>
 </div>
+
+<div><strong>Product Address:</strong> <span id="addressDisplay">Not set</span></div>
+<div><strong>Owner:</strong> <span id="ownerDisplay">None</span></div>
 
 <div class="log" id="log"></div>
 </div>
 
 <script>
-
-// Simulated Smart Contract
 class SmartContract {
   constructor() {
     this.stage = 0;
-    this.stages = ["Design","Manufacturing","Sold"];
+    this.stages = ["Design","Manufacturing","Shipping","Sold"];
+    this.address = null;
+    this.owner = "Manufacturer";
+    this.history = [];
     this.log("Contract deployed. Stage: Design");
   }
 
+  setAddress(addr) {
+    if(!addr) return this.log("Invalid address.");
+    this.address = addr;
+    this.log("Product address set: " + addr);
+  }
+
+  transferOwnership(newOwner) {
+    if(!newOwner) return this.log("Invalid owner.");
+    this.owner = newOwner;
+    this.log("Ownership transferred to: " + newOwner);
+  }
+
   nextStage() {
-    if(this.stage < 2){
+    if(this.stage < this.stages.length - 1){
       this.stage++;
+      this.history.push(this.stages[this.stage]);
       this.log("Stage updated to: " + this.stages[this.stage]);
     } else {
       this.log("Product already SOLD. Immutable state reached.");
@@ -66,7 +108,9 @@ class SmartContract {
 
   reset() {
     this.stage = 0;
-    this.log("Contract reset to Design stage.");
+    this.history = [];
+    this.owner = "Manufacturer";
+    this.log("Contract reset.");
   }
 
   log(msg){
@@ -81,9 +125,11 @@ const contract = new SmartContract();
 function updateUI(){
   document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
 
-  if(contract.stage === 0) document.getElementById("design").classList.add("active");
-  else if(contract.stage === 1) document.getElementById("manufacturing").classList.add("active");
-  else document.getElementById("sold").classList.add("active");
+  document.getElementById(contract.stages[contract.stage].toLowerCase())
+    .classList.add("active");
+
+  document.getElementById("addressDisplay").innerText = contract.address || "Not set";
+  document.getElementById("ownerDisplay").innerText = contract.owner;
 }
 
 function nextStage(){
@@ -96,6 +142,17 @@ function reset(){
   updateUI();
 }
 
+function setAddress(){
+  const addr = document.getElementById("productAddress").value;
+  contract.setAddress(addr);
+  updateUI();
+}
+
+function transferOwnership(){
+  const owner = document.getElementById("owner").value;
+  contract.transferOwnership(owner);
+  updateUI();
+}
 </script>
 
 </body>
