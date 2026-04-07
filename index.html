@@ -129,6 +129,14 @@
       padding: 14px 24px;
       transition: all 0.3s ease;
     }
+    .info-card, .project-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.info-card:hover, .project-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+}
     .nav-links {
       display: flex;
       justify-content: center;
