@@ -385,7 +385,7 @@
     }
   </style>
 </head>
-  <script>
+<script>
 document.getElementById("contact-form").addEventListener("submit", function(event) {
   event.preventDefault();
 
@@ -394,14 +394,16 @@ document.getElementById("contact-form").addEventListener("submit", function(even
 
   emailjs.sendForm("service_ori577a", "template_qwf87th", this)
     .then(() => {
-      status.innerText = "Message sent successfully!";
+      status.innerText = "Message sent!";
       this.reset();
-    }, (error) => {
-      status.innerText = "Failed to send. Try again.";
+    })
+    .catch((error) => {
       console.error(error);
+      status.innerText = "Failed to send.";
     });
 });
 </script>
+</body>
 <body>
 
 <nav class="nav-bar">
