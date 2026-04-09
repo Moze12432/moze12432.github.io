@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<script>
+(function(){
+  emailjs.init("CnlDy4yJpDarBtkfQ");
+})();
+</script>
   <link rel="icon" type="image/png" href="profile.JPG">
   <script type="application/ld+json">
   {
@@ -379,6 +385,23 @@
     }
   </style>
 </head>
+  <script>
+document.getElementById("contact-form").addEventListener("submit", function(event) {
+  event.preventDefault();
+
+  const status = document.getElementById("form-status");
+  status.innerText = "Sending...";
+
+  emailjs.sendForm("service_ori577a", "template_qwf87th", this)
+    .then(() => {
+      status.innerText = "Message sent successfully!";
+      this.reset();
+    }, (error) => {
+      status.innerText = "Failed to send. Try again.";
+      console.error(error);
+    });
+});
+</script>
 <body>
 
 <nav class="nav-bar">
@@ -544,26 +567,32 @@
     <a href="https://www.researchgate.net/profile/Mukiibi-Moses" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/researchgate.svg" style="width:14px;height:14px;vertical-align:middle;" alt="RG"> ResearchGate</a>
     <a href="https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/googlescholar.svg" style="width:14px;height:14px;vertical-align:middle;" alt="GS"> GoogleScholar</a>
   <p>I’m open to research collaborations, internships, and AI projects. Feel free to reach out.</p>
-    <div style="margin-top:20px;">
-  <h3>Send Me a Message</h3>
   
-  <form action="mailto:2217144@v.kduniv.ac.kr" method="POST" enctype="text/plain">
+<div style="margin-top:20px;">
+
+
+  <p>I’m open to research collaborations, internships, and AI projects.</p>
+  <h3>Send Me a Message</h3>
+  <form id="contact-form">
     
-    <input type="text" name="Name" placeholder="Your Name" required 
+    <input type="text" name="name" placeholder="Your Name" required autocomplete="name"
     style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid #ccc;">
     
-    <input type="email" name="Email" placeholder="Your Email" required 
+    <input type="email" name="email" placeholder="Your Email" required autocomplete="email"
     style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid #ccc;">
     
-    <textarea name="Message" placeholder="Your Message" required 
+    <textarea name="message" placeholder="Your Message" required autocomplete="on"
     style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid #ccc; height:120px;"></textarea>
     
-    <button type="submit" 
+    <button type="submit"
     style="background:#3b82f6; color:white; padding:12px 20px; border:none; border-radius:30px; cursor:pointer;">
       Send Message
     </button>
+
+    <p id="form-status" style="margin-top:10px;"></p>
     
   </form>
+</div>
 </div>
   </div>
 </section>
