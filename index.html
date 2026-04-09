@@ -609,5 +609,32 @@ Last updated: April 2026
     });
   });
 </script>
+  <script>
+window.addEventListener("load", function () {
+  const form = document.getElementById("contact-form");
+
+  if (!form) {
+    console.error("Form not found. Check your ID.");
+    return;
+  }
+
+  form.addEventListener("submit", function(event) {
+    event.preventDefault();
+
+    const status = document.getElementById("form-status");
+    status.innerText = "Sending...";
+
+    emailjs.sendForm("service_ori577a", "template_qwf87th", this)
+      .then(() => {
+        status.innerText = "Message sent!";
+        form.reset();
+      })
+      .catch((error) => {
+        console.error(error);
+        status.innerText = "Failed to send.";
+      });
+  });
+});
+</script>
 </body>
 </html>
