@@ -1,6 +1,7 @@
 import streamlit as st
 from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
+import random
 
 # -------------------------
 # Page Config
@@ -24,7 +25,6 @@ def load_emotion_model():
 
 @st.cache_resource
 def load_flan_model():
-    # Load model and tokenizer directly
     model_name = "google/flan-t5-small"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
@@ -59,131 +59,132 @@ VAD_MAP = {
 }
 
 # -------------------------
-# Emotion-based response templates (fallback)
+# Better emotion-based responses (direct, no FLAN issues)
 # -------------------------
-EMOTION_RESPONSES = {
-    "sadness": [
-        "I hear that you're feeling down. Would you like to talk about what's on your mind?",
-        "I'm sorry you're feeling this way. Remember that tough feelings don't last forever.",
-        "It's okay to feel sad sometimes. I'm here to listen if you want to share.",
-        "That sounds difficult. What would help you feel a little better right now?",
-        "I understand. Sometimes just acknowledging our feelings is the first step."
-    ],
-    "joy": [
-        "That's wonderful to hear! What's making you feel so happy?",
-        "I love hearing that! 😊 Tell me more about what brought you this joy.",
-        "That's great! It's so nice when things are going well.",
-        "I'm genuinely happy for you! What's the best part of what you're experiencing?",
-        "That's awesome! Moments like these are precious."
-    ],
-    "anger": [
-        "That sounds really frustrating. Would you like to tell me more about what happened?",
-        "I can hear that you're upset. It's okay to feel angry sometimes.",
-        "That must be really annoying. How are you planning to handle the situation?",
-        "I understand why you'd feel that way. Sometimes things just don't go as planned.",
-        "Your feelings are valid. Would talking about it help?"
-    ],
-    "fear": [
-        "That sounds really worrying. I'm here with you.",
-        "Fear can be overwhelming. What's the main thing that's concerning you?",
-        "I understand feeling anxious. Let's break this down together.",
-        "You're not alone in this. What would help you feel safer right now?",
-        "It's okay to feel scared sometimes. Can we explore what's causing this feeling?"
-    ],
-    "surprise": [
-        "Wow, that's unexpected! How are you processing this?",
-        "That is surprising! What do you think about it?",
-        "Life is full of surprises! How does this make you feel?",
-        "Interesting! What's your take on this unexpected development?",
-        "That caught me off guard too! How are you handling it?"
-    ],
-    "love": [
-        "That's beautiful to hear. Love makes life so much richer.",
-        "I'm so glad you're experiencing love. It's such a special feeling.",
-        "That warms my heart! Tell me more about this.",
-        "Love is wonderful. How has this affected your day?",
-        "That's really special. It's great that you have that in your life."
-    ],
-    "neutral": [
-        "I appreciate you sharing that. What else is on your mind?",
-        "Interesting. Tell me more about that.",
-        "I hear you. How can I support you today?",
-        "Thanks for telling me. Is there anything specific you'd like to discuss?",
-        "I'm listening. Feel free to share whatever you're thinking."
-    ]
-}
+def get_empathetic_response(user_input, emotion):
+    """Generate a natural response based on emotion and user input"""
+    
+    # Convert to lowercase for matching
+    user_lower = user_input.lower()
+    emotion = emotion.lower()
+    
+    # Check for specific keywords first
+    if "sick" in user_lower or "ill" in user_lower or "pain" in user_lower:
+        return "I'm sorry you're not feeling well. Being sick is tough. Make sure you rest and stay hydrated. Do you have someone to take care of you?"
+    
+    if "tired" in user_lower or "exhausted" in user_lower or "sleep" in user_lower:
+        return "I hear that you're tired. Lack of rest can really affect how we feel. Is there any way you can take a short break or rest right now?"
+    
+    if "stressed" in user_lower or "overwhelmed" in user_lower:
+        return "That sounds really stressful. Remember to breathe deeply and take things one step at a time. What's one small thing that might help right now?"
+    
+    if "lonely" in user_lower or "alone" in user_lower:
+        return "I'm here with you. Feeling lonely is hard, but you're not alone in this moment. Would you like to talk about what's on your mind?"
+    
+    if "angry" in user_lower or "mad" in user_lower or "frustrated" in user_lower:
+        return "I can hear your frustration. It's okay to feel angry. Would you like to talk about what's bothering you?"
+    
+    if "happy" in user_lower or "good" in user_lower or "great" in user_lower:
+        return "That's wonderful to hear! 😊 I'm glad you're feeling good. What's making you happy today?"
+    
+    # Emotion-based responses
+    if emotion == "sadness":
+        responses = [
+            f"I hear that you're feeling down. I'm sorry you're going through this. Would you like to talk more about what's making you feel this way?",
+            f"That sounds really difficult. It's okay to feel sad sometimes. I'm here to listen if you want to share more.",
+            f"I understand that feeling. Remember that tough emotions don't last forever. How can I support you right now?"
+        ]
+        return random.choice(responses)
+    
+    elif emotion == "joy":
+        responses = [
+            f"That's great to hear! 😊 What's been going well for you?",
+            f"I love that you're feeling joyful! Tell me more about what's bringing you happiness.",
+            f"That's wonderful! Moments of joy are so precious. What's the best part of your day?"
+        ]
+        return random.choice(responses)
+    
+    elif emotion == "anger":
+        responses = [
+            f"That sounds frustrating. It's valid to feel angry. Would you like to tell me what happened?",
+            f"I can hear that you're upset. Sometimes venting helps - I'm here to listen.",
+            f"Your feelings are completely valid. What would help you feel better right now?"
+        ]
+        return random.choice(responses)
+    
+    elif emotion == "fear":
+        responses = [
+            f"That sounds worrying. I'm here with you. What's the main thing that's concerning you?",
+            f"Fear can be really overwhelming. You're not alone in this. Can we talk about what's scaring you?",
+            f"I understand feeling afraid. Sometimes sharing our fears makes them feel smaller. Want to talk about it?"
+        ]
+        return random.choice(responses)
+    
+    elif emotion == "surprise":
+        responses = [
+            f"Wow, that's unexpected! How are you processing this?",
+            f"Life definitely has its surprises! How do you feel about this?",
+            f"That caught me off guard too! What's your take on this?"
+        ]
+        return random.choice(responses)
+    
+    elif emotion == "love":
+        responses = [
+            f"That's beautiful to hear. Love makes everything feel brighter. Tell me more!",
+            f"I'm so glad you're experiencing love. It's such a special feeling.",
+            f"That warms my heart! How has this affected your day?"
+        ]
+        return random.choice(responses)
+    
+    else:  # neutral or unknown
+        responses = [
+            f"I appreciate you sharing that with me. How can I support you today?",
+            f"I hear you. Is there anything specific you'd like to talk about?",
+            f"Thanks for telling me. I'm here to listen whenever you need."
+        ]
+        return random.choice(responses)
 
-import random
-
 # -------------------------
-# Helper: Generate Response with FLAN
+# Try FLAN with better prompting (optional, will fall back if fails)
 # -------------------------
-def generate_flan_response(prompt):
-    """Generate response using FLAN-T5 model directly"""
+def try_flan_response(user_input, emotion):
+    """Attempt to use FLAN, return None if it fails or gives bad output"""
     try:
-        inputs = flan_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
+        # Better prompt that forces a natural response
+        prompt = f"""Answer as a caring friend. The user is feeling {emotion}. 
+User says: "{user_input}"
+Your empathetic reply (keep it short, 1-2 sentences):"""
+        
+        inputs = flan_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=200)
         
         with torch.no_grad():
             outputs = flan_model.generate(
                 inputs.input_ids,
-                max_length=100,
+                max_length=80,
+                min_length=10,
                 num_beams=4,
-                temperature=0.7,
+                temperature=0.8,
                 do_sample=True,
+                repetition_penalty=1.2,
                 pad_token_id=flan_tokenizer.eos_token_id
             )
         
         response = flan_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return response.strip()
-    except Exception as e:
-        st.write(f"FLAN generation error: {e}")
-        return None
-
-# -------------------------
-# Helper: Generate Response (Free, no OpenAI)
-# -------------------------
-def generate_response_free(user_input, emotion, v, a, d):
-    """
-    Generate response using FLAN-T5 with emotion context
-    Falls back to template responses if FLAN fails
-    """
-    
-    # Create a prompt that guides FLAN to respond appropriately
-    prompt = f"""You are a friendly, empathetic AI companion. The user is feeling {emotion} (Valence: {round(v,2)}, Arousal: {round(a,2)}, Dominance: {round(d,2)}).
-
-User: {user_input}
-
-Respond naturally, concisely (1-2 sentences), and with appropriate emotional tone. Be supportive and human-like."""
-    
-    # Try FLAN first
-    try:
-        response = generate_flan_response(prompt)
         
-        # Check if response is valid and not just repeating the prompt
-        if response and len(response) > 5 and len(response) < 200:
-            if not response.startswith("User is feeling") and not response.startswith("You are"):
+        # Check if response is bad (echoing input or too short)
+        if response and len(response) > 8 and len(response) < 150:
+            # Don't return if it's just echoing the user
+            if user_input.lower() not in response.lower():
                 return response
     except:
         pass
-    
-    # Try a simpler prompt if the first one fails
-    try:
-        simple_prompt = f"The user is {emotion}. Respond kindly: {user_input}"
-        response = generate_flan_response(simple_prompt)
-        if response and len(response) > 5 and len(response) < 200:
-            return response
-    except:
-        pass
-    
-    # Fallback to template responses
-    responses = EMOTION_RESPONSES.get(emotion, EMOTION_RESPONSES["neutral"])
-    return random.choice(responses)
+    return None
 
 # -------------------------
 # UI Header
 # -------------------------
 st.markdown("<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Free & Private • Powered by FLAN-T5</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Your empathetic AI friend</p>", unsafe_allow_html=True)
 
 st.divider()
 
@@ -194,33 +195,24 @@ if st.button("📊 Show / Hide Emotional Insights"):
     st.session_state.show_dashboard = not st.session_state.show_dashboard
 
 # -------------------------
-# Dashboard (ONLY if clicked)
+# Dashboard
 # -------------------------
 if st.session_state.show_dashboard and st.session_state.emotion_history:
-
     st.subheader("📊 Emotional Insights")
-
     history_data = st.session_state.emotion_history
 
-    # Emotion Frequency
-    st.write("### Emotion Frequency")
     emotion_counts = {}
     for item in history_data:
         e = item["emotion"]
         emotion_counts[e] = emotion_counts.get(e, 0) + 1
     st.bar_chart(emotion_counts)
 
-    # VAD Trends
-    st.write("### VAD Trends")
     vad_data = {
         "Valence": [h["valence"] for h in history_data],
         "Arousal": [h["arousal"] for h in history_data],
         "Dominance": [h["dominance"] for h in history_data]
     }
     st.line_chart(vad_data)
-
-    # Personality Insight
-    st.write("### 🧠 Personality Insight")
 
     avg_valence = sum(h["valence"] for h in history_data) / len(history_data)
     avg_arousal = sum(h["arousal"] for h in history_data) / len(history_data)
@@ -237,13 +229,8 @@ if st.session_state.show_dashboard and st.session_state.emotion_history:
     else:
         energy = "calm emotional state"
 
-    st.info(f"""
-    Over time, you appear to be:
-    - {mood}
-    - Showing {energy}
-    """)
+    st.info(f"Over time: {mood} • {energy}")
     
-    # Show most common emotion
     if emotion_counts:
         most_common = max(emotion_counts, key=emotion_counts.get)
         st.metric("Most frequent emotion", most_common.capitalize())
@@ -265,35 +252,25 @@ user_input = st.chat_input("How are you feeling today?")
 if user_input:
     # Save user message
     st.session_state.messages.append({"role": "user", "content": user_input})
-
+    
     with st.chat_message("user"):
         st.markdown(user_input)
-
-    # -------------------------
+    
     # Emotion Detection
-    # -------------------------
     try:
         raw = emotion_model(user_input)
         emotions = raw[0] if isinstance(raw[0], list) else raw
-
         top = max(emotions, key=lambda x: x.get("score", 0))
         emotion = top.get("label", "neutral")
         confidence = round(top.get("score", 0) * 100, 2)
-
-    except Exception as e:
-        st.write(f"Emotion detection error: {e}")
+    except:
         emotion = "neutral"
         confidence = 0.0
-        emotions = []
-
-    # -------------------------
+    
     # VAD Calculation
-    # -------------------------
     v, a, d = VAD_MAP.get(emotion.lower(), (0.5, 0.5, 0.5))
-
-    # -------------------------
+    
     # Save Emotion History
-    # -------------------------
     st.session_state.emotion_history.append({
         "emotion": emotion,
         "confidence": confidence,
@@ -301,25 +278,19 @@ if user_input:
         "arousal": a,
         "dominance": d
     })
-
-    # Keep history manageable
+    
     if len(st.session_state.emotion_history) > 20:
         st.session_state.emotion_history.pop(0)
-
-    # -------------------------
-    # Generate Response (Free)
-    # -------------------------
+    
+    # Generate Response - try FLAN first, fall back to template
     with st.spinner("Thinking..."):
-        reply = generate_response_free(user_input, emotion, v, a, d)
-
-    # -------------------------
+        reply = try_flan_response(user_input, emotion)
+        if not reply:
+            reply = get_empathetic_response(user_input, emotion)
+    
     # Show Response
-    # -------------------------
     with st.chat_message("assistant"):
         st.markdown(reply)
-
+    
     # Save response
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": reply
-    })
+    st.session_state.messages.append({"role": "assistant", "content": reply})
