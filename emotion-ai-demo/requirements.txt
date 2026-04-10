@@ -1,5 +1,7 @@
 streamlit
-transformers>=4.35.0
 torch
-sentencepiece
-openai>=1.0.0
+transformers
+sentence-transformers
+faiss-cpu
+numpy
+requests
