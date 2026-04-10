@@ -30,7 +30,7 @@ def load_emotion_model():
 
 @st.cache_resource
 def load_flan_model():
-    model_name = "google/flan-t5-small"
+    model_name = "google/flan-t5-large"  # Upgraded to large for better responses
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     return tokenizer, model
@@ -50,7 +50,7 @@ if "emotion_history" not in st.session_state:
 if "show_dashboard" not in st.session_state:
     st.session_state.show_dashboard = False
 
-# Memory storage (learning)
+# Memory storage
 if "memory" not in st.session_state:
     st.session_state.memory = {
         "user_facts": {},
@@ -74,172 +74,168 @@ VAD_MAP = {
 # AI Identity
 # -------------------------
 def get_ai_identity():
-    """Return the AI's identity"""
-    return """I am an AI language model created by Moses, a student at KyungDong University. 
-    I'm designed to be an Emotion-Aware AI Companion that can understand feelings, 
-    answer questions, search the internet for information, and learn from our conversations. 
-    How can I help you today?"""
+    return """I am an advanced AI language model created by Moses, a student at KyungDong University. 
+    I can search the internet in real-time, remember our conversations, understand emotions, 
+    and provide accurate, up-to-date information. How can I help you today?"""
 
 # -------------------------
-# RELIABLE INTERNET SEARCH FUNCTIONS
+# POWERFUL INTERNET SEARCH - MULTIPLE RELIABLE SOURCES
 # -------------------------
 
-def search_wikipedia(query):
-    """Search Wikipedia for information - Most reliable for facts"""
+def search_restcountries(query):
+    """Search for country information using REST Countries API"""
     try:
-        # Clean the query for Wikipedia
-        clean_query = query.replace("what is ", "").replace("who is ", "").replace("capital of ", "")
-        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(clean_query)}"
+        # Extract country name from query
+        country_match = re.search(r'population of (\w+)', query.lower())
+        if country_match:
+            country = country_match.group(1)
+        else:
+            # Try to find any country name
+            countries = ['uganda', 'japan', 'china', 'india', 'usa', 'uk', 'france', 'germany', 'italy', 'spain', 
+                        'brazil', 'canada', 'australia', 'russia', 'mexico', 'indonesia', 'nigeria', 'bangladesh',
+                        'pakistan', 'egypt', 'turkey', 'thailand', 'vietnam', 'philippines', 'south korea', 'kenya']
+            for country_name in countries:
+                if country_name in query.lower():
+                    country = country_name
+                    break
+            else:
+                return None
+        
+        # Clean country name
+        country = country.replace(' ', '%20')
+        
+        # REST Countries API
+        url = f"https://restcountries.com/v3.1/name/{country}"
+        response = requests.get(url, timeout=8)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                country_data = data[0]
+                population = country_data.get('population', 0)
+                capital = country_data.get('capital', ['Unknown'])[0]
+                region = country_data.get('region', 'Unknown')
+                
+                # Format nicely
+                if population > 0:
+                    formatted_pop = f"{population:,}"
+                    return f"{country.capitalize()} has a population of {formatted_pop}. Capital: {capital}. Region: {region}."
+    except:
+        pass
+    return None
+
+def search_wikipedia_api(query):
+    """Enhanced Wikipedia search for accurate information"""
+    try:
+        # Clean query for better results
+        search_terms = query.lower()
+        
+        # Remove question words
+        for word in ['what is', 'who is', 'where is', 'when is', 'why is', 'how is', 'tell me about']:
+            search_terms = search_terms.replace(word, '')
+        
+        search_terms = search_terms.strip()
+        
+        # Wikipedia API
+        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(search_terms)}"
         response = requests.get(url, timeout=8)
         
         if response.status_code == 200:
             data = response.json()
             if "extract" in data:
                 extract = data["extract"]
-                # Limit length
-                if len(extract) > 400:
-                    extract = extract[:400] + "..."
+                # Clean up the extract
+                extract = re.sub(r'\([^)]*\)', '', extract)  # Remove parentheticals
+                extract = ' '.join(extract.split()[:50])  # First 50 words
                 return extract
-    except Exception as e:
+    except:
         pass
     return None
 
-def search_duckduckgo_api(query):
-    """Search using DuckDuckGo Instant Answer API (Free, no key needed)"""
+def search_duckduckgo_instant(query):
+    """DuckDuckGo Instant Answer API - Best for facts"""
     try:
-        url = f"https://api.duckduckgo.com/?q={quote(query)}&format=json&no_html=1&skip_disambig=1"
+        url = f"https://api.duckduckgo.com/?q={quote(query)}&format=json&no_html=1&skip_disambig=1&t=hf"
         response = requests.get(url, timeout=8)
         
         if response.status_code == 200:
             data = response.json()
             
-            # Check for abstract (summary)
+            # Check for abstract (most detailed)
             if data.get("AbstractText"):
-                abstract = data["AbstractText"]
-                if len(abstract) > 400:
-                    abstract = abstract[:400] + "..."
-                return abstract
+                return data["AbstractText"][:500]
             
             # Check for definition
             if data.get("Definition"):
-                definition = data["Definition"]
-                if len(definition) > 400:
-                    definition = definition[:400] + "..."
-                return definition
+                return data["Definition"]
             
             # Check for answer
             if data.get("Answer"):
                 return data["Answer"]
             
-            # Check related topics
-            if data.get("RelatedTopics") and len(data["RelatedTopics"]) > 0:
-                first_topic = data["RelatedTopics"][0]
-                if isinstance(first_topic, dict) and first_topic.get("Text"):
-                    text = first_topic["Text"]
-                    if len(text) > 400:
-                        text = text[:400] + "..."
-                    return text
-    except Exception as e:
+            # Check infobox
+            if data.get("Infobox"):
+                infobox = data["Infobox"]
+                if "content" in infobox:
+                    for content in infobox["content"]:
+                        if "label" in content and "value" in content:
+                            if "population" in content["label"].lower():
+                                return f"Population: {content['value']}"
+    except:
         pass
     return None
 
-def search_wikidata(query):
-    """Search Wikidata for factual information"""
-    try:
-        # Search for entity
-        search_url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={quote(query)}&language=en&format=json&limit=1"
-        response = requests.get(search_url, timeout=8)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('search') and len(data['search']) > 0:
-                entity_id = data['search'][0]['id']
-                # Get entity data
-                entity_url = f"https://www.wikidata.org/wiki/Special:EntityData/{entity_id}.json"
-                entity_response = requests.get(entity_url, timeout=8)
-                
-                if entity_response.status_code == 200:
-                    entity_data = entity_response.json()
-                    entities = entity_data.get('entities', {})
-                    
-                    if entity_id in entities:
-                        entity_info = entities[entity_id]
-                        
-                        # Get description
-                        description = ""
-                        if 'descriptions' in entity_info and 'en' in entity_info['descriptions']:
-                            description = entity_info['descriptions']['en']['value']
-                        
-                        # Get label
-                        label = ""
-                        if 'labels' in entity_info and 'en' in entity_info['labels']:
-                            label = entity_info['labels']['en']['value']
-                        
-                        if description:
-                            return f"{label}: {description}" if label else description
-    except Exception as e:
-        pass
-    return None
-
-def search_google_custom(query):
-    """Fallback: Use a free search API (JSONPlaceholder doesn't work, so we'll use a different approach)"""
-    # This is a list of common facts that might be asked
-    common_facts = {
-        "capital of south korea": "Seoul is the capital city of South Korea.",
-        "south korea capital": "Seoul is the capital city of South Korea.",
-        "capital of japan": "Tokyo is the capital of Japan.",
-        "capital of china": "Beijing is the capital of China.",
-        "capital of india": "New Delhi is the capital of India.",
-        "capital of usa": "Washington, D.C. is the capital of the United States.",
-        "capital of uk": "London is the capital of the United Kingdom.",
-        "capital of france": "Paris is the capital of France.",
-        "capital of germany": "Berlin is the capital of Germany.",
-        "capital of italy": "Rome is the capital of Italy.",
-        "capital of spain": "Madrid is the capital of Spain.",
-        "capital of russia": "Moscow is the capital of Russia.",
-        "capital of brazil": "Brasília is the capital of Brazil.",
-        "capital of australia": "Canberra is the capital of Australia.",
-        "capital of canada": "Ottawa is the capital of Canada.",
-        "capital of mexico": "Mexico City is the capital of Mexico.",
-        "capital of egypt": "Cairo is the capital of Egypt.",
-        "capital of turkey": "Ankara is the capital of Turkey.",
-        "capital of thailand": "Bangkok is the capital of Thailand.",
-        "capital of vietnam": "Hanoi is the capital of Vietnam.",
-        "capital of indonesia": "Jakarta is the capital of Indonesia.",
-        "capital of malaysia": "Kuala Lumpur is the capital of Malaysia.",
-        "capital of singapore": "Singapore is the capital of Singapore.",
-        "capital of philippines": "Manila is the capital of the Philippines."
-    }
-    
-    # Check if query matches any common fact
+def search_numerical_fact(query):
+    """Handle numerical facts like population, area, etc."""
     query_lower = query.lower()
-    for key, value in common_facts.items():
-        if key in query_lower:
-            return value
+    
+    # Extract what's being asked
+    if "population" in query_lower:
+        # Extract country name
+        words = query_lower.split()
+        for i, word in enumerate(words):
+            if word == "population" and i+1 < len(words):
+                country = words[i+1]
+                # Special cases
+                country_map = {
+                    'uganda': 'Uganda',
+                    'japan': 'Japan',
+                    'china': 'China',
+                    'india': 'India',
+                    'usa': 'USA',
+                    'us': 'USA',
+                    'uk': 'United Kingdom',
+                    'france': 'France',
+                    'germany': 'Germany'
+                }
+                country_name = country_map.get(country, country.capitalize())
+                
+                # Use REST Countries API
+                return search_restcountries(f"population of {country_name}")
     
     return None
 
-def search_internet(query):
-    """Search the internet using multiple sources - RELIABLE VERSION"""
+def search_combined(query):
+    """Combine multiple search methods for best results"""
     
-    # First, check common facts (fastest)
-    result = search_google_custom(query)
+    # Method 1: Numerical facts (population, etc.)
+    result = search_numerical_fact(query)
     if result:
         return result
     
-    # Try DuckDuckGo API (best for general queries)
-    result = search_duckduckgo_api(query)
+    # Method 2: DuckDuckGo (good for general facts)
+    result = search_duckduckgo_instant(query)
+    if result and len(result) > 20:
+        return result
+    
+    # Method 3: REST Countries (excellent for country data)
+    result = search_restcountries(query)
     if result:
         return result
     
-    # Try Wikipedia (best for factual/encyclopedic info)
-    result = search_wikipedia(query)
-    if result:
-        return result
-    
-    # Try Wikidata as last resort
-    result = search_wikidata(query)
-    if result:
+    # Method 4: Wikipedia (fallback for detailed info)
+    result = search_wikipedia_api(query)
+    if result and len(result) > 30:
         return result
     
     return None
@@ -272,7 +268,6 @@ def extract_user_facts(user_input):
     if age_match:
         facts_extracted["age"] = age_match.group(1)
     
-    # Store in memory
     for key, value in facts_extracted.items():
         st.session_state.memory["user_facts"][key] = value
     
@@ -292,7 +287,6 @@ def store_qa_pair(question, answer):
         "asked_count": 1
     })
     
-    # Keep only last 100 pairs
     if len(st.session_state.memory["qa_pairs"]) > 100:
         st.session_state.memory["qa_pairs"] = st.session_state.memory["qa_pairs"][-100:]
 
@@ -308,7 +302,7 @@ def recall_from_memory(user_input):
 
 def is_factual_question(user_input):
     """Determine if the query is a factual question"""
-    question_words = ["what", "who", "where", "when", "why", "how", "which", "is", "are", "do", "does", "capital"]
+    question_words = ["what", "who", "where", "when", "why", "how", "which", "is", "are", "population", "capital"]
     emotional_words = ["feel", "feeling", "sad", "happy", "angry", "scared", "lonely", "tired", "sick", "joke"]
     
     user_lower = user_input.lower()
@@ -316,11 +310,11 @@ def is_factual_question(user_input):
     is_question = any(user_lower.startswith(word) for word in question_words) or user_lower.endswith('?')
     is_emotional = any(word in user_lower for word in emotional_words)
     
-    # Special case: questions about capital cities are factual
-    if "capital" in user_lower:
-        return True
+    # Keywords that indicate factual question
+    factual_keywords = ["population", "capital", "area", "currency", "language", "president", "prime minister"]
+    is_factual_keyword = any(keyword in user_lower for keyword in factual_keywords)
     
-    return is_question and not is_emotional
+    return (is_question and not is_emotional) or is_factual_keyword
 
 def is_personal_question(user_input):
     """Check if user is asking about themselves"""
@@ -334,7 +328,6 @@ def is_greeting(user_input):
     return user_input.lower().strip() in greetings
 
 def get_greeting_response():
-    """Return a friendly greeting"""
     greetings = [
         "Hello! How are you feeling today?",
         "Hi there! 😊 What's on your mind?",
@@ -344,130 +337,128 @@ def get_greeting_response():
     return random.choice(greetings)
 
 # -------------------------
-# Enhanced Response Generation
+# Response Generation
 # -------------------------
 def generate_enhanced_response(user_input, emotion):
-    """Generate response with internet search for factual questions"""
+    """Generate smart response with search"""
     
-    # PRIORITY 1: Identity question
-    if "who are you" in user_input.lower() or "what are you" in user_input.lower():
+    # Identity question
+    if "who are you" in user_input.lower():
         return get_ai_identity()
     
-    # PRIORITY 2: Greeting
+    # Greeting
     if is_greeting(user_input):
         return get_greeting_response()
     
-    # PRIORITY 3: Personal questions
+    # Personal questions
     if is_personal_question(user_input):
         if "name" in user_input.lower() and "name" in st.session_state.memory["user_facts"]:
             return f"Your name is {st.session_state.memory['user_facts']['name']}! I remember you told me."
         elif "name" in user_input.lower():
             return "I don't think you've told me your name yet. What should I call you?"
-        else:
-            return "I remember our conversations! What would you like to know?"
     
-    # PRIORITY 4: Memory recall
+    # Memory recall
     recalled = recall_from_memory(user_input)
     if recalled:
         return recalled
     
-    # PRIORITY 5: Extract user facts
+    # Extract user facts
     facts = extract_user_facts(user_input)
     if facts and "name" in facts:
         return f"Nice to meet you, {facts['name']}! How can I help you today?"
     
-    # PRIORITY 6: Factual questions - SEARCH THE INTERNET
+    # Factual questions - SEARCH
     if is_factual_question(user_input):
-        with st.spinner("🌐 Searching the internet..."):
-            search_result = search_internet(user_input)
+        with st.spinner("🌐 Searching for accurate information..."):
+            search_result = search_combined(user_input)
             
             if search_result:
-                # Store in memory
-                store_qa_pair(user_input, search_result)
-                return search_result
-            else:
-                # Try FLAN as fallback
+                # Use FLAN to clean up the answer
                 try:
-                    prompt = f"Answer this question concisely: {user_input}"
-                    inputs = flan_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=200)
+                    prompt = f"Based on this information: '{search_result}'\n\nAnswer this question clearly and concisely in 1 sentence: {user_input}"
+                    inputs = flan_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=400)
                     with torch.no_grad():
                         outputs = flan_model.generate(
                             inputs.input_ids,
-                            max_length=100,
+                            max_length=150,
                             num_beams=4,
                             temperature=0.5,
                             pad_token_id=flan_tokenizer.eos_token_id
                         )
-                    response = flan_tokenizer.decode(outputs[0], skip_special_tokens=True)
-                    if response and len(response) > 5 and "can't answer" not in response.lower():
-                        store_qa_pair(user_input, response)
-                        return response
+                    cleaned = flan_tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    if cleaned and len(cleaned) > 5:
+                        store_qa_pair(user_input, cleaned)
+                        return cleaned
                 except:
                     pass
                 
-                return "I'm having trouble finding that information. Could you rephrase your question?"
+                store_qa_pair(user_input, search_result)
+                return search_result
+            else:
+                return "I couldn't find reliable information. Could you rephrase your question or ask about something else?"
     
-    # PRIORITY 7: Emotional responses
+    # Emotional responses
     return get_empathetic_response(user_input, emotion)
 
 def get_empathetic_response(user_input, emotion):
-    """Generate empathetic response for emotional content"""
+    """Generate empathetic response"""
     
     user_lower = user_input.lower()
     emotion = emotion.lower()
     
-    # Specific triggers
-    if any(word in user_lower for word in ["sick", "ill", "pain", "hurt", "unwell"]):
-        return "I'm sorry you're not feeling well. Make sure you rest and stay hydrated. Do you need anything?"
+    # Health
+    if any(word in user_lower for word in ["sick", "ill", "pain", "hurt"]):
+        return "I'm sorry you're not feeling well. Please rest and stay hydrated. Do you need anything?"
     
-    if any(word in user_lower for word in ["tired", "exhausted", "sleep", "fatigue"]):
-        return "I hear that you're tired. Is there any way you can take a short break or rest right now?"
+    # Tired
+    if any(word in user_lower for word in ["tired", "exhausted"]):
+        return "I hear you're tired. Can you take a short break or rest?"
     
-    if any(word in user_lower for word in ["stressed", "overwhelmed", "anxious", "worry"]):
-        return "That sounds stressful. Remember to breathe deeply and take things one step at a time."
+    # Stressed
+    if any(word in user_lower for word in ["stressed", "overwhelmed", "anxious"]):
+        return "That sounds stressful. Take a deep breath. What's one small thing that might help?"
     
-    if any(word in user_lower for word in ["lonely", "alone", "isolated"]):
-        return "I'm here with you. Feeling lonely is hard, but you're not alone. Would you like to talk?"
+    # Lonely
+    if "lonely" in user_lower or "alone" in user_lower:
+        return "I'm here with you. You're not alone. Would you like to talk?"
     
-    if any(word in user_lower for word in ["angry", "mad", "frustrated", "annoyed", "upset"]):
-        return "I hear your frustration. It's okay to feel angry. Would you like to talk about what's bothering you?"
+    # Angry
+    if any(word in user_lower for word in ["angry", "mad", "frustrated"]):
+        return "I hear your frustration. Would you like to talk about what's bothering you?"
     
-    if any(word in user_lower for word in ["happy", "good", "great", "wonderful", "amazing", "excited"]):
-        return "That's wonderful to hear! 😊 What's making you happy today?"
+    # Happy
+    if any(word in user_lower for word in ["happy", "good", "great", "wonderful"]):
+        return "That's wonderful! 😊 What's making you happy today?"
     
+    # Joke
     if any(word in user_lower for word in ["joke", "funny", "make me laugh"]):
         jokes = [
             "Why don't scientists trust atoms? Because they make up everything!",
             "What do you call a fake noodle? An impasta!",
-            "Why did the scarecrow win an award? Because he was outstanding in his field!",
-            "What do you call a bear with no teeth? A gummy bear!"
+            "Why did the scarecrow win an award? Because he was outstanding in his field!"
         ]
         return random.choice(jokes)
     
+    # Thank you
     if "thank" in user_lower:
-        return "You're very welcome! 😊 Is there anything else I can help you with?"
+        return "You're very welcome! 😊 Is there anything else I can help with?"
     
-    # Emotion-based responses
-    emotion_responses = {
-        "sadness": ["I hear that you're feeling down. I'm sorry you're going through this. Would you like to talk more?"],
-        "joy": ["That's great to hear! 😊 Tell me more about what's bringing you happiness."],
-        "anger": ["That sounds frustrating. Would you like to tell me what happened?"],
-        "fear": ["That sounds worrying. I'm here with you. What's concerning you most?"],
-        "surprise": ["That's interesting! How are you processing this?"],
-        "love": ["That's beautiful to hear. Tell me more!"],
-        "neutral": ["I appreciate you sharing that. How can I support you today?"]
+    # Emotion-based
+    responses = {
+        "sadness": ["I hear you're feeling down. I'm here to listen if you want to talk."],
+        "joy": ["That's great to hear! 😊 Tell me more."],
+        "anger": ["That sounds frustrating. I'm here to listen."],
+        "fear": ["That sounds worrying. I'm here with you."],
+        "neutral": ["How can I support you today?"]
     }
     
-    responses = emotion_responses.get(emotion, emotion_responses["neutral"])
-    return random.choice(responses)
+    return random.choice(responses.get(emotion, ["I appreciate you sharing that. How can I help?"]))
 
 # -------------------------
-# Memory Dashboard
+# UI Components
 # -------------------------
 def show_memory_dashboard():
-    """Display what the AI has learned"""
     st.subheader("🧠 What I've Learned")
-    
     if st.session_state.memory["user_facts"]:
         st.write("**About you:**")
         for key, value in st.session_state.memory["user_facts"].items():
@@ -476,50 +467,55 @@ def show_memory_dashboard():
     if st.session_state.memory["qa_pairs"]:
         st.write(f"**I remember {len(st.session_state.memory['qa_pairs'])} past questions**")
 
+def reset_chat():
+    """Reset the entire conversation"""
+    st.session_state.messages = []
+    st.session_state.emotion_history = []
+    st.session_state.memory = {
+        "user_facts": {},
+        "qa_pairs": []
+    }
+    st.rerun()
+
 # -------------------------
-# UI Header
+# Main UI
 # -------------------------
 st.markdown("<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Created by Moses, KyungDong University • With Internet Search</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Created by Moses, KyungDong University • Smart Internet Search</p>", unsafe_allow_html=True)
 
 st.divider()
 
-# -------------------------
 # Sidebar
-# -------------------------
 with st.sidebar:
-    st.markdown("### 📚 AI Capabilities")
-    st.markdown("✅ **Searches Wikipedia, DuckDuckGo & Wikidata**")
-    st.markdown("✅ **Remembers your name & facts**")
-    st.markdown("✅ **Learns from conversations**")
+    st.markdown("### 📚 Features")
+    st.markdown("✅ **Real-time internet search**")
+    st.markdown("✅ **Population & country data**")
+    st.markdown("✅ **Remembers your name**")
     st.markdown("✅ **Understands emotions**")
     st.markdown("✅ **Created by Moses at KyungDong University**")
     
     st.divider()
     show_memory_dashboard()
     
-    if st.button("🗑️ Clear Memory"):
+    st.divider()
+    if st.button("🔄 Start New Chat", use_container_width=True):
+        reset_chat()
+    
+    if st.button("🗑️ Clear Memory Only", use_container_width=True):
         st.session_state.memory = {
             "user_facts": {},
             "qa_pairs": []
         }
         st.rerun()
 
-# -------------------------
-# Dashboard Toggle
-# -------------------------
+# Dashboard toggle
 if st.button("📊 Show / Hide Emotional Insights"):
     st.session_state.show_dashboard = not st.session_state.show_dashboard
 
-# -------------------------
-# Dashboard
-# -------------------------
 if st.session_state.show_dashboard and st.session_state.emotion_history:
     st.subheader("📊 Emotional Insights")
-    history_data = st.session_state.emotion_history
-
     emotion_counts = {}
-    for item in history_data:
+    for item in st.session_state.emotion_history:
         e = item["emotion"]
         emotion_counts[e] = emotion_counts.get(e, 0) + 1
     if emotion_counts:
@@ -527,26 +523,20 @@ if st.session_state.show_dashboard and st.session_state.emotion_history:
 
 st.divider()
 
-# -------------------------
-# Display Chat
-# -------------------------
+# Chat display
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# -------------------------
-# Chat Input
-# -------------------------
+# Chat input
 user_input = st.chat_input("Ask me anything! I can search the internet for facts.")
 
 if user_input:
-    # Save user message
     st.session_state.messages.append({"role": "user", "content": user_input})
-    
     with st.chat_message("user"):
         st.markdown(user_input)
     
-    # Emotion Detection
+    # Emotion detection
     try:
         raw = emotion_model(user_input)
         emotions = raw[0] if isinstance(raw[0], list) else raw
@@ -555,24 +545,17 @@ if user_input:
     except:
         emotion = "neutral"
     
-    # Save Emotion History
     v, a, d = VAD_MAP.get(emotion.lower(), (0.5, 0.5, 0.5))
     st.session_state.emotion_history.append({
-        "emotion": emotion,
-        "valence": v,
-        "arousal": a,
-        "dominance": d
+        "emotion": emotion, "valence": v, "arousal": a, "dominance": d
     })
     
     if len(st.session_state.emotion_history) > 20:
         st.session_state.emotion_history.pop(0)
     
-    # Generate Response
     reply = generate_enhanced_response(user_input, emotion)
     
-    # Show Response
     with st.chat_message("assistant"):
         st.markdown(reply)
     
-    # Save response
     st.session_state.messages.append({"role": "assistant", "content": reply})
