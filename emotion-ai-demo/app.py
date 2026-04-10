@@ -2,7 +2,6 @@ import streamlit as st
 from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
 import random
-import json
 import requests
 from datetime import datetime
 import hashlib
@@ -56,7 +55,7 @@ if "memory" not in st.session_state:
         "user_facts": {},  # Stores facts about the user
         "conversation_summaries": [],  # Stores summaries of past conversations
         "preferences": {},  # Stores user preferences
-        "qa_pairs": {}  # Question-answer pairs for learning (dictionary for faster lookup)
+        "qa_pairs": []  # Changed from dict to list to avoid issues
     }
 
 # -------------------------
@@ -161,38 +160,35 @@ def extract_user_facts(user_input):
 
 def store_qa_pair(question, answer):
     """Store question-answer pairs for learning"""
-    # Create a normalized key for the question
-    normalized_q = question.lower().strip()
-    q_hash = hashlib.md5(normalized_q.encode()).hexdigest()
+    # Check if this question already exists
+    for qa in st.session_state.memory["qa_pairs"]:
+        if qa["question"].lower() == question.lower():
+            qa["answer"] = answer
+            qa["asked_count"] += 1
+            qa["last_asked"] = datetime.now().isoformat()
+            return
     
-    st.session_state.memory["qa_pairs"][q_hash] = {
+    # Add new QA pair
+    st.session_state.memory["qa_pairs"].append({
         "question": question,
         "answer": answer,
-        "asked_count": st.session_state.memory["qa_pairs"].get(q_hash, {}).get("asked_count", 0) + 1,
+        "asked_count": 1,
+        "first_asked": datetime.now().isoformat(),
         "last_asked": datetime.now().isoformat()
-    }
+    })
     
-    # Keep only last 200 pairs
-    if len(st.session_state.memory["qa_pairs"]) > 200:
-        # Remove oldest based on last_asked
-        oldest = min(st.session_state.memory["qa_pairs"].items(), 
-                    key=lambda x: x[1].get("last_asked", ""))
-        del st.session_state.memory["qa_pairs"][oldest[0]]
+    # Keep only last 100 pairs
+    if len(st.session_state.memory["qa_pairs"]) > 100:
+        st.session_state.memory["qa_pairs"] = st.session_state.memory["qa_pairs"][-100:]
 
 def recall_from_memory(user_input):
     """Try to recall if this question was asked before"""
     user_lower = user_input.lower().strip()
     
-    # Direct match
-    q_hash = hashlib.md5(user_lower.encode()).hexdigest()
-    if q_hash in st.session_state.memory["qa_pairs"]:
-        return st.session_state.memory["qa_pairs"][q_hash]["answer"]
-    
-    # Partial match (check if any stored question is similar)
-    for q_hash, qa in st.session_state.memory["qa_pairs"].items():
-        if qa["question"].lower() in user_lower or user_lower in qa["question"].lower():
-            if len(qa["question"]) > 5:  # Avoid matching very short questions
-                return qa["answer"]
+    # Check for exact or similar matches
+    for qa in st.session_state.memory["qa_pairs"]:
+        if qa["question"].lower() == user_lower or user_lower in qa["question"].lower():
+            return qa["answer"]
     
     return None
 
@@ -267,7 +263,7 @@ def generate_enhanced_response(user_input, emotion):
     
     # PRIORITY 2: Check personal questions (about the user)
     if is_personal_question(user_input):
-        if "name" in user_input.lower() and "my name" in st.session_state.memory["user_facts"]:
+        if "name" in user_input.lower() and "name" in st.session_state.memory["user_facts"]:
             return f"Your name is {st.session_state.memory['user_facts']['name']}! I remember you told me."
         elif "name" in user_input.lower():
             return "I don't think you've told me your name yet. What should I call you?"
@@ -283,7 +279,7 @@ def generate_enhanced_response(user_input, emotion):
     # PRIORITY 4: Check memory for previously asked questions
     recalled = recall_from_memory(user_input)
     if recalled:
-        return f"{recalled}"
+        return recalled
     
     # PRIORITY 5: Factual questions get search or FLAN
     if is_factual_question(user_input):
@@ -390,35 +386,39 @@ def get_empathetic_response(user_input, emotion):
     if "thank" in user_lower:
         return "You're very welcome! 😊 Is there anything else I can help you with?"
     
+    # Who are you question
+    if "who are you" in user_lower:
+        return "I'm your Emotion-Aware AI Companion! I can answer questions, remember what you tell me, and understand your feelings. How can I help you today?"
+    
     # Emotion-based responses
     emotion_responses = {
         "sadness": [
-            f"I hear that you're feeling down. I'm sorry you're going through this. Would you like to talk more?",
-            f"That sounds really difficult. It's okay to feel sad sometimes. I'm here to listen."
+            "I hear that you're feeling down. I'm sorry you're going through this. Would you like to talk more?",
+            "That sounds really difficult. It's okay to feel sad sometimes. I'm here to listen."
         ],
         "joy": [
-            f"That's great to hear! 😊 Tell me more about what's bringing you happiness.",
-            f"I love that you're feeling joyful! What's the best part of your day?"
+            "That's great to hear! 😊 Tell me more about what's bringing you happiness.",
+            "I love that you're feeling joyful! What's the best part of your day?"
         ],
         "anger": [
-            f"That sounds frustrating. Would you like to tell me what happened?",
-            f"I can hear that you're upset. Sometimes venting helps - I'm here to listen."
+            "That sounds frustrating. Would you like to tell me what happened?",
+            "I can hear that you're upset. Sometimes venting helps - I'm here to listen."
         ],
         "fear": [
-            f"That sounds worrying. I'm here with you. What's concerning you most?",
-            f"Fear can be really overwhelming. You're not alone in this."
+            "That sounds worrying. I'm here with you. What's concerning you most?",
+            "Fear can be really overwhelming. You're not alone in this."
         ],
         "surprise": [
-            f"That's interesting! How are you processing this?",
-            f"Life definitely has its surprises! How do you feel about this?"
+            "That's interesting! How are you processing this?",
+            "Life definitely has its surprises! How do you feel about this?"
         ],
         "love": [
-            f"That's beautiful to hear. Tell me more!",
-            f"I'm so glad you're experiencing that feeling."
+            "That's beautiful to hear. Tell me more!",
+            "I'm so glad you're experiencing that feeling."
         ],
         "neutral": [
-            f"I appreciate you sharing that. How can I support you today?",
-            f"I hear you. Is there anything specific you'd like to talk about?"
+            "I appreciate you sharing that. How can I support you today?",
+            "I hear you. Is there anything specific you'd like to talk about?"
         ]
     }
     
@@ -441,10 +441,11 @@ def show_memory_dashboard():
     
     if st.session_state.memory["qa_pairs"]:
         st.write(f"**I remember {len(st.session_state.memory['qa_pairs'])} past questions**")
-        # Show last 3
-        recent = list(st.session_state.memory["qa_pairs"].values())[-3:]
+        # Show last 3 (safely)
+        recent = st.session_state.memory["qa_pairs"][-3:] if len(st.session_state.memory["qa_pairs"]) > 0 else []
         for qa in recent:
-            st.write(f"- {qa['question'][:50]}...")
+            question_preview = qa["question"][:50] + "..." if len(qa["question"]) > 50 else qa["question"]
+            st.write(f"- {question_preview}")
 
 # -------------------------
 # UI Header
@@ -472,7 +473,7 @@ with st.sidebar:
             "user_facts": {},
             "conversation_summaries": [],
             "preferences": {},
-            "qa_pairs": {}
+            "qa_pairs": []
         }
         st.rerun()
 
