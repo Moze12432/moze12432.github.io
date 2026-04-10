@@ -4,10 +4,9 @@ import random
 import re
 import requests
 import sqlite3
-import faiss
 import numpy as np
 from datetime import datetime
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 
 # -------------------------
@@ -36,70 +35,56 @@ content TEXT
 
 conn.commit()
 
-
 def save_memory(text):
     cursor.execute("INSERT INTO memories(content) VALUES (?)", (text,))
     conn.commit()
 
-
 def load_memories():
-
-    cursor.execute("SELECT content FROM memories ORDER BY id DESC LIMIT 50")
-
+    cursor.execute("SELECT content FROM memories ORDER BY id DESC LIMIT 30")
     rows = cursor.fetchall()
-
     return [r[0] for r in rows]
 
-
 # -------------------------
-# VECTOR MEMORY
+# VECTOR MEMORY (LIGHTWEIGHT)
 # -------------------------
 
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+@st.cache_resource
+def load_embed_model():
+    return SentenceTransformer("all-MiniLM-L6-v2")
 
-dimension = 384
+embed_model = load_embed_model()
 
-index = faiss.IndexFlatL2(dimension)
-
-vector_texts = []
-
+vector_memory = []
 
 def store_vector(text):
+    vec = embed_model.encode(text)
+    vector_memory.append((text, vec))
 
-    vec = embed_model.encode([text])
+def retrieve_vector(query, k=2):
 
-    index.add(np.array(vec))
-
-    vector_texts.append(text)
-
-
-def retrieve_vector(query, k=3):
-
-    if len(vector_texts) == 0:
+    if not vector_memory:
         return []
 
-    vec = embed_model.encode([query])
+    qvec = embed_model.encode(query)
 
-    D, I = index.search(np.array(vec), k)
+    scores = []
 
-    results = []
+    for text, vec in vector_memory:
+        sim = np.dot(qvec, vec)
+        scores.append((sim, text))
 
-    for i in I[0]:
+    scores.sort(reverse=True)
 
-        if i < len(vector_texts):
-            results.append(vector_texts[i])
-
-    return results
-
+    return [s[1] for s in scores[:k]]
 
 # -------------------------
-# LOAD LLM
+# LOAD FAST LLM
 # -------------------------
 
 @st.cache_resource
 def load_llm():
 
-    model_name = "microsoft/DialoGPT-medium"
+    model_name = "distilgpt2"
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -107,9 +92,7 @@ def load_llm():
 
     return tokenizer, model
 
-
 tokenizer, model = load_llm()
-
 
 def llm_generate(prompt):
 
@@ -117,10 +100,10 @@ def llm_generate(prompt):
 
     output = model.generate(
         inputs,
-        max_length=300,
+        max_length=120,
         pad_token_id=tokenizer.eos_token_id,
         do_sample=True,
-        top_k=50,
+        temperature=0.7,
         top_p=0.9
     )
 
@@ -128,27 +111,9 @@ def llm_generate(prompt):
 
     return response
 
-
 # -------------------------
-# EMOTION MODEL
+# INTERNET SEARCH TOOL
 # -------------------------
-
-@st.cache_resource
-def load_emotion():
-
-    return pipeline(
-        "text-classification",
-        model="j-hartmann/emotion-english-distilroberta-base",
-        return_all_scores=True
-    )
-
-
-emotion_model = load_emotion()
-
-# -------------------------
-# INTERNET SEARCH
-# -------------------------
-
 
 def internet_search(query):
 
@@ -168,52 +133,32 @@ def internet_search(query):
 
     return None
 
-
 # -------------------------
 # CALCULATOR TOOL
 # -------------------------
 
-
-def calculator(expression):
+def calculator(query):
 
     try:
+        expression = re.findall(r'[\d\.\+\-\*\/\(\)]+', query)
 
-        return str(eval(expression))
+        if expression:
+            return str(eval(expression[0]))
 
     except:
+        pass
 
-        return None
-
-
-# -------------------------
-# SELF REFLECTION
-# -------------------------
-
-
-def improve_response(answer):
-
-    prompt = f"""
-Improve this answer so it is clearer and more helpful.
-
-Answer:
-{answer}
-"""
-
-    improved = llm_generate(prompt)
-
-    return improved
-
+    return None
 
 # -------------------------
 # PLANNER
 # -------------------------
 
-
 def planner(query):
 
     q = query.lower()
 
-    if "calculate" in q or re.search(r"\d+\s*[\+\-\*\/]\s*\d+", q):
+    if re.search(r"\d+\s*[\+\-\*\/]\s*\d+", q):
         return "calculator"
 
     if "who is" in q or "what is" in q or "search" in q:
@@ -227,11 +172,9 @@ def planner(query):
 
     return "llm"
 
-
 # -------------------------
-# AUTONOMOUS CONTROLLER
+# AGENT CONTROLLER
 # -------------------------
-
 
 def agent_controller(query):
 
@@ -252,33 +195,27 @@ def agent_controller(query):
             return f"🔎 {result}"
 
     if task == "time":
-
         return datetime.now().strftime("%H:%M:%S")
 
     if task == "date":
-
-        return datetime.now().strftime("%A %B %d %Y")
-
-    # MEMORY RETRIEVAL
+        return datetime.now().strftime("%A, %B %d, %Y")
 
     memories = retrieve_vector(query)
 
-    history = "\n".join(memories)
+    memory_context = "\n".join(memories)
 
     prompt = f"""
 You are an intelligent AI assistant.
 
-Relevant memory:
-{history}
+Context from memory:
+{memory_context}
 
 User: {query}
 
-Answer clearly.
+Answer:
 """
 
     answer = llm_generate(prompt)
-
-    answer = improve_response(answer)
 
     store_vector(query)
     store_vector(answer)
@@ -288,14 +225,12 @@ Answer clearly.
 
     return answer
 
-
 # -------------------------
 # SESSION STATE
 # -------------------------
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
 
 # -------------------------
 # SIDEBAR
@@ -305,22 +240,20 @@ with st.sidebar:
 
     st.title("AI System")
 
-    st.write("Autonomous AI Agent")
+    st.write("Autonomous AI Companion")
 
     if st.button("Clear Chat"):
-
         st.session_state.messages = []
 
-    st.subheader("Stored Memory")
+    st.subheader("Recent Memory")
 
     mems = load_memories()
 
     for m in mems[:5]:
         st.write("-", m[:60])
 
-
 # -------------------------
-# UI
+# CHAT UI
 # -------------------------
 
 st.title("🧠 Autonomous AI Companion")
@@ -328,12 +261,9 @@ st.title("🧠 Autonomous AI Companion")
 for m in st.session_state.messages:
 
     with st.chat_message(m["role"]):
-
         st.write(m["content"])
 
-
 query = st.chat_input("Ask anything...")
-
 
 if query:
 
