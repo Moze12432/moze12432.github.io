@@ -58,189 +58,125 @@ VAD_MAP = {
 # AI Identity
 # -------------------------
 def get_ai_identity():
-    return "I am an AI assistant created by Moses, a student at KyungDong University. I can search the internet, translate languages, answer questions, and understand emotions."
+    return "I am an AI assistant created by Moses, a student at KyungDong University. I can search the internet, answer questions, do math, tell jokes, and understand emotions."
 
 # -------------------------
-# IMPROVED INTERNET SEARCH - MULTIPLE SOURCES
+# SIMPLE MATH (no search needed)
 # -------------------------
+def calculate_math(question):
+    """Handle math questions directly"""
+    math_patterns = [
+        (r"square root of (\d+)", lambda m: f"The square root of {m.group(1)} is {float(m.group(1))**0.5}"),
+        (r"(\d+) squared", lambda m: f"{m.group(1)} squared is {int(m.group(1))**2}"),
+        (r"(\d+) \* (\d+)", lambda m: f"{m.group(1)} × {m.group(2)} = {int(m.group(1)) * int(m.group(2))}"),
+        (r"(\d+) \+ (\d+)", lambda m: f"{m.group(1)} + {m.group(2)} = {int(m.group(1)) + int(m.group(2))}"),
+        (r"(\d+) - (\d+)", lambda m: f"{m.group(1)} - {m.group(2)} = {int(m.group(1)) - int(m.group(2))}"),
+        (r"(\d+) / (\d+)", lambda m: f"{m.group(1)} ÷ {m.group(2)} = {int(m.group(1)) / int(m.group(2))}"),
+    ]
+    
+    for pattern, func in math_patterns:
+        match = re.search(pattern, question.lower())
+        if match:
+            return func(match)
+    return None
 
-def search_duckduckgo_lite(query):
-    """Search DuckDuckGo HTML version for real results"""
+# -------------------------
+# RELIABLE WEB SEARCH - DuckDuckGo HTML
+# -------------------------
+def search_web(query):
+    """Search DuckDuckGo and extract clean answers"""
     try:
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
-        response = requests.get(url, timeout=10, headers=headers)
+        response = requests.get(url, timeout=15, headers=headers)
         
         if response.status_code == 200:
-            # Extract result snippets
-            snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', response.text, re.DOTALL)
+            # Extract the first result snippet
+            # Look for result snippet pattern
+            snippet_pattern = r'class="result__snippet"[^>]*>(.*?)</a>'
+            snippets = re.findall(snippet_pattern, response.text, re.DOTALL)
+            
             if snippets:
-                # Clean HTML tags
-                clean = re.sub(r'<[^>]+>', '', snippets[0])
-                clean = re.sub(r'&[a-z]+;', '', clean)
-                return clean[:500]
-    except:
-        pass
-    return None
-
-def search_duckduckgo_api(query):
-    """Search DuckDuckGo Instant Answer API"""
-    try:
-        url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json&no_html=1&skip_disambig=1"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if data.get("AbstractText"):
-                return data["AbstractText"]
-            if data.get("Definition"):
-                return data["Definition"]
-            if data.get("Answer"):
-                return data["Answer"]
-            if data.get("RelatedTopics") and len(data["RelatedTopics"]) > 0:
-                first = data["RelatedTopics"][0]
-                if isinstance(first, dict) and first.get("Text"):
-                    return first["Text"]
-    except:
-        pass
-    return None
-
-def search_wikipedia(query):
-    """Search Wikipedia"""
-    try:
-        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(query)}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if "extract" in data:
-                return data["extract"]
-    except:
-        pass
-    return None
-
-def search_wikihow(query):
-    """Search WikiHow for how-to questions"""
-    if "how to" in query.lower():
-        try:
-            search_term = query.lower().replace("how to", "").strip()
-            url = f"https://www.wikihow.com/api.php?action=query&list=search&srsearch={urllib.parse.quote(search_term)}&format=json"
-            response = requests.get(url, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("query", {}).get("search"):
-                    title = data["query"]["search"][0]["title"]
-                    return f"How to {title.lower()}: Visit wikihow.com for step-by-step instructions."
-        except:
-            pass
-    return None
-
-def search_translation(query):
-    """Handle translation requests specifically"""
-    # Pattern: "how to say X in Y" or "translate X to Y"
-    patterns = [
-        r"how to say (.+?) in (\w+)",
-        r"translate (.+?) to (\w+)",
-        r"what is (.+?) in (\w+)",
-        r"say (.+?) in (\w+)"
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, query.lower())
-        if match:
-            word = match.group(1).strip()
-            language = match.group(2).strip()
-            
-            # Use MyMemory API for translations (free)
-            try:
-                url = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(word)}&langpair=en|{language}"
-                response = requests.get(url, timeout=10)
+                # Clean the snippet
+                answer = snippets[0]
+                # Remove HTML tags
+                answer = re.sub(r'<[^>]+>', '', answer)
+                # Remove special characters
+                answer = re.sub(r'&[a-z]+;', '', answer)
+                # Clean up whitespace
+                answer = ' '.join(answer.split())
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("responseData", {}).get("translatedText"):
-                        translation = data["responseData"]["translatedText"]
-                        return f'"{word}" in {language.capitalize()} is: "{translation}"'
-            except:
-                pass
-            
-            # Fallback for common languages
-            common_translations = {
-                "korean": {"hello": "안녕하세요 (annyeonghaseyo)"},
-                "japanese": {"hello": "こんにちは (konnichiwa)"},
-                "chinese": {"hello": "你好 (nǐ hǎo)"},
-                "spanish": {"hello": "hola"},
-                "french": {"hello": "bonjour"},
-                "german": {"hello": "hallo"},
-                "italian": {"hello": "ciao"},
-                "russian": {"hello": "здравствуйте (zdravstvuyte)"},
-            }
-            
-            if language in common_translations and word in common_translations[language]:
-                return f'"{word}" in {language.capitalize()} is: "{common_translations[language][word]}"'
-            
-            return f"I searched but couldn't find the translation for '{word}' in {language}. Could you try a different word or language?"
-    
-    return None
+                if len(answer) > 20:
+                    return answer
+        
+        return None
+    except Exception as e:
+        return None
 
-def comprehensive_search(query):
-    """Combine all search methods"""
+# -------------------------
+# COMMON KNOWLEDGE (direct answers for common queries)
+# -------------------------
+def get_direct_answer(question):
+    """Provide direct answers for common questions without API calls"""
+    q = question.lower().strip()
     
-    # First, check if it's a translation request
-    translation = search_translation(query)
-    if translation:
-        return translation
+    # Translations
+    translations = {
+        "how to say hello in korean": "In Korean, 'hello' is '안녕하세요' (annyeonghaseyo).",
+        "how to say thank you in korean": "In Korean, 'thank you' is '감사합니다' (gamsahamnida).",
+        "how to say goodbye in korean": "In Korean, 'goodbye' is '안녕히 가세요' (annyeonghi gaseyo) when someone is leaving.",
+        "hello in korean": "Hello in Korean is '안녕하세요' (annyeonghaseyo).",
+        "thank you in korean": "Thank you in Korean is '감사합니다' (gamsahamnida).",
+        "how to say hello in japanese": "In Japanese, 'hello' is 'こんにちは' (konnichiwa).",
+        "how to say hello in spanish": "In Spanish, 'hello' is 'hola'.",
+        "how to say hello in french": "In French, 'hello' is 'bonjour'.",
+        "how to say hello in german": "In German, 'hello' is 'hallo'.",
+        "how to say hello in chinese": "In Chinese, 'hello' is '你好' (nǐ hǎo).",
+    }
     
-    # Check for how-to questions
-    wikihow = search_wikihow(query)
-    if wikihow:
-        return wikihow
+    for key, value in translations.items():
+        if key in q:
+            return value
     
-    # Try DuckDuckGo API
-    result = search_duckduckgo_api(query)
-    if result and len(result) > 20:
-        return result
+    # Facts
+    facts = {
+        "what is the capital of france": "The capital of France is Paris.",
+        "what is the capital of japan": "The capital of Japan is Tokyo.",
+        "what is the capital of south korea": "The capital of South Korea is Seoul.",
+        "what is the capital of china": "The capital of China is Beijing.",
+        "what is the capital of india": "The capital of India is New Delhi.",
+        "what is the capital of uk": "The capital of the United Kingdom is London.",
+        "what is the capital of usa": "The capital of the United States is Washington, D.C.",
+        "what is the capital of germany": "The capital of Germany is Berlin.",
+        "what is the capital of italy": "The capital of Italy is Rome.",
+        "what is the capital of spain": "The capital of Spain is Madrid.",
+    }
     
-    # Try Wikipedia
-    result = search_wikipedia(query)
-    if result and len(result) > 50:
-        return result
-    
-    # Try DuckDuckGo HTML as last resort
-    result = search_duckduckgo_lite(query)
-    if result and len(result) > 20:
-        return result
+    for key, value in facts.items():
+        if key in q:
+            return value
     
     return None
 
 # -------------------------
-# RESPONSE GENERATION
+# JOKES
 # -------------------------
-
 def get_joke():
-    """Get a joke from the internet"""
-    try:
-        url = "https://official-joke-api.appspot.com/random_joke"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            return f"{data['setup']}\n\n{data['punchline']}"
-    except:
-        pass
-    
     jokes = [
         "Why don't scientists trust atoms? Because they make up everything!",
         "What do you call a fake noodle? An impasta!",
-        "Why did the scarecrow win an award? Because he was outstanding in his field!"
+        "Why did the scarecrow win an award? Because he was outstanding in his field!",
+        "What do you call a bear with no teeth? A gummy bear!",
+        "Why don't eggs tell jokes? They'd crack each other up!"
     ]
     return random.choice(jokes)
 
+# -------------------------
+# EMOTIONAL RESPONSES
+# -------------------------
 def get_emotional_response(user_input):
-    """Generate empathetic response"""
     user_lower = user_input.lower()
     
     if "sick" in user_lower:
@@ -249,24 +185,26 @@ def get_emotional_response(user_input):
         return "I hear that you're tired. Can you take a short break or get some rest?"
     if "sad" in user_lower:
         return "I'm sorry you're feeling sad. Would you like to talk about it?"
-    if "happy" in user_lower:
+    if "happy" in user_lower or "good" in user_lower:
         return "That's wonderful to hear! What's making you happy today?"
-    if "angry" in user_lower:
+    if "angry" in user_lower or "frustrated" in user_lower:
         return "I hear your frustration. Would you like to talk about what's bothering you?"
-    if "stressed" in user_lower:
+    if "stressed" in user_lower or "anxious" in user_lower:
         return "Stress can be challenging. Take a deep breath. What might help you feel better?"
     
     return "I'm here for you. How can I support you right now?"
 
+# -------------------------
+# MAIN RESPONSE GENERATOR
+# -------------------------
 def generate_response(user_input):
-    """Main response generator"""
     user_lower = user_input.lower()
     
-    # Identity
+    # 1. Identity
     if any(q in user_lower for q in ["who are you", "what are you"]):
         return get_ai_identity()
     
-    # Date and time
+    # 2. Date and time
     if any(q in user_lower for q in ["date today", "today's date", "what day is it"]):
         now = datetime.now()
         return f"Today is {now.strftime('%A, %B %d, %Y')}."
@@ -275,59 +213,57 @@ def generate_response(user_input):
         now = datetime.now()
         return f"The current time is {now.strftime('%I:%M %p')}."
     
-    # Simple math
-    calc_match = re.search(r'(\d+\s*[\+\-\*/]\s*\d+)', user_input)
-    if calc_match:
-        try:
-            result = eval(calc_match.group(1))
-            return f"{calc_match.group(1)} = {result}"
-        except:
-            pass
+    # 3. Math questions
+    math_result = calculate_math(user_input)
+    if math_result:
+        return math_result
     
-    # Jokes
-    if any(q in user_lower for q in ["joke", "funny", "make me laugh"]):
+    # 4. Jokes
+    if any(q in user_lower for q in ["joke", "funny", "make me laugh", "tell me a joke"]):
         return get_joke()
     
-    # Greetings
+    # 5. Greetings
     if user_lower.strip() in ["hi", "hello", "hey"]:
-        return "Hello! How can I help you today? Ask me anything, and I'll search the internet for the answer!"
+        return "Hello! How can I help you today?"
     
     if "thank" in user_lower:
-        return "You're very welcome! Is there anything else I can help with?"
+        return "You're very welcome!"
     
-    # Emotional
-    if any(em in user_lower for em in ["feel", "feeling", "sad", "happy", "angry", "tired", "sick", "stressed"]):
+    # 6. Emotional support
+    if any(em in user_lower for em in ["feel", "feeling", "sad", "happy", "angry", "tired", "sick", "stressed", "lonely"]):
         return get_emotional_response(user_input)
     
-    # SEARCH THE INTERNET FOR EVERYTHING ELSE
+    # 7. Direct answers for common questions
+    direct_answer = get_direct_answer(user_input)
+    if direct_answer:
+        return direct_answer
+    
+    # 8. Search the web for everything else
     with st.spinner("Searching the internet..."):
-        search_result = comprehensive_search(user_input)
+        search_result = search_web(user_input)
         
         if search_result:
             return search_result
         
-        # If search fails, try a more general search
-        general_search = search_duckduckgo_lite(user_input)
-        if general_search:
-            return general_search
-        
-        return "I searched the internet but couldn't find an answer. Could you rephrase your question? For example: 'How to say hello in Korean?' or 'What is the capital of France?'"
+        # 9. Fallback
+        return "I couldn't find an answer. Try asking something like: 'What is the capital of France?' or 'How to say hello in Korean?'"
 
 # -------------------------
 # UI
 # -------------------------
 st.markdown("<h1 style='text-align: center;'>Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Created by Moses, KyungDong University | Internet Search Powered</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Created by Moses, KyungDong University</p>", unsafe_allow_html=True)
 
 st.divider()
 
 with st.sidebar:
-    st.markdown("### Features")
-    st.markdown("- Searches the internet for answers")
-    st.markdown("- Translates phrases (uses MyMemory API)")
-    st.markdown("- Answers factual questions")
-    st.markdown("- Provides how-to instructions")
-    st.markdown("- Understands emotions")
+    st.markdown("### What I Can Do")
+    st.markdown("- Answer math questions (square root, multiplication, etc.)")
+    st.markdown("- Translate common phrases")
+    st.markdown("- Answer factual questions")
+    st.markdown("- Tell jokes")
+    st.markdown("- Understand emotions")
+    st.markdown("- Search the internet for answers")
     
     st.divider()
     
@@ -337,7 +273,7 @@ with st.sidebar:
         st.rerun()
     
     st.divider()
-    st.info("Try asking:\n\n- How to say hello in Korean?\n- Translate good morning to Spanish\n- What is the capital of Japan?\n- How to make coffee?\n- Tell me a joke\n- I'm feeling tired")
+    st.info("Try these:\n\n• What is the square root of 16?\n• How to say hello in Korean?\n• What is the capital of Japan?\n• Tell me a joke\n• I'm feeling tired")
 
 if st.button("Show / Hide Emotional Insights"):
     st.session_state.show_dashboard = not st.session_state.show_dashboard
@@ -357,7 +293,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-user_input = st.chat_input("Ask me anything! I'll search the internet...")
+user_input = st.chat_input("Ask me anything...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
