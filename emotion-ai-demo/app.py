@@ -32,8 +32,14 @@ if "messages" not in st.session_state:
 # -------------------------
 # Title
 # -------------------------
-st.markdown("<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Talk to an AI that understands your emotions</p>", unsafe_allow_html=True)
+st.markdown(
+    "<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion</h1>",
+    unsafe_allow_html=True
+)
+st.markdown(
+    "<p style='text-align: center;'>Talk to an AI that understands your emotions</p>",
+    unsafe_allow_html=True
+)
 
 st.divider()
 
@@ -56,13 +62,36 @@ if user_input:
         st.markdown(user_input)
 
     # -------------------------
-    # Emotion Detection
+    # Emotion Detection (FIXED)
     # -------------------------
-    results = emotion_model(user_input)[0]
-    top_emotion = max(results, key=lambda x: x['score'])
+    try:
+        raw_results = emotion_model(user_input)
 
-    emotion = top_emotion['label']
-    confidence = round(top_emotion['score'] * 100, 2)
+        # Normalize output across versions
+        if isinstance(raw_results, list) and len(raw_results) > 0:
+            if isinstance(raw_results[0], list):
+                emotions = raw_results[0]
+            elif isinstance(raw_results[0], dict):
+                emotions = raw_results
+            else:
+                emotions = []
+        else:
+            emotions = []
+
+        # Safe fallback
+        if not emotions:
+            emotion = "neutral"
+            confidence = 0.0
+        else:
+            top_emotion = max(emotions, key=lambda x: x.get('score', 0))
+            emotion = top_emotion.get('label', 'unknown')
+            confidence = round(top_emotion.get('score', 0) * 100, 2)
+
+    except Exception as e:
+        emotion = "error"
+        confidence = 0.0
+        emotions = []
+        reply = "⚠️ I had trouble understanding that. Please try again."
 
     # -------------------------
     # Empathetic Responses
@@ -73,23 +102,27 @@ if user_input:
         "anger": "That sounds really frustrating. Do you want to share what happened?",
         "fear": "That must feel overwhelming. I'm here with you.",
         "love": "That’s beautiful. It’s great to feel that kind of connection.",
-        "surprise": "Oh wow, that sounds unexpected! Tell me more."
+        "surprise": "Oh wow, that sounds unexpected! Tell me more.",
+        "neutral": "I see. Tell me more about how you're feeling."
     }
 
-    reply = responses.get(emotion.lower(), "I understand. Tell me more about how you're feeling.")
+    reply = responses.get(emotion.lower(), "I understand. Tell me more about that.")
 
     # -------------------------
     # Show AI Response
     # -------------------------
     with st.chat_message("assistant"):
         st.markdown(reply)
-
         st.markdown(f"**Detected Emotion:** {emotion} ({confidence}%)")
 
-        # Emotion breakdown chart
-        st.write("**Emotion Breakdown:**")
-        chart_data = {item['label']: item['score'] for item in results}
-        st.bar_chart(chart_data)
+        # Emotion Breakdown Chart
+        if emotions:
+            st.write("**Emotion Breakdown:**")
+            chart_data = {
+                item.get('label', 'unknown'): item.get('score', 0)
+                for item in emotions
+            }
+            st.bar_chart(chart_data)
 
     # Save assistant message
     st.session_state.messages.append({
