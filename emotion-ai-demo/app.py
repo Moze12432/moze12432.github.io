@@ -1,7 +1,7 @@
 import streamlit as st
 from transformers import pipeline
 from openai import OpenAI
-
+st.write("API key loaded:", "OPENAI_API_KEY" in st.secrets)
 # -------------------------
 # Page Config
 # -------------------------
