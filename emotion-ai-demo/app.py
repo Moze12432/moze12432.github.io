@@ -30,10 +30,16 @@ def load_model():
 emotion_model = load_model()
 
 # -------------------------
-# Session Memory
+# Session State
 # -------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "emotion_history" not in st.session_state:
+    st.session_state.emotion_history = []
+
+if "show_dashboard" not in st.session_state:
+    st.session_state.show_dashboard = False
 
 # -------------------------
 # VAD Mapping
@@ -51,8 +57,66 @@ VAD_MAP = {
 # -------------------------
 # Title
 # -------------------------
-st.markdown("<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion-MUKIIBI MOSES</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Talk to an AI that understands your emotions</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Emotion AI + Memory + GPT</p>", unsafe_allow_html=True)
+
+st.divider()
+
+# -------------------------
+# Toggle Button (ONLY control for analytics)
+# -------------------------
+if st.button("📊 Show / Hide Emotional Insights"):
+    st.session_state.show_dashboard = not st.session_state.show_dashboard
+
+# -------------------------
+# Show Dashboard ONLY if clicked
+# -------------------------
+if st.session_state.show_dashboard and st.session_state.emotion_history:
+
+    st.subheader("📊 Emotional Insights")
+
+    history = st.session_state.emotion_history
+
+    # Emotion Frequency
+    st.write("### Emotion Frequency")
+    emotion_counts = {}
+    for item in history:
+        e = item["emotion"]
+        emotion_counts[e] = emotion_counts.get(e, 0) + 1
+    st.bar_chart(emotion_counts)
+
+    # VAD Trends
+    st.write("### VAD Trends")
+    vad_data = {
+        "Valence": [h["valence"] for h in history],
+        "Arousal": [h["arousal"] for h in history],
+        "Dominance": [h["dominance"] for h in history]
+    }
+    st.line_chart(vad_data)
+
+    # Personality Insight
+    st.write("### 🧠 Personality Insight")
+
+    avg_valence = sum(h["valence"] for h in history) / len(history)
+    avg_arousal = sum(h["arousal"] for h in history) / len(history)
+
+    if avg_valence > 0.6:
+        mood = "generally positive"
+    elif avg_valence < 0.4:
+        mood = "often experiencing negative emotions"
+    else:
+        mood = "emotionally balanced"
+
+    if avg_arousal > 0.6:
+        energy = "high emotional intensity"
+    else:
+        energy = "calm emotional state"
+
+    st.info(f"""
+    Over time, you appear to be:
+    - {mood}
+    - Showing {energy}
+    """)
 
 st.divider()
 
@@ -105,11 +169,35 @@ if user_input:
     v, a, d = VAD_MAP.get(emotion.lower(), (0.5, 0.5, 0.5))
 
     # -------------------------
-    # Build Conversation Context
+    # Save Emotion History (LONG-TERM MEMORY)
+    # -------------------------
+    st.session_state.emotion_history.append({
+        "emotion": emotion,
+        "confidence": confidence,
+        "valence": v,
+        "arousal": a,
+        "dominance": d
+    })
+
+    # -------------------------
+    # Build Context
     # -------------------------
     history = "\n".join(
         [f"{m['role']}: {m['content']}" for m in st.session_state.messages[-6:]]
     )
+
+    # Long-term summary
+    if st.session_state.emotion_history:
+        avg_valence = sum(h["valence"] for h in st.session_state.emotion_history) / len(st.session_state.emotion_history)
+
+        if avg_valence > 0.6:
+            long_term = "User is generally positive."
+        elif avg_valence < 0.4:
+            long_term = "User often experiences negative emotions."
+        else:
+            long_term = "User has balanced emotions."
+    else:
+        long_term = ""
 
     # -------------------------
     # System Prompt
@@ -117,24 +205,22 @@ if user_input:
     system_prompt = f"""
 You are a highly emotionally intelligent AI companion.
 
-Your personality:
-- Warm, natural, human-like
-- Not repetitive
-- Emotionally aware and adaptive
+Personality:
+- Natural, human-like, non-repetitive
+- Emotionally adaptive
 
-User emotional state:
-- Emotion: {emotion}
-- Valence: {round(v,2)}
-- Arousal: {round(a,2)}
-- Dominance: {round(d,2)}
+User emotion:
+- {emotion}
+- VAD: ({round(v,2)}, {round(a,2)}, {round(d,2)})
 
-Guidelines:
-- If user is sad → be comforting
-- If happy → be enthusiastic
-- If angry → be calm and grounding
-- If anxious → reassure gently
-- Refer naturally to past conversation
-- Keep responses concise but meaningful
+Long-term pattern:
+{long_term}
+
+Instructions:
+- Respond like a real human friend
+- Be concise but meaningful
+- Adapt tone to emotion
+- Use context naturally
 """
 
     # -------------------------
@@ -153,32 +239,16 @@ Guidelines:
 
         reply = response.choices[0].message.content.strip()
 
-    except Exception as e:
-        reply = "I'm here for you. Something went wrong, but please keep talking to me."
+    except:
+        reply = "I'm here for you. Something went wrong, but please keep talking."
 
     # -------------------------
-    # Display Response
+    # Show Response (ONLY CHAT)
     # -------------------------
     with st.chat_message("assistant"):
         st.markdown(reply)
-        st.markdown(f"**Emotion:** {emotion} ({confidence}%)")
 
-        # Emotion Chart
-        if emotions:
-            st.write("**Emotion Breakdown:**")
-            chart_data = {
-                e.get("label", "unknown"): e.get("score", 0)
-                for e in emotions
-            }
-            st.bar_chart(chart_data)
-
-        # VAD Visualization
-        st.write("**VAD (Emotional Dimensions):**")
-        st.progress(v, text=f"Valence: {round(v,2)}")
-        st.progress(a, text=f"Arousal: {round(a,2)}")
-        st.progress(d, text=f"Dominance: {round(d,2)}")
-
-    # Save assistant response
+    # Save assistant message
     st.session_state.messages.append({
         "role": "assistant",
         "content": reply
