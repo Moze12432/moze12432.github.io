@@ -1,5 +1,5 @@
 import streamlit as st
-from transformers import pipeline
+from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
 import torch
 import random
 import requests
@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # -------------------------
-# Load Emotion Model
+# Load Models
 # -------------------------
 @st.cache_resource
 def load_emotion_model():
@@ -27,7 +27,15 @@ def load_emotion_model():
         return_all_scores=True
     )
 
+@st.cache_resource
+def load_flan_model():
+    model_name = "google/flan-t5-large"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    return tokenizer, model
+
 emotion_model = load_emotion_model()
+flan_tokenizer, flan_model = load_flan_model()
 
 # -------------------------
 # Session State
@@ -58,20 +66,17 @@ VAD_MAP = {
 # AI Identity
 # -------------------------
 def get_ai_identity():
-    return "I am an AI assistant created by Moses, a student at KyungDong University. I can search the internet, answer questions, do math, tell jokes, and understand emotions."
+    return "I am an AI assistant created by Moses, a student at KyungDong University. I can answer questions, do math, translate, and understand emotions."
 
 # -------------------------
-# SIMPLE MATH (no search needed)
+# MATH (direct calculation)
 # -------------------------
 def calculate_math(question):
-    """Handle math questions directly"""
     math_patterns = [
         (r"square root of (\d+)", lambda m: f"The square root of {m.group(1)} is {float(m.group(1))**0.5}"),
         (r"(\d+) squared", lambda m: f"{m.group(1)} squared is {int(m.group(1))**2}"),
-        (r"(\d+) \* (\d+)", lambda m: f"{m.group(1)} × {m.group(2)} = {int(m.group(1)) * int(m.group(2))}"),
-        (r"(\d+) \+ (\d+)", lambda m: f"{m.group(1)} + {m.group(2)} = {int(m.group(1)) + int(m.group(2))}"),
-        (r"(\d+) - (\d+)", lambda m: f"{m.group(1)} - {m.group(2)} = {int(m.group(1)) - int(m.group(2))}"),
-        (r"(\d+) / (\d+)", lambda m: f"{m.group(1)} ÷ {m.group(2)} = {int(m.group(1)) / int(m.group(2))}"),
+        (r"(\d+) \* (\d+)", lambda m: f"{int(m.group(1))} × {int(m.group(2))} = {int(m.group(1)) * int(m.group(2))}"),
+        (r"(\d+) \+ (\d+)", lambda m: f"{int(m.group(1))} + {int(m.group(2))} = {int(m.group(1)) + int(m.group(2))}"),
     ]
     
     for pattern, func in math_patterns:
@@ -81,82 +86,104 @@ def calculate_math(question):
     return None
 
 # -------------------------
-# RELIABLE WEB SEARCH - DuckDuckGo HTML
-# -------------------------
-def search_web(query):
-    """Search DuckDuckGo and extract clean answers"""
-    try:
-        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-        response = requests.get(url, timeout=15, headers=headers)
-        
-        if response.status_code == 200:
-            # Extract the first result snippet
-            # Look for result snippet pattern
-            snippet_pattern = r'class="result__snippet"[^>]*>(.*?)</a>'
-            snippets = re.findall(snippet_pattern, response.text, re.DOTALL)
-            
-            if snippets:
-                # Clean the snippet
-                answer = snippets[0]
-                # Remove HTML tags
-                answer = re.sub(r'<[^>]+>', '', answer)
-                # Remove special characters
-                answer = re.sub(r'&[a-z]+;', '', answer)
-                # Clean up whitespace
-                answer = ' '.join(answer.split())
-                
-                if len(answer) > 20:
-                    return answer
-        
-        return None
-    except Exception as e:
-        return None
-
-# -------------------------
-# COMMON KNOWLEDGE (direct answers for common queries)
+# KNOWLEDGE BASE (direct answers)
 # -------------------------
 def get_direct_answer(question):
-    """Provide direct answers for common questions without API calls"""
     q = question.lower().strip()
+    
+    # Physics laws
+    if "newton's third law" in q or "newton third law" in q:
+        return "Newton's Third Law of Motion states: For every action, there is an equal and opposite reaction. This means that whenever one object exerts a force on another object, the second object exerts a force of equal magnitude but in the opposite direction on the first object."
+    
+    if "newton's first law" in q:
+        return "Newton's First Law of Motion (Law of Inertia) states: An object at rest stays at rest, and an object in motion stays in motion with the same speed and in the same direction unless acted upon by an unbalanced force."
+    
+    if "newton's second law" in q:
+        return "Newton's Second Law of Motion states: Force equals mass times acceleration (F = ma). The acceleration of an object depends on the net force acting on it and its mass."
     
     # Translations
     translations = {
         "how to say hello in korean": "In Korean, 'hello' is '안녕하세요' (annyeonghaseyo).",
-        "how to say thank you in korean": "In Korean, 'thank you' is '감사합니다' (gamsahamnida).",
-        "how to say goodbye in korean": "In Korean, 'goodbye' is '안녕히 가세요' (annyeonghi gaseyo) when someone is leaving.",
         "hello in korean": "Hello in Korean is '안녕하세요' (annyeonghaseyo).",
         "thank you in korean": "Thank you in Korean is '감사합니다' (gamsahamnida).",
+        "how to say thank you in korean": "In Korean, 'thank you' is '감사합니다' (gamsahamnida).",
         "how to say hello in japanese": "In Japanese, 'hello' is 'こんにちは' (konnichiwa).",
         "how to say hello in spanish": "In Spanish, 'hello' is 'hola'.",
         "how to say hello in french": "In French, 'hello' is 'bonjour'.",
-        "how to say hello in german": "In German, 'hello' is 'hallo'.",
-        "how to say hello in chinese": "In Chinese, 'hello' is '你好' (nǐ hǎo).",
     }
     
     for key, value in translations.items():
         if key in q:
             return value
     
-    # Facts
-    facts = {
-        "what is the capital of france": "The capital of France is Paris.",
-        "what is the capital of japan": "The capital of Japan is Tokyo.",
-        "what is the capital of south korea": "The capital of South Korea is Seoul.",
-        "what is the capital of china": "The capital of China is Beijing.",
-        "what is the capital of india": "The capital of India is New Delhi.",
-        "what is the capital of uk": "The capital of the United Kingdom is London.",
-        "what is the capital of usa": "The capital of the United States is Washington, D.C.",
-        "what is the capital of germany": "The capital of Germany is Berlin.",
-        "what is the capital of italy": "The capital of Italy is Rome.",
-        "what is the capital of spain": "The capital of Spain is Madrid.",
+    # Capitals
+    capitals = {
+        "capital of france": "The capital of France is Paris.",
+        "capital of japan": "The capital of Japan is Tokyo.",
+        "capital of south korea": "The capital of South Korea is Seoul.",
+        "capital of china": "The capital of China is Beijing.",
     }
     
-    for key, value in facts.items():
+    for key, value in capitals.items():
         if key in q:
             return value
+    
+    return None
+
+# -------------------------
+# WEB SEARCH WITH CLEAN PARSING
+# -------------------------
+def search_and_extract_answer(query):
+    """Search the web and extract just the answer using FLAN"""
+    try:
+        # Search DuckDuckGo
+        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        response = requests.get(url, timeout=15, headers=headers)
+        
+        if response.status_code == 200:
+            # Extract all result snippets
+            snippet_pattern = r'class="result__snippet"[^>]*>(.*?)</a>'
+            snippets = re.findall(snippet_pattern, response.text, re.DOTALL)
+            
+            if snippets:
+                # Clean the first snippet
+                raw_snippet = snippets[0]
+                raw_snippet = re.sub(r'<[^>]+>', '', raw_snippet)
+                raw_snippet = re.sub(r'&[a-z]+;', '', raw_snippet)
+                raw_snippet = ' '.join(raw_snippet.split())
+                
+                # Use FLAN to extract just the answer
+                prompt = f"""Question: {query}
+
+Search result snippet: "{raw_snippet}"
+
+Extract ONLY the direct answer to the question from the snippet above. Do not include extra text, just the answer.
+
+Answer:"""
+                
+                inputs = flan_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=600)
+                with torch.no_grad():
+                    outputs = flan_model.generate(
+                        inputs.input_ids,
+                        max_length=150,
+                        num_beams=4,
+                        temperature=0.3,
+                        pad_token_id=flan_tokenizer.eos_token_id
+                    )
+                answer = flan_tokenizer.decode(outputs[0], skip_special_tokens=True)
+                
+                # Clean up the answer
+                answer = answer.replace("Answer:", "").strip()
+                if len(answer) > 10 and len(answer) < 500:
+                    return answer
+                
+                # Fallback to cleaned snippet
+                if len(raw_snippet) > 20:
+                    return raw_snippet[:400]
+    
+    except Exception as e:
+        pass
     
     return None
 
@@ -168,8 +195,7 @@ def get_joke():
         "Why don't scientists trust atoms? Because they make up everything!",
         "What do you call a fake noodle? An impasta!",
         "Why did the scarecrow win an award? Because he was outstanding in his field!",
-        "What do you call a bear with no teeth? A gummy bear!",
-        "Why don't eggs tell jokes? They'd crack each other up!"
+        "What do you call a bear with no teeth? A gummy bear!"
     ]
     return random.choice(jokes)
 
@@ -187,9 +213,7 @@ def get_emotional_response(user_input):
         return "I'm sorry you're feeling sad. Would you like to talk about it?"
     if "happy" in user_lower or "good" in user_lower:
         return "That's wonderful to hear! What's making you happy today?"
-    if "angry" in user_lower or "frustrated" in user_lower:
-        return "I hear your frustration. Would you like to talk about what's bothering you?"
-    if "stressed" in user_lower or "anxious" in user_lower:
+    if "stressed" in user_lower:
         return "Stress can be challenging. Take a deep breath. What might help you feel better?"
     
     return "I'm here for you. How can I support you right now?"
@@ -213,13 +237,13 @@ def generate_response(user_input):
         now = datetime.now()
         return f"The current time is {now.strftime('%I:%M %p')}."
     
-    # 3. Math questions
+    # 3. Math
     math_result = calculate_math(user_input)
     if math_result:
         return math_result
     
     # 4. Jokes
-    if any(q in user_lower for q in ["joke", "funny", "make me laugh", "tell me a joke"]):
+    if any(q in user_lower for q in ["joke", "funny", "make me laugh"]):
         return get_joke()
     
     # 5. Greetings
@@ -230,23 +254,23 @@ def generate_response(user_input):
         return "You're very welcome!"
     
     # 6. Emotional support
-    if any(em in user_lower for em in ["feel", "feeling", "sad", "happy", "angry", "tired", "sick", "stressed", "lonely"]):
+    if any(em in user_lower for em in ["feel", "feeling", "sad", "happy", "angry", "tired", "sick", "stressed"]):
         return get_emotional_response(user_input)
     
-    # 7. Direct answers for common questions
+    # 7. Direct answers (knowledge base)
     direct_answer = get_direct_answer(user_input)
     if direct_answer:
         return direct_answer
     
-    # 8. Search the web for everything else
-    with st.spinner("Searching the internet..."):
-        search_result = search_web(user_input)
+    # 8. Search the web
+    with st.spinner("Searching for the answer..."):
+        search_result = search_and_extract_answer(user_input)
         
         if search_result:
             return search_result
         
         # 9. Fallback
-        return "I couldn't find an answer. Try asking something like: 'What is the capital of France?' or 'How to say hello in Korean?'"
+        return "I couldn't find an answer. Try rephrasing your question."
 
 # -------------------------
 # UI
@@ -257,13 +281,12 @@ st.markdown("<p style='text-align: center;'>Created by Moses, KyungDong Universi
 st.divider()
 
 with st.sidebar:
-    st.markdown("### What I Can Do")
-    st.markdown("- Answer math questions (square root, multiplication, etc.)")
-    st.markdown("- Translate common phrases")
-    st.markdown("- Answer factual questions")
-    st.markdown("- Tell jokes")
-    st.markdown("- Understand emotions")
-    st.markdown("- Search the internet for answers")
+    st.markdown("### Features")
+    st.markdown("- Direct answers to questions")
+    st.markdown("- Math calculations")
+    st.markdown("- Translations")
+    st.markdown("- Emotional support")
+    st.markdown("- Jokes")
     
     st.divider()
     
@@ -273,7 +296,7 @@ with st.sidebar:
         st.rerun()
     
     st.divider()
-    st.info("Try these:\n\n• What is the square root of 16?\n• How to say hello in Korean?\n• What is the capital of Japan?\n• Tell me a joke\n• I'm feeling tired")
+    st.info("Try asking:\n\n- State Newton's third law\n- What is the square root of 16?\n- How to say hello in Korean?\n- Tell me a joke\n- I'm feeling tired")
 
 if st.button("Show / Hide Emotional Insights"):
     st.session_state.show_dashboard = not st.session_state.show_dashboard
