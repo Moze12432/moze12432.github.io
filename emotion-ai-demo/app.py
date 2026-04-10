@@ -240,7 +240,7 @@ Instructions:
         reply = response.choices[0].message.content.strip()
 
     except Exception as e:
-    reply = f"ERROR: {str(e)}"
+        reply = f"ERROR: {str(e)}"
 
     # -------------------------
     # Show Response (ONLY CHAT)
