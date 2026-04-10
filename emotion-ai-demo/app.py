@@ -239,8 +239,8 @@ Instructions:
 
         reply = response.choices[0].message.content.strip()
 
-    except:
-        reply = "I'm here for you. Something went wrong, but please keep talking."
+    except Exception as e:
+    reply = f"ERROR: {str(e)}"
 
     # -------------------------
     # Show Response (ONLY CHAT)
