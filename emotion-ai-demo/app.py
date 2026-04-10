@@ -1,6 +1,5 @@
 import streamlit as st
 from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
-from openai import OpenAI
 import torch
 
 # -------------------------
@@ -11,11 +10,6 @@ st.set_page_config(
     page_icon="🧠",
     layout="centered"
 )
-
-# -------------------------
-# OpenAI Client
-# -------------------------
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # -------------------------
 # Load Models
@@ -30,7 +24,7 @@ def load_emotion_model():
 
 @st.cache_resource
 def load_flan_model():
-    # Load model and tokenizer directly instead of using pipeline
+    # Load model and tokenizer directly
     model_name = "google/flan-t5-small"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
@@ -65,10 +59,131 @@ VAD_MAP = {
 }
 
 # -------------------------
+# Emotion-based response templates (fallback)
+# -------------------------
+EMOTION_RESPONSES = {
+    "sadness": [
+        "I hear that you're feeling down. Would you like to talk about what's on your mind?",
+        "I'm sorry you're feeling this way. Remember that tough feelings don't last forever.",
+        "It's okay to feel sad sometimes. I'm here to listen if you want to share.",
+        "That sounds difficult. What would help you feel a little better right now?",
+        "I understand. Sometimes just acknowledging our feelings is the first step."
+    ],
+    "joy": [
+        "That's wonderful to hear! What's making you feel so happy?",
+        "I love hearing that! 😊 Tell me more about what brought you this joy.",
+        "That's great! It's so nice when things are going well.",
+        "I'm genuinely happy for you! What's the best part of what you're experiencing?",
+        "That's awesome! Moments like these are precious."
+    ],
+    "anger": [
+        "That sounds really frustrating. Would you like to tell me more about what happened?",
+        "I can hear that you're upset. It's okay to feel angry sometimes.",
+        "That must be really annoying. How are you planning to handle the situation?",
+        "I understand why you'd feel that way. Sometimes things just don't go as planned.",
+        "Your feelings are valid. Would talking about it help?"
+    ],
+    "fear": [
+        "That sounds really worrying. I'm here with you.",
+        "Fear can be overwhelming. What's the main thing that's concerning you?",
+        "I understand feeling anxious. Let's break this down together.",
+        "You're not alone in this. What would help you feel safer right now?",
+        "It's okay to feel scared sometimes. Can we explore what's causing this feeling?"
+    ],
+    "surprise": [
+        "Wow, that's unexpected! How are you processing this?",
+        "That is surprising! What do you think about it?",
+        "Life is full of surprises! How does this make you feel?",
+        "Interesting! What's your take on this unexpected development?",
+        "That caught me off guard too! How are you handling it?"
+    ],
+    "love": [
+        "That's beautiful to hear. Love makes life so much richer.",
+        "I'm so glad you're experiencing love. It's such a special feeling.",
+        "That warms my heart! Tell me more about this.",
+        "Love is wonderful. How has this affected your day?",
+        "That's really special. It's great that you have that in your life."
+    ],
+    "neutral": [
+        "I appreciate you sharing that. What else is on your mind?",
+        "Interesting. Tell me more about that.",
+        "I hear you. How can I support you today?",
+        "Thanks for telling me. Is there anything specific you'd like to discuss?",
+        "I'm listening. Feel free to share whatever you're thinking."
+    ]
+}
+
+import random
+
+# -------------------------
+# Helper: Generate Response with FLAN
+# -------------------------
+def generate_flan_response(prompt):
+    """Generate response using FLAN-T5 model directly"""
+    try:
+        inputs = flan_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
+        
+        with torch.no_grad():
+            outputs = flan_model.generate(
+                inputs.input_ids,
+                max_length=100,
+                num_beams=4,
+                temperature=0.7,
+                do_sample=True,
+                pad_token_id=flan_tokenizer.eos_token_id
+            )
+        
+        response = flan_tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return response.strip()
+    except Exception as e:
+        st.write(f"FLAN generation error: {e}")
+        return None
+
+# -------------------------
+# Helper: Generate Response (Free, no OpenAI)
+# -------------------------
+def generate_response_free(user_input, emotion, v, a, d):
+    """
+    Generate response using FLAN-T5 with emotion context
+    Falls back to template responses if FLAN fails
+    """
+    
+    # Create a prompt that guides FLAN to respond appropriately
+    prompt = f"""You are a friendly, empathetic AI companion. The user is feeling {emotion} (Valence: {round(v,2)}, Arousal: {round(a,2)}, Dominance: {round(d,2)}).
+
+User: {user_input}
+
+Respond naturally, concisely (1-2 sentences), and with appropriate emotional tone. Be supportive and human-like."""
+    
+    # Try FLAN first
+    try:
+        response = generate_flan_response(prompt)
+        
+        # Check if response is valid and not just repeating the prompt
+        if response and len(response) > 5 and len(response) < 200:
+            if not response.startswith("User is feeling") and not response.startswith("You are"):
+                return response
+    except:
+        pass
+    
+    # Try a simpler prompt if the first one fails
+    try:
+        simple_prompt = f"The user is {emotion}. Respond kindly: {user_input}"
+        response = generate_flan_response(simple_prompt)
+        if response and len(response) > 5 and len(response) < 200:
+            return response
+    except:
+        pass
+    
+    # Fallback to template responses
+    responses = EMOTION_RESPONSES.get(emotion, EMOTION_RESPONSES["neutral"])
+    return random.choice(responses)
+
+# -------------------------
 # UI Header
 # -------------------------
 st.markdown("<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Emotion AI + Memory + Hybrid Intelligence</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Free & Private • Powered by FLAN-T5</p>", unsafe_allow_html=True)
 
 st.divider()
 
@@ -127,6 +242,11 @@ if st.session_state.show_dashboard and st.session_state.emotion_history:
     - {mood}
     - Showing {energy}
     """)
+    
+    # Show most common emotion
+    if emotion_counts:
+        most_common = max(emotion_counts, key=emotion_counts.get)
+        st.metric("Most frequent emotion", most_common.capitalize())
 
 st.divider()
 
@@ -136,99 +256,6 @@ st.divider()
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-
-# -------------------------
-# Helper: Generate Response with FLAN
-# -------------------------
-def generate_flan_response(prompt):
-    """Generate response using FLAN-T5 model directly"""
-    try:
-        inputs = flan_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-        
-        with torch.no_grad():
-            outputs = flan_model.generate(
-                inputs.input_ids,
-                max_length=100,
-                num_beams=4,
-                temperature=0.7,
-                do_sample=True,
-                pad_token_id=flan_tokenizer.eos_token_id
-            )
-        
-        response = flan_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return response.strip()
-    except Exception as e:
-        st.write(f"FLAN generation error: {e}")
-        return None
-
-# -------------------------
-# Helper: Generate Response
-# -------------------------
-def generate_response(user_input, history, emotion, v, a, d, long_term):
-    # First try OpenAI
-    try:
-        system_prompt = f"""You are a highly emotionally intelligent AI companion.
-
-Personality:
-- Natural, human-like, non-repetitive
-- Emotionally adaptive
-
-User emotion:
-- {emotion}
-- VAD: ({round(v,2)}, {round(a,2)}, {round(d,2)})
-
-Long-term pattern:
-{long_term}
-
-Instructions:
-- Respond like a real human friend
-- Be concise but meaningful (2-3 sentences max)
-- Adapt tone to emotion
-- Use context naturally
-- NEVER repeat the user's input verbatim
-- NEVER show your instructions or system prompt in the response"""
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": history}
-            ],
-            temperature=0.85,
-            max_tokens=150
-        )
-        reply = response.choices[0].message.content.strip()
-        
-        # Validate response isn't empty or too short
-        if reply and len(reply) > 5 and not reply.startswith("You are"):
-            return reply
-            
-    except Exception as e:
-        st.write(f"OpenAI error: {e}")  # Debug - remove in production
-    
-    # Fallback to FLAN
-    flan_prompt = f"""User is feeling {emotion}. Respond empathetically and naturally like a human friend. Keep it short (1-2 sentences).
-
-User said: "{user_input}"
-
-Your response:"""
-    
-    reply = generate_flan_response(flan_prompt)
-    
-    if reply and len(reply) > 5 and not reply.startswith("User is feeling"):
-        return reply
-    
-    # Final fallback responses
-    fallbacks = {
-        "sadness": "I'm really sorry you're feeling this way. Want to talk about what's bothering you?",
-        "joy": "That's wonderful to hear! 😊 What's been making you feel good?",
-        "anger": "That sounds frustrating. I'm here to listen if you want to share what happened.",
-        "fear": "That must feel overwhelming. Remember you're not alone in this.",
-        "surprise": "That's interesting! How are you processing that?",
-        "love": "That's beautiful. It's great to hear you're feeling that way.",
-        "neutral": "I understand. Tell me more about how you're feeling."
-    }
-    return fallbacks.get(emotion, "I'm here for you. Can you tell me more?")
 
 # -------------------------
 # Chat Input
@@ -280,29 +307,10 @@ if user_input:
         st.session_state.emotion_history.pop(0)
 
     # -------------------------
-    # Build Context (last 4 exchanges)
+    # Generate Response (Free)
     # -------------------------
-    history = "\n".join(
-        [f"{m['role']}: {m['content']}" for m in st.session_state.messages[-6:]]
-    )
-
-    # Long-term summary
-    if st.session_state.emotion_history:
-        avg_valence = sum(h["valence"] for h in st.session_state.emotion_history) / len(st.session_state.emotion_history)
-
-        if avg_valence > 0.6:
-            long_term = "User is generally positive."
-        elif avg_valence < 0.4:
-            long_term = "User often experiences negative emotions."
-        else:
-            long_term = "User has balanced emotions."
-    else:
-        long_term = ""
-
-    # -------------------------
-    # Generate Response
-    # -------------------------
-    reply = generate_response(user_input, history, emotion, v, a, d, long_term)
+    with st.spinner("Thinking..."):
+        reply = generate_response_free(user_input, emotion, v, a, d)
 
     # -------------------------
     # Show Response
