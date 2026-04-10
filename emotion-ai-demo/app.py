@@ -226,21 +226,53 @@ Instructions:
     # -------------------------
     # GPT Response
     # -------------------------
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": history}
-            ],
-            temperature=0.85,
-            max_tokens=150
-        )
+# -------------------------
+# GPT + FALLBACK SYSTEM
+# -------------------------
+try:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": history}
+        ],
+        temperature=0.85,
+        max_tokens=150
+    )
 
-        reply = response.choices[0].message.content.strip()
+    reply = response.choices[0].message.content.strip()
 
-    except Exception as e:
-        reply = f"ERROR: {str(e)}"
+except Exception as e:
+    error_msg = str(e)
+
+    # -------------------------
+    # SMART FALLBACK RESPONSES
+    # -------------------------
+    if "insufficient_quota" in error_msg or "429" in error_msg:
+        
+        if emotion == "sadness":
+            reply = "I'm really sorry you're feeling this way. Do you want to talk about what's been going on?"
+        
+        elif emotion == "joy":
+            reply = "That’s really nice to hear 😊 What’s been making you feel this happy?"
+        
+        elif emotion == "anger":
+            reply = "That sounds frustrating. What happened?"
+        
+        elif emotion == "fear":
+            reply = "That must feel overwhelming. I'm here with you—want to share more?"
+        
+        elif emotion == "love":
+            reply = "That sounds really meaningful. What’s behind that feeling?"
+        
+        else:
+            reply = "I understand. Tell me a bit more about what's on your mind."
+
+    else:
+        # Other errors
+        reply = "I'm here for you. Tell me more about how you're feeling."
+
+ 
 
     # -------------------------
     # Show Response (ONLY CHAT)
