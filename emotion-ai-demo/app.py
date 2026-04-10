@@ -1,7 +1,7 @@
 import streamlit as st
 from transformers import pipeline
 from openai import OpenAI
-st.write("API key loaded:", "OPENAI_API_KEY" in st.secrets)
+
 # -------------------------
 # Page Config
 # -------------------------
@@ -17,17 +17,26 @@ st.set_page_config(
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # -------------------------
-# Load Emotion Model
+# Load Models
 # -------------------------
 @st.cache_resource
-def load_model():
+def load_emotion_model():
     return pipeline(
         "text-classification",
         model="j-hartmann/emotion-english-distilroberta-base",
         return_all_scores=True
     )
 
-emotion_model = load_model()
+@st.cache_resource
+def load_flan_model():
+    return pipeline(
+        "text2text-generation",
+        model="google/flan-t5-base",
+        max_length=100
+    )
+
+emotion_model = load_emotion_model()
+flan_model = load_flan_model()
 
 # -------------------------
 # Session State
@@ -55,32 +64,32 @@ VAD_MAP = {
 }
 
 # -------------------------
-# Title
+# UI Header
 # -------------------------
 st.markdown("<h1 style='text-align: center;'>🧠 Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Emotion AI + Memory + GPT</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Emotion AI + Memory + Hybrid Intelligence</p>", unsafe_allow_html=True)
 
 st.divider()
 
 # -------------------------
-# Toggle Button (ONLY control for analytics)
+# Toggle Dashboard
 # -------------------------
 if st.button("📊 Show / Hide Emotional Insights"):
     st.session_state.show_dashboard = not st.session_state.show_dashboard
 
 # -------------------------
-# Show Dashboard ONLY if clicked
+# Dashboard (ONLY if clicked)
 # -------------------------
 if st.session_state.show_dashboard and st.session_state.emotion_history:
 
     st.subheader("📊 Emotional Insights")
 
-    history = st.session_state.emotion_history
+    history_data = st.session_state.emotion_history
 
     # Emotion Frequency
     st.write("### Emotion Frequency")
     emotion_counts = {}
-    for item in history:
+    for item in history_data:
         e = item["emotion"]
         emotion_counts[e] = emotion_counts.get(e, 0) + 1
     st.bar_chart(emotion_counts)
@@ -88,17 +97,17 @@ if st.session_state.show_dashboard and st.session_state.emotion_history:
     # VAD Trends
     st.write("### VAD Trends")
     vad_data = {
-        "Valence": [h["valence"] for h in history],
-        "Arousal": [h["arousal"] for h in history],
-        "Dominance": [h["dominance"] for h in history]
+        "Valence": [h["valence"] for h in history_data],
+        "Arousal": [h["arousal"] for h in history_data],
+        "Dominance": [h["dominance"] for h in history_data]
     }
     st.line_chart(vad_data)
 
     # Personality Insight
     st.write("### 🧠 Personality Insight")
 
-    avg_valence = sum(h["valence"] for h in history) / len(history)
-    avg_arousal = sum(h["arousal"] for h in history) / len(history)
+    avg_valence = sum(h["valence"] for h in history_data) / len(history_data)
+    avg_arousal = sum(h["arousal"] for h in history_data) / len(history_data)
 
     if avg_valence > 0.6:
         mood = "generally positive"
@@ -128,7 +137,7 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # -------------------------
-# User Input
+# Chat Input
 # -------------------------
 user_input = st.chat_input("How are you feeling today?")
 
@@ -144,19 +153,11 @@ if user_input:
     # -------------------------
     try:
         raw = emotion_model(user_input)
+        emotions = raw[0] if isinstance(raw[0], list) else raw
 
-        if isinstance(raw[0], list):
-            emotions = raw[0]
-        else:
-            emotions = raw
-
-        if emotions:
-            top = max(emotions, key=lambda x: x.get("score", 0))
-            emotion = top.get("label", "neutral")
-            confidence = round(top.get("score", 0) * 100, 2)
-        else:
-            emotion = "neutral"
-            confidence = 0.0
+        top = max(emotions, key=lambda x: x.get("score", 0))
+        emotion = top.get("label", "neutral")
+        confidence = round(top.get("score", 0) * 100, 2)
 
     except:
         emotion = "neutral"
@@ -169,7 +170,7 @@ if user_input:
     v, a, d = VAD_MAP.get(emotion.lower(), (0.5, 0.5, 0.5))
 
     # -------------------------
-    # Save Emotion History (LONG-TERM MEMORY)
+    # Save Emotion History
     # -------------------------
     st.session_state.emotion_history.append({
         "emotion": emotion,
@@ -200,7 +201,7 @@ if user_input:
         long_term = ""
 
     # -------------------------
-    # System Prompt
+    # System Prompt (GPT)
     # -------------------------
     system_prompt = f"""
 You are a highly emotionally intelligent AI companion.
@@ -224,63 +225,63 @@ Instructions:
 """
 
     # -------------------------
-    # GPT Response
+    # Flan Prompt (Fallback)
     # -------------------------
-# -------------------------
-# GPT + FALLBACK SYSTEM
-# -------------------------
-try:
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": history}
-        ],
-        temperature=0.85,
-        max_tokens=150
-    )
+    flan_prompt = f"""
+You are a supportive and emotionally intelligent AI.
 
-    reply = response.choices[0].message.content.strip()
+User emotion: {emotion}
+Valence: {round(v,2)}, Arousal: {round(a,2)}, Dominance: {round(d,2)}
 
-except Exception as e:
-    error_msg = str(e)
+Conversation:
+{history}
+
+Respond naturally and empathetically like a human.
+Keep it short and meaningful.
+"""
 
     # -------------------------
-    # SMART FALLBACK RESPONSES
+    # Hybrid Response System
     # -------------------------
-    if "insufficient_quota" in error_msg or "429" in error_msg:
-        
-        if emotion == "sadness":
-            reply = "I'm really sorry you're feeling this way. Do you want to talk about what's been going on?"
-        
-        elif emotion == "joy":
-            reply = "That’s really nice to hear 😊 What’s been making you feel this happy?"
-        
-        elif emotion == "anger":
-            reply = "That sounds frustrating. What happened?"
-        
-        elif emotion == "fear":
-            reply = "That must feel overwhelming. I'm here with you—want to share more?"
-        
-        elif emotion == "love":
-            reply = "That sounds really meaningful. What’s behind that feeling?"
-        
-        else:
-            reply = "I understand. Tell me a bit more about what's on your mind."
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": history}
+            ],
+            temperature=0.85,
+            max_tokens=150
+        )
+        reply = response.choices[0].message.content.strip()
 
-    else:
-        # Other errors
-        reply = "I'm here for you. Tell me more about how you're feeling."
+    except Exception:
+        try:
+            flan_output = flan_model(flan_prompt)[0]["generated_text"]
+            reply = flan_output.strip()
 
- 
+            if len(reply) < 10:
+                raise ValueError("Weak output")
+
+        except:
+            if emotion == "sadness":
+                reply = "I'm really sorry you're feeling this way. Do you want to talk about it?"
+            elif emotion == "joy":
+                reply = "That’s really nice to hear 😊 What made you feel this way?"
+            elif emotion == "anger":
+                reply = "That sounds frustrating. What happened?"
+            elif emotion == "fear":
+                reply = "That must feel overwhelming. I'm here with you."
+            else:
+                reply = "I understand. Tell me more about how you're feeling."
 
     # -------------------------
-    # Show Response (ONLY CHAT)
+    # Show Response
     # -------------------------
     with st.chat_message("assistant"):
         st.markdown(reply)
 
-    # Save assistant message
+    # Save response
     st.session_state.messages.append({
         "role": "assistant",
         "content": reply
