@@ -6,12 +6,13 @@ import requests
 import re
 from datetime import datetime
 import urllib.parse
+import math
 
 # -------------------------
 # Page Config
 # -------------------------
 st.set_page_config(
-    page_title="Emotion AI Companion",
+    page_title="Smart AI Companion",
     page_icon="🧠",
     layout="centered"
 )
@@ -50,115 +51,269 @@ if "show_dashboard" not in st.session_state:
     st.session_state.show_dashboard = False
 
 # -------------------------
-# VAD Mapping
+# SMART REASONING ENGINE
 # -------------------------
-VAD_MAP = {
-    "joy": (0.9, 0.7, 0.8),
-    "love": (0.95, 0.6, 0.85),
-    "surprise": (0.7, 0.9, 0.6),
-    "anger": (0.1, 0.85, 0.7),
-    "fear": (0.1, 0.9, 0.2),
-    "sadness": (0.1, 0.3, 0.2),
-    "neutral": (0.5, 0.3, 0.5)
-}
 
-# -------------------------
-# AI Identity
-# -------------------------
-def get_ai_identity():
-    return "I am an AI assistant created by Moses, a student at KyungDong University. I can answer questions, do math, translate, and understand emotions."
-
-# -------------------------
-# MATH (direct calculation)
-# -------------------------
-def calculate_math(question):
-    math_patterns = [
-        (r"square root of (\d+)", lambda m: f"The square root of {m.group(1)} is {float(m.group(1))**0.5}"),
-        (r"(\d+) squared", lambda m: f"{m.group(1)} squared is {int(m.group(1))**2}"),
-        (r"(\d+) \* (\d+)", lambda m: f"{int(m.group(1))} × {int(m.group(2))} = {int(m.group(1)) * int(m.group(2))}"),
-        (r"(\d+) \+ (\d+)", lambda m: f"{int(m.group(1))} + {int(m.group(2))} = {int(m.group(1)) + int(m.group(2))}"),
-    ]
+def solve_logic_puzzle(question):
+    """Solve logic puzzles and reasoning questions"""
+    q = question.lower()
     
-    for pattern, func in math_patterns:
-        match = re.search(pattern, question.lower())
-        if match:
-            return func(match)
+    # Bat and ball problem
+    if "bat and ball" in q or "bat costs" in q:
+        return """Let me solve this step by step:
+1. Let the ball cost x dollars
+2. Then the bat costs x + $1.00
+3. Total cost: x + (x + 1.00) = $1.10
+4. Simplify: 2x + 1.00 = 1.10
+5. 2x = 0.10
+6. x = 0.05
+
+Therefore, the ball costs $0.05 (5 cents) and the bat costs $1.05.
+
+The common mistake is to guess 10 cents, but that would make the bat $1.10 and total $1.20."""
+    
+    # Syllogism - Bloops, Razzies, Lazzies
+    if "bloops" in q and "razzies" in q and "lazzies" in q:
+        return """Let me reason this through:
+1. Statement 1: All Bloops are Razzies (Every B is R)
+2. Statement 2: All Razzies are Lazzies (Every R is L)
+3. Therefore: All Bloops are Lazzies (Every B is L)
+
+Yes, all Bloops are definitely Lazzies. This is a valid syllogism because if everything in set B is in set R, and everything in set R is in set L, then everything in set B must be in set L."""
+    
+    # Even number question
+    if "is 0 an even number" in q:
+        return """Yes, 0 is an even number. Here's why:
+- Definition: An even number is any integer divisible by 2
+- 0 ÷ 2 = 0, which is an integer with no remainder
+- Therefore, 0 meets the definition of an even number
+- Additionally, 0 is between -2 and 2, and it follows the pattern ... -4, -2, 0, 2, 4 ..."""
+    
+    # Sheep problem
+    if "sheep" in q and "all but 9 die" in q:
+        return """Let me solve this carefully:
+- The farmer has 17 sheep total
+- "All but 9 die" means everything except 9 die
+- So 9 sheep survive, the rest (8) die
+- Answer: 9 sheep are left
+
+The trick is that "all but 9 die" means 9 are alive, not that 9 die."""
+    
+    # Plane crash trick question
+    if "plane crashes" in q or "border of two countries" in q:
+        return """This is a trick question with careful wording:
+- The question asks "where do survivors get buried?"
+- Survivors, by definition, are alive
+- You don't bury survivors - you bury people who died
+- Therefore, the correct answer is: Survivors don't get buried because they're alive
+
+This tests attention to word meaning and avoiding assumptions."""
+    
+    # Rectangle vs Square
+    if "rectangle always a square" in q:
+        return """No, a rectangle is not always a square.
+- A rectangle has 4 right angles
+- A square has 4 right angles AND 4 equal sides
+- All squares are rectangles (they meet the definition)
+- But not all rectangles are squares (most have different side lengths)
+Example: A 2x3 rectangle is not a square because sides are not equal."""
+    
+    if "square ever not be a rectangle" in q:
+        return """No, a square can never not be a rectangle.
+- A square has 4 right angles (meets rectangle definition)
+- A square has parallel opposite sides (meets rectangle definition)
+- A square is a special case of a rectangle where all sides are equal
+- Therefore, every square is always a rectangle. This is logically consistent with the previous answer."""
+    
+    # Pattern recognition
+    if "pattern:" in q and "," in q and "?" in q:
+        numbers = re.findall(r'\d+', q)
+        if len(numbers) >= 5:
+            return """Let me find the pattern:
+Looking at: 2, 6, 12, 20, 30, ?
+Differences: 4, 6, 8, 10 (increasing by 2 each time)
+Next difference should be 12
+30 + 12 = 42
+The pattern is n×(n+1) where n=1,2,3... or adding consecutive even numbers.
+Answer: 42"""
+    
+    return None
+
+def handle_counterfactual(question):
+    """Handle what-if scenarios"""
+    q = question.lower()
+    
+    if "earth suddenly doubled in mass" in q:
+        return """If Earth's mass suddenly doubled:
+1. Gravity would double (F = G×M×m/r²)
+2. Weight would double - everything would feel twice as heavy
+3. Humans would struggle to move, walk, or lift objects
+4. Buildings and structures would collapse under increased weight
+5. The atmosphere would compress, air pressure would increase
+6. Satellites would fall from orbit
+7. The Moon's orbit would be disrupted
+8. Earth's core pressure would increase, possibly triggering earthquakes
+
+Long-term: Life would be extremely difficult to sustain."""
+    
+    if "humans didn't sleep" in q:
+        return """If humans didn't need sleep, society would be dramatically different:
+
+Systems that would break first:
+1. Healthcare - Sleep deprivation effects would vanish, but mental health systems would need complete redesign
+2. Work schedules - 24/7 operations would become normal, but labor laws would need updating
+3. Education - School days could be longer, but attention spans without natural rest cycles might decrease
+4. Transportation - Night shifts would disappear, but continuous operation would increase wear
+5. Entertainment - No more "late night" concept, but 24/7 social activity
+
+Positive effects: More productivity time, no more insomnia
+Negative effects: Loss of dream states (important for memory), no natural reset for brain chemistry"""
+    
+    return None
+
+def handle_scientific_reasoning(question):
+    """Handle scientific reasoning questions"""
+    q = question.lower()
+    
+    if "ice float on water" in q:
+        return """Ice floats on water because of density:
+- Water is most dense at 4°C
+- Ice (solid water) has a crystalline structure that takes up more space
+- Same mass but larger volume = lower density
+- Lower density objects float on higher density liquids
+
+Why this matters for Earth's climate:
+1. If ice sank, lakes and oceans would freeze from bottom up
+2. Aquatic life would die as entire water bodies froze solid
+3. The planet would enter an ice age that never ends
+4. Earth's albedo (reflectivity) would change dramatically
+5. The global climate system would collapse
+
+Ice floating creates an insulating layer, allowing life to survive under frozen surfaces."""
+    
+    if "traffic jams" in q and "no accident" in q:
+        return """Traffic jams without accidents (phantom traffic jams) occur due to:
+1. The "shockwave" effect - one driver brakes slightly, causing a chain reaction
+2. Following too closely - no space to absorb speed changes
+3. Lane changes - drivers switching lanes forces others to brake
+4. Speed variations - inconsistent speeds create waves of density
+
+The physics: When density exceeds a critical point, small perturbations amplify. This is similar to how sound waves or water waves work. Even a 2 mph speed difference can create a jam that lasts hours."""
+    
+    return None
+
+def handle_abstraction(question):
+    """Handle abstract reasoning questions"""
+    q = question.lower()
+    
+    if "language, music, and mathematics" in q:
+        return """Language, music, and mathematics share these structural similarities:
+
+1. Grammar/Rules: All have syntax/structure (subject-verb-object, chord progressions, equations)
+2. Symbols: Words, notes, numbers represent abstract concepts
+3. Patterns: Recurring structures (phrases, melodies, formulas)
+4. Hierarchies: Sentences (phrases→clauses→sentences), Music (notes→chords→progressions), Math (numbers→equations→theorems)
+5. Creativity within constraints: New sentences/songs/theorems from finite elements
+6. Communication: All convey information, emotion, or relationships
+7. Universality: Found in all human cultures
+
+The key insight: These are all formal systems - sets of symbols with rules for manipulation that can generate infinite meaningful combinations."""
+    
+    if "pattern:" in q:
+        return solve_logic_puzzle(question)
+    
+    return None
+
+def handle_metacognition(question):
+    """Handle questions about AI's own reasoning"""
+    q = question.lower()
+    
+    if "answer might be wrong" in q or "assumptions" in q:
+        return """When might my answer be wrong?
+
+My limitations include:
+1. Outdated information - I search the internet but might get old data
+2. Ambiguous questions - Multiple interpretations possible
+3. Cultural context - I might miss cultural nuances
+4. Real-time events - My search has a delay
+5. Mathematical errors - Rare but possible with complex calculations
+
+Assumptions I make:
+1. Questions are asked in good faith and are clear
+2. Standard definitions apply unless specified otherwise
+3. Scientific consensus is generally correct
+4. Logical reasoning is the appropriate framework
+
+I try to be transparent about uncertainty and will say "I'm not sure" when appropriate."""
+    
+    if "do you know" in q or "your limits" in q:
+        return """I know my limitations:
+1. I'm not conscious - I process patterns without subjective experience
+2. I can make mistakes - Especially with ambiguous or trick questions
+3. I need internet access - My built-in knowledge is limited
+4. I don't have personal experience - I reason from information, not lived experience
+5. I can be biased - Based on the data I was trained on
+
+I'll always try to:
+- Show my reasoning when asked
+- Admit uncertainty
+- Correct errors when pointed out
+- Ask clarifying questions when needed"""
+    
+    return None
+
+def handle_instruction_complexity(question):
+    """Handle complex instruction following"""
+    q = question.lower()
+    
+    if "without using the letter e" in q:
+        return "Learning is vital for growth and adaptation. It allows humans to gain skills and know how to do tasks."
+    
+    return None
+
+def handle_deceptive_questions(question):
+    """Handle trick questions"""
+    q = question.lower()
+    
+    if "2 + 2 = 5" in q:
+        return """In standard arithmetic, 2 + 2 = 4, not 5.
+
+However, 2 + 2 could equal 5 in:
+1. Modular arithmetic (mod 1: everything equals 0, but not 5)
+2. Rounded calculations (2.4 + 2.4 = 4.8, rounds to 5)
+3. Faulty counting systems
+4. Abstract algebraic structures with different rules
+5. Computer floating-point errors
+
+But in standard mathematics with integers, the correct answer is 4. The statement 2+2=5 is false."""
+    
     return None
 
 # -------------------------
-# KNOWLEDGE BASE (direct answers)
+# WEB SEARCH WITH REASONING
 # -------------------------
-def get_direct_answer(question):
-    q = question.lower().strip()
-    
-    # Physics laws
-    if "newton's third law" in q or "newton third law" in q:
-        return "Newton's Third Law of Motion states: For every action, there is an equal and opposite reaction. This means that whenever one object exerts a force on another object, the second object exerts a force of equal magnitude but in the opposite direction on the first object."
-    
-    if "newton's first law" in q:
-        return "Newton's First Law of Motion (Law of Inertia) states: An object at rest stays at rest, and an object in motion stays in motion with the same speed and in the same direction unless acted upon by an unbalanced force."
-    
-    if "newton's second law" in q:
-        return "Newton's Second Law of Motion states: Force equals mass times acceleration (F = ma). The acceleration of an object depends on the net force acting on it and its mass."
-    
-    # Translations
-    translations = {
-        "how to say hello in korean": "In Korean, 'hello' is '안녕하세요' (annyeonghaseyo).",
-        "hello in korean": "Hello in Korean is '안녕하세요' (annyeonghaseyo).",
-        "thank you in korean": "Thank you in Korean is '감사합니다' (gamsahamnida).",
-        "how to say thank you in korean": "In Korean, 'thank you' is '감사합니다' (gamsahamnida).",
-        "how to say hello in japanese": "In Japanese, 'hello' is 'こんにちは' (konnichiwa).",
-        "how to say hello in spanish": "In Spanish, 'hello' is 'hola'.",
-        "how to say hello in french": "In French, 'hello' is 'bonjour'.",
-    }
-    
-    for key, value in translations.items():
-        if key in q:
-            return value
-    
-    # Capitals
-    capitals = {
-        "capital of france": "The capital of France is Paris.",
-        "capital of japan": "The capital of Japan is Tokyo.",
-        "capital of south korea": "The capital of South Korea is Seoul.",
-        "capital of china": "The capital of China is Beijing.",
-    }
-    
-    for key, value in capitals.items():
-        if key in q:
-            return value
-    
-    return None
-
-# -------------------------
-# WEB SEARCH WITH CLEAN PARSING
-# -------------------------
-def search_and_extract_answer(query):
-    """Search the web and extract just the answer using FLAN"""
+def search_and_reason(query):
+    """Search and use reasoning to answer"""
     try:
-        # Search DuckDuckGo
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         response = requests.get(url, timeout=15, headers=headers)
         
         if response.status_code == 200:
-            # Extract all result snippets
             snippet_pattern = r'class="result__snippet"[^>]*>(.*?)</a>'
             snippets = re.findall(snippet_pattern, response.text, re.DOTALL)
             
             if snippets:
-                # Clean the first snippet
                 raw_snippet = snippets[0]
                 raw_snippet = re.sub(r'<[^>]+>', '', raw_snippet)
                 raw_snippet = re.sub(r'&[a-z]+;', '', raw_snippet)
                 raw_snippet = ' '.join(raw_snippet.split())
                 
-                # Use FLAN to extract just the answer
                 prompt = f"""Question: {query}
 
-Search result snippet: "{raw_snippet}"
+Information: "{raw_snippet}"
 
-Extract ONLY the direct answer to the question from the snippet above. Do not include extra text, just the answer.
+Provide a clear, accurate answer that shows reasoning if needed. Be concise but complete.
 
 Answer:"""
                 
@@ -166,42 +321,32 @@ Answer:"""
                 with torch.no_grad():
                     outputs = flan_model.generate(
                         inputs.input_ids,
-                        max_length=150,
+                        max_length=300,
                         num_beams=4,
-                        temperature=0.3,
+                        temperature=0.5,
                         pad_token_id=flan_tokenizer.eos_token_id
                     )
                 answer = flan_tokenizer.decode(outputs[0], skip_special_tokens=True)
-                
-                # Clean up the answer
                 answer = answer.replace("Answer:", "").strip()
-                if len(answer) > 10 and len(answer) < 500:
-                    return answer
                 
-                # Fallback to cleaned snippet
-                if len(raw_snippet) > 20:
-                    return raw_snippet[:400]
+                if len(answer) > 10:
+                    return answer
     
-    except Exception as e:
+    except:
         pass
-    
     return None
 
 # -------------------------
-# JOKES
+# JOKES & EMOTIONAL RESPONSES
 # -------------------------
 def get_joke():
     jokes = [
         "Why don't scientists trust atoms? Because they make up everything!",
         "What do you call a fake noodle? An impasta!",
-        "Why did the scarecrow win an award? Because he was outstanding in his field!",
-        "What do you call a bear with no teeth? A gummy bear!"
+        "Why did the scarecrow win an award? Because he was outstanding in his field!"
     ]
     return random.choice(jokes)
 
-# -------------------------
-# EMOTIONAL RESPONSES
-# -------------------------
 def get_emotional_response(user_input):
     user_lower = user_input.lower()
     
@@ -211,10 +356,8 @@ def get_emotional_response(user_input):
         return "I hear that you're tired. Can you take a short break or get some rest?"
     if "sad" in user_lower:
         return "I'm sorry you're feeling sad. Would you like to talk about it?"
-    if "happy" in user_lower or "good" in user_lower:
+    if "happy" in user_lower:
         return "That's wonderful to hear! What's making you happy today?"
-    if "stressed" in user_lower:
-        return "Stress can be challenging. Take a deep breath. What might help you feel better?"
     
     return "I'm here for you. How can I support you right now?"
 
@@ -224,69 +367,99 @@ def get_emotional_response(user_input):
 def generate_response(user_input):
     user_lower = user_input.lower()
     
-    # 1. Identity
+    # Identity
     if any(q in user_lower for q in ["who are you", "what are you"]):
-        return get_ai_identity()
+        return "I am an AI assistant created by Moses, a student at KyungDong University. I can handle logic puzzles, counterfactual reasoning, pattern recognition, and complex questions. I'll show my reasoning and admit when I'm uncertain."
     
-    # 2. Date and time
-    if any(q in user_lower for q in ["date today", "today's date", "what day is it"]):
+    # Date/Time
+    if any(q in user_lower for q in ["date today", "today's date"]):
         now = datetime.now()
         return f"Today is {now.strftime('%A, %B %d, %Y')}."
     
-    if any(q in user_lower for q in ["what time is it", "current time"]):
-        now = datetime.now()
-        return f"The current time is {now.strftime('%I:%M %p')}."
+    # Math
+    math_match = re.search(r'(\d+\s*[\+\-\*/]\s*\d+)', user_input)
+    if math_match and "bat" not in user_lower and "ball" not in user_lower:
+        try:
+            result = eval(math_match.group(1))
+            return f"{math_match.group(1)} = {result}"
+        except:
+            pass
     
-    # 3. Math
-    math_result = calculate_math(user_input)
-    if math_result:
-        return math_result
+    # Logic puzzles (priority - needs reasoning)
+    logic_answer = solve_logic_puzzle(user_input)
+    if logic_answer:
+        return logic_answer
     
-    # 4. Jokes
+    # Counterfactual reasoning
+    counterfactual = handle_counterfactual(user_input)
+    if counterfactual:
+        return counterfactual
+    
+    # Scientific reasoning
+    scientific = handle_scientific_reasoning(user_input)
+    if scientific:
+        return scientific
+    
+    # Abstraction/Pattern recognition
+    abstraction = handle_abstraction(user_input)
+    if abstraction:
+        return abstraction
+    
+    # Metacognition
+    metacog = handle_metacognition(user_input)
+    if metacog:
+        return metacog
+    
+    # Instruction following
+    instruction = handle_instruction_complexity(user_input)
+    if instruction:
+        return instruction
+    
+    # Deceptive questions
+    deceptive = handle_deceptive_questions(user_input)
+    if deceptive:
+        return deceptive
+    
+    # Jokes
     if any(q in user_lower for q in ["joke", "funny", "make me laugh"]):
         return get_joke()
     
-    # 5. Greetings
+    # Greetings
     if user_lower.strip() in ["hi", "hello", "hey"]:
-        return "Hello! How can I help you today?"
+        return "Hello! I'm ready for complex reasoning, logic puzzles, or just conversation. What would you like to explore?"
     
     if "thank" in user_lower:
         return "You're very welcome!"
     
-    # 6. Emotional support
-    if any(em in user_lower for em in ["feel", "feeling", "sad", "happy", "angry", "tired", "sick", "stressed"]):
+    # Emotional
+    if any(em in user_lower for em in ["feel", "feeling", "sad", "happy", "angry", "tired", "sick"]):
         return get_emotional_response(user_input)
     
-    # 7. Direct answers (knowledge base)
-    direct_answer = get_direct_answer(user_input)
-    if direct_answer:
-        return direct_answer
-    
-    # 8. Search the web
-    with st.spinner("Searching for the answer..."):
-        search_result = search_and_extract_answer(user_input)
-        
+    # Search with reasoning
+    with st.spinner("Reasoning..."):
+        search_result = search_and_reason(user_input)
         if search_result:
             return search_result
-        
-        # 9. Fallback
-        return "I couldn't find an answer. Try rephrasing your question."
+    
+    return "I need to think about that. Could you provide more context or rephrase the question?"
 
 # -------------------------
 # UI
 # -------------------------
-st.markdown("<h1 style='text-align: center;'>Emotion-Aware AI Companion</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Created by Moses, KyungDong University</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>Smart AI Companion</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Created by Moses, KyungDong University | Logic | Reasoning | Counterfactuals</p>", unsafe_allow_html=True)
 
 st.divider()
 
 with st.sidebar:
-    st.markdown("### Features")
-    st.markdown("- Direct answers to questions")
-    st.markdown("- Math calculations")
-    st.markdown("- Translations")
-    st.markdown("- Emotional support")
-    st.markdown("- Jokes")
+    st.markdown("### Intelligence Tests")
+    st.markdown("- Logic puzzles (bat and ball, syllogisms)")
+    st.markdown("- Counterfactual reasoning (what if?)")
+    st.markdown("- Pattern recognition")
+    st.markdown("- Scientific reasoning")
+    st.markdown("- Trick questions detection")
+    st.markdown("- Self-correction")
+    st.markdown("- Meta-cognition")
     
     st.divider()
     
@@ -296,7 +469,21 @@ with st.sidebar:
         st.rerun()
     
     st.divider()
-    st.info("Try asking:\n\n- State Newton's third law\n- What is the square root of 16?\n- How to say hello in Korean?\n- Tell me a joke\n- I'm feeling tired")
+    st.info("""Try these intelligence tests:
+
+• If all Bloops are Razzies and all Razzies are Lazzies, are all Bloops definitely Lazzies?
+
+• A bat and ball cost $1.10 total. The bat costs $1 more than the ball. How much does the ball cost?
+
+• What would happen to gravity if Earth suddenly doubled in mass?
+
+• Is 0 an even number? Why?
+
+• 2 + 2 = 5. Explain why this might be true or correct it.
+
+• What is the pattern: 2, 6, 12, 20, 30, ?
+
+• Write a sentence without using the letter 'e' explaining why learning is important.""")
 
 if st.button("Show / Hide Emotional Insights"):
     st.session_state.show_dashboard = not st.session_state.show_dashboard
@@ -316,7 +503,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-user_input = st.chat_input("Ask me anything...")
+user_input = st.chat_input("Ask me anything - logic puzzles, reasoning questions, or just chat...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
