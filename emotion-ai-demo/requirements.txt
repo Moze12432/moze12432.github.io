@@ -1,4 +1,4 @@
 streamlit
 transformers
-torch==2.2.0
+torch
 sentencepiece
