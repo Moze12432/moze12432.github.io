@@ -495,10 +495,11 @@ with st.sidebar:
     st.markdown("Computer Engineering @ Kyungdong University")
     st.markdown("---")
     st.markdown("### Features")
-    st.markdown("✅ Calculator")
-    st.markdown("✅ Wikipedia Search")
-    st.markdown("✅ Memory System")
-    st.markdown("✅ Autonomous Reasoning")
+    st.markdown("✅ Access to current date/time")
+    st.markdown("✅ Real-time web search")
+    st.markdown("✅ Latest news headlines")
+    st.markdown("✅ Calculator for math problems")
+    st.markdown("✅ Memory of past Conversations")
 
 for role, msg in st.session_state.chat_history:
 
