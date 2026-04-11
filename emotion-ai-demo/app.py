@@ -107,68 +107,12 @@ st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠")
 # CUSTOM CSS FOR PERSONAL STYLING
 # ============================================
 
+# ============================================
+# CUSTOM CSS FOR PERSONAL STYLING
+# ============================================
+
 st.markdown("""
 <style>
-    .main {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    .stChatMessage {
-        border-radius: 15px;
-        padding: 10px;
-        margin: 5px 0;
-    }
-    
-    .stChatMessage [data-testid="stChatMessageContent"]:has(div:first-child) {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 15px;
-        padding: 12px;
-    }
-    
-    .stChatMessage [data-testid="stChatMessageContent"]:has(div:last-child) {
-        background: #f0f2f6;
-        color: #1e1e2f;
-        border-radius: 15px;
-        padding: 12px;
-        border-left: 4px solid #764ba2;
-    }
-    
-    h1 {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-size: 2.5em;
-        font-weight: bold;
-        text-align: center;
-        padding: 20px;
-    }
-    
-    .stButton button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 8px 20px;
-        font-weight: bold;
-        transition: transform 0.2s;
-    }
-    
-    .stButton button:hover {
-        transform: scale(1.05);
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-    
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1e1e2f 0%, #2d2d44 100%);
-    }
-    
-    .stChatInputContainer {
-        border-radius: 20px;
-        border: 2px solid #667eea;
-    }
-    st.markdown("""
-
     /* Main container */
     .main {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -236,7 +180,86 @@ st.markdown("""
         border: 2px solid #667eea;
     }
     
-    /* ===== TOOLTIP STYLES FOR UPLOAD BUTTON ===== */
+    /* Fixed bottom input bar */
+    .fixed-bottom {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
+        padding: 15px 20px;
+        z-index: 1000;
+        border-top: 1px solid rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Chat input wrapper with upload button inside */
+    .chat-input-wrapper {
+        max-width: 800px;
+        margin: 0 auto;
+        position: relative;
+    }
+    
+    /* Position upload button INSIDE the chat input */
+    div[data-testid="stFileUploader"] {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1001;
+        width: auto !important;
+    }
+    
+    /* Hide all file uploader text */
+    div[data-testid="stFileUploader"] > div:first-child {
+        display: none;
+    }
+    
+    div[data-testid="stFileUploader"] > div:first-child + div {
+        display: none;
+    }
+    
+    /* Style the upload button */
+    div[data-testid="stFileUploader"] button {
+        background: transparent;
+        border: none;
+        font-size: 22px;
+        padding: 0;
+        margin: 0;
+        width: 36px;
+        height: 36px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: #667eea;
+    }
+    
+    div[data-testid="stFileUploader"] button:hover {
+        transform: scale(1.1);
+        color: #764ba2;
+        background: transparent;
+    }
+    
+    /* Add padding to chat input to make room for the button */
+    .stChatInputContainer textarea {
+        padding-right: 50px !important;
+    }
+    
+    /* Hide Streamlit's default bottom padding */
+    .main > div {
+        padding-bottom: 100px;
+    }
+    
+    /* Active files indicator */
+    .active-files-indicator {
+        text-align: center;
+        font-size: 12px;
+        color: #667eea;
+        margin-top: 5px;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    /* Tooltip styles */
     .upload-tooltip {
         position: relative;
         display: inline-block;
@@ -278,36 +301,6 @@ st.markdown("""
         visibility: visible;
         opacity: 1;
     }
-    
-    /* Style for the upload button container */
-    div[data-testid="stFileUploader"] {
-        position: relative;
-    }
-    
-    /* Hide default text */
-    div[data-testid="stFileUploader"] > div:first-child {
-        display: none;
-    }
-    
-    /* Style the button */
-    div[data-testid="stFileUploader"] button {
-        background: transparent;
-        border: none;
-        font-size: 22px;
-        padding: 0;
-        margin: 0;
-        width: 36px;
-        height: 36px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        color: #667eea;
-    }
-    
-    div[data-testid="stFileUploader"] button:hover {
-        transform: scale(1.1);
-        color: #764ba2;
-    }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -836,68 +829,6 @@ with st.sidebar:
 # Create a container for the chat history (scrollable)
 chat_container = st.container()
 
-# Create a fixed bottom container for the input
-st.markdown("""
-<style>
-    /* Fixed bottom input bar */
-    .fixed-bottom {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
-        padding: 15px 20px;
-        z-index: 1000;
-        border-top: 1px solid rgba(102, 126, 234, 0.3);
-    }
-    
-    /* Chat input wrapper with upload button inside */
-    .chat-input-wrapper {
-        max-width: 800px;
-        margin: 0 auto;
-        position: relative;
-    }
-    
-    /* Style the chat input */
-    .stChatInputContainer {
-        border-radius: 25px;
-        border: 2px solid #667eea;
-        background: white;
-    }
-    
-    /* Position upload button INSIDE the chat input */
-    div[data-testid="stFileUploader"] {
-        position: absolute;
-        right: 15px;
-        top: 50%;
-        transform: translateY(-50%);
-        z-index: 1001;
-        width: auto !important;
-    }
-    
-    /* Add padding to chat input to make room for the button */
-    .stChatInputContainer textarea {
-        padding-right: 50px !important;
-    }
-    
-    /* Hide Streamlit's default bottom padding */
-    .main > div {
-        padding-bottom: 100px;
-    }
-    
-    /* Active files indicator */
-    .active-files-indicator {
-        text-align: center;
-        font-size: 12px;
-        color: #667eea;
-        margin-top: 5px;
-        max-width: 800px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # Display chat history in scrollable container
 with chat_container:
     for role, msg in st.session_state.chat_history:
@@ -905,62 +836,57 @@ with chat_container:
             st.write(msg)
 
 # Fixed bottom bar with chat input and upload button
-with st.container():
-    st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
-    
-    # Create the chat input wrapper
-    st.markdown('<div class="chat-input-wrapper">', unsafe_allow_html=True)
-    
-    # Chat input
-    query = st.chat_input("Ask anything...", key="main_chat_input")
-    
-    # Upload button with TOOLTIP
-    st.markdown("""
-    <div class="upload-tooltip">
-        <div id="upload-button-placeholder"></div>
-        <div class="tooltip-text">📎 Upload files (PDF, DOCX, TXT, CSV, JSON)</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    uploaded_file = st.file_uploader(
-        "📎",
-        type=['pdf', 'docx', 'txt', 'csv', 'json'],
-        label_visibility="collapsed",
-        key="inline_uploader"
-    )
-    
-    if uploaded_file:
-        if uploaded_file.name not in st.session_state.uploaded_files:
-            with st.spinner(f"📖 Reading {uploaded_file.name}..."):
-                file_content = process_uploaded_file(uploaded_file)
-                if file_content and not file_content.startswith("Error"):
-                    st.session_state.uploaded_files[uploaded_file.name] = file_content
-                    st.session_state.file_context = "\n\n".join([
-                        f"=== FILE: {name} ===\n{content}" 
-                        for name, content in st.session_state.uploaded_files.items()
-                    ])
-                    st.success(f"✅ Loaded: {uploaded_file.name}")
-                    st.rerun()
-                else:
-                    st.error(f"❌ Failed to load: {uploaded_file.name}")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Show active files indicator below the input
-    if st.session_state.uploaded_files:
-        col1, col2, col3 = st.columns([0.7, 0.2, 0.1])
-        with col1:
-            file_names = ', '.join(list(st.session_state.uploaded_files.keys())[:2])
-            st.markdown(f'<div class="active-files-indicator">📎 {file_names}</div>', unsafe_allow_html=True)
-            if len(st.session_state.uploaded_files) > 2:
-                st.caption(f"   +{len(st.session_state.uploaded_files) - 2} more")
-        with col3:
-            if st.button("🗑️", key="clear_files_simple", help="Clear all files"):
-                st.session_state.uploaded_files = {}
-                st.session_state.file_context = ""
+st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
+
+# Create the chat input wrapper
+st.markdown('<div class="chat-input-wrapper">', unsafe_allow_html=True)
+
+# Chat input
+query = st.chat_input("Ask anything...", key="main_chat_input")
+
+# Upload button with tooltip wrapper
+st.markdown('<div class="upload-tooltip">', unsafe_allow_html=True)
+uploaded_file = st.file_uploader(
+    "📎",
+    type=['pdf', 'docx', 'txt', 'csv', 'json'],
+    label_visibility="collapsed",
+    key="inline_uploader"
+)
+st.markdown('<div class="tooltip-text">📎 Upload files (PDF, DOCX, TXT, CSV, JSON)</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+if uploaded_file:
+    if uploaded_file.name not in st.session_state.uploaded_files:
+        with st.spinner(f"📖 Reading {uploaded_file.name}..."):
+            file_content = process_uploaded_file(uploaded_file)
+            if file_content and not file_content.startswith("Error"):
+                st.session_state.uploaded_files[uploaded_file.name] = file_content
+                st.session_state.file_context = "\n\n".join([
+                    f"=== FILE: {name} ===\n{content}" 
+                    for name, content in st.session_state.uploaded_files.items()
+                ])
+                st.success(f"✅ Loaded: {uploaded_file.name}")
                 st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.error(f"❌ Failed to load: {uploaded_file.name}")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Show active files indicator below the input
+if st.session_state.uploaded_files:
+    col1, col2, col3 = st.columns([0.7, 0.2, 0.1])
+    with col1:
+        file_names = ', '.join(list(st.session_state.uploaded_files.keys())[:2])
+        st.markdown(f'<div class="active-files-indicator">📎 {file_names}</div>', unsafe_allow_html=True)
+        if len(st.session_state.uploaded_files) > 2:
+            st.caption(f"   +{len(st.session_state.uploaded_files) - 2} more")
+    with col3:
+        if st.button("🗑️", key="clear_files_simple", help="Clear all files"):
+            st.session_state.uploaded_files = {}
+            st.session_state.file_context = ""
+            st.rerun()
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Process the query
 if query:
