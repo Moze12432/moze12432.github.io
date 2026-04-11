@@ -689,18 +689,52 @@ with st.sidebar:
     st.markdown("✅ Memory of past conversations")
 
 # ============================================
-# CHAT HISTORY & INPUT WITH FILE UPLOAD BUTTON
+# CHAT HISTORY & INPUT WITH STATIONARY BOTTOM BAR
 # ============================================
 
-# Display chat history
-for role, msg in st.session_state.chat_history:
-    with st.chat_message(role):
-        st.write(msg)
+# Create a container for the chat history (scrollable)
+chat_container = st.container()
 
-# Custom CSS to make upload button clean and simple
+# Create a fixed bottom container for the input
 st.markdown("""
 <style>
-    /* Remove the default file uploader text */
+    /* Fixed bottom input bar */
+    .fixed-bottom {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
+        padding: 15px 20px;
+        z-index: 1000;
+        border-top: 1px solid rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Chat input wrapper with upload button inside */
+    .chat-input-wrapper {
+        max-width: 800px;
+        margin: 0 auto;
+        position: relative;
+    }
+    
+    /* Style the chat input */
+    .stChatInputContainer {
+        border-radius: 25px;
+        border: 2px solid #667eea;
+        background: white;
+    }
+    
+    /* Position upload button INSIDE the chat input */
+    div[data-testid="stFileUploader"] {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1001;
+        width: auto !important;
+    }
+    
+    /* Hide all file uploader text */
     div[data-testid="stFileUploader"] > div:first-child {
         display: none;
     }
@@ -709,44 +743,66 @@ st.markdown("""
         display: none;
     }
     
-    /* Style just the button */
+    /* Style the upload button */
     div[data-testid="stFileUploader"] button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: transparent;
         border: none;
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        font-size: 20px;
+        font-size: 22px;
         padding: 0;
         margin: 0;
+        width: 36px;
+        height: 36px;
         cursor: pointer;
         transition: all 0.3s ease;
-        min-width: 40px;
+        color: #667eea;
     }
     
     div[data-testid="stFileUploader"] button:hover {
-        transform: scale(1.05);
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        transform: scale(1.1);
+        color: #764ba2;
+        background: transparent;
     }
     
-    /* Hide any extra text or labels */
-    .stFileUploaderLabel {
-        display: none;
+    /* Add padding to chat input to make room for the button */
+    .stChatInputContainer textarea {
+        padding-right: 50px !important;
+    }
+    
+    /* Hide Streamlit's default bottom padding */
+    .main > div {
+        padding-bottom: 100px;
+    }
+    
+    /* Active files indicator */
+    .active-files-indicator {
+        text-align: center;
+        font-size: 12px;
+        color: #667eea;
+        margin-top: 5px;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Create two columns for chat input and upload button
-chat_col, upload_col = st.columns([0.9, 0.1])
+# Display chat history in scrollable container
+with chat_container:
+    for role, msg in st.session_state.chat_history:
+        with st.chat_message(role):
+            st.write(msg)
 
-with chat_col:
-    query = st.chat_input("Ask anything...")
-
-with upload_col:
-    # Empty space to align button with chat input
-    st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
+# Fixed bottom bar with chat input and upload button
+with st.container():
+    st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
     
-    # Clean upload button - just the icon
+    # Create the chat input wrapper
+    st.markdown('<div class="chat-input-wrapper">', unsafe_allow_html=True)
+    
+    # Chat input (will be styled with padding for the button)
+    query = st.chat_input("Ask anything...", key="main_chat_input")
+    
+    # Upload button (appears INSIDE the chat input)
     uploaded_file = st.file_uploader(
         "📎",
         type=['pdf', 'docx', 'txt', 'csv', 'json'],
@@ -768,28 +824,28 @@ with upload_col:
                     st.rerun()
                 else:
                     st.error(f"❌ Failed to load: {uploaded_file.name}")
-
-# Show active files status (compact)
-if st.session_state.uploaded_files:
-    col1, col2 = st.columns([0.85, 0.15])
-    with col1:
-        file_list = ', '.join(list(st.session_state.uploaded_files.keys())[:2])
-        st.caption(f"📎 {file_list}" + (f" +{len(st.session_state.uploaded_files)-2} more" if len(st.session_state.uploaded_files) > 2 else ""))
-    with col2:
-        if st.button("🗑️", key="clear_files_simple", help="Clear all files"):
-            st.session_state.uploaded_files = {}
-            st.session_state.file_context = ""
-            st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Show active files indicator below the input
+    if st.session_state.uploaded_files:
+        col1, col2, col3 = st.columns([0.7, 0.2, 0.1])
+        with col1:
+            file_names = ', '.join(list(st.session_state.uploaded_files.keys())[:2])
+            st.markdown(f'<div class="active-files-indicator">📎 {file_names}</div>', unsafe_allow_html=True)
+            if len(st.session_state.uploaded_files) > 2:
+                st.caption(f"   +{len(st.session_state.uploaded_files) - 2} more")
+        with col3:
+            if st.button("🗑️", key="clear_files_simple", help="Clear all files"):
+                st.session_state.uploaded_files = {}
+                st.session_state.file_context = ""
+                st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Process the query
 if query:
     st.session_state.chat_history.append(("user", query))
-    with st.chat_message("user"):
-        st.write(query)
-    
     response = run_agent(query)
-    
-    with st.chat_message("assistant"):
-        st.write(response)
-    
     st.session_state.chat_history.append(("assistant", response))
+    st.rerun()
