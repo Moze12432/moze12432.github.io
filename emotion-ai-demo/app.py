@@ -104,7 +104,24 @@ client = Groq(
 # ============================================
 # LLM CALL
 # ============================================
+# ============================================
+# CURRENT DATE & TIME
+# ============================================
 
+from datetime import datetime
+import pytz  # You'll need to install: pip install pytz
+
+def get_current_datetime():
+    """Get current date and time"""
+    tz = pytz.timezone('Asia/Seoul')  # Change to your timezone
+    now = datetime.now(tz)
+    
+    return f"""Current Information:
+• Date: {now.strftime('%B %d, %Y')}
+• Time: {now.strftime('%I:%M %p')}
+• Day: {now.strftime('%A')}
+• Timezone: Asia/Seoul"""
+    
 def llm(messages):
 
     try:
@@ -127,18 +144,31 @@ def llm(messages):
 # ============================================
 
 SYSTEM_PROMPT = """
-You are MozeAI.
+You are MozeAI, an AI with REAL-TIME information access.
 
 Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University.
 He is an AI builder focused on designing intelligent autonomous agents, language model applications, and practical AI systems that solve real-world problems such as education, automation, and decision support.
 He is an active researcher on researchGate, Aademia and other research Platforms.
 
-Rules:
+
+CAPABILITIES:
+- Access to current date/time
+- Real-time web search
+- Latest news headlines
+- Calculator for math problems
+- Memory of past conversations
+
+INSTRUCTIONS:
+- Use the provided context which includes CURRENT information
+- For time/date questions, use the current information provided
+- For news/events, rely on the search results given
 - Answer clearly and factually
-- Do not hallucinate
-- If unsure say "I am not sure"
+- If information isn't in context, say "I don't have current information on that"
+- Do not hallucinate or make up dates/events
 - Do not show internal reasoning
 """
+
+
 
 # ============================================
 # SESSION MEMORY
@@ -197,24 +227,103 @@ def retrieve_memory(query):
 # WIKIPEDIA SEARCH
 # ============================================
 
+# ============================================
+# REAL-TIME WEB SEARCH (using DuckDuckGo - free, no API key)
+# ============================================
+
 def internet_search(query):
-
+    """Search the web for current information"""
     try:
+        # Using DuckDuckGo HTML API (free, no key needed)
+        url = "https://html.duckduckgo.com/html/"
+        params = {"q": query}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        
+        response = requests.post(url, data=params, headers=headers)
+        
+        if response.status_code == 200:
+            # Extract search results
+            import re
+            results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
+            snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
+            
+            if results and snippets:
+                context = f"Recent search results for '{query}':\n\n"
+                for i in range(min(3, len(results))):
+                    context += f"• {results[i]}\n"
+                    if i < len(snippets):
+                        context += f"  {snippets[i]}\n\n"
+                return context[:1500]
+        
+        # Fallback to Wikipedia
+        return wikipedia_fallback(query)
+        
+    except Exception as e:
+        return wikipedia_fallback(query)
 
+
+def wikipedia_fallback(query):
+    """Wikipedia as backup search"""
+    try:
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
         q = query.strip().replace(" ", "_")
-
         r = requests.get(url + q)
-
-        if r.status_code != 200:
-            return ""
-
-        data = r.json()
-
-        return data.get("extract", "")[:1000]
-
+        
+        if r.status_code == 200:
+            data = r.json()
+            extract = data.get("extract", "")[:1000]
+            if extract:
+                return f"Wikipedia information:\n{extract}"
     except:
-        return ""
+        pass
+    return ""
+
+
+# ============================================
+# NEWS SEARCH for current events
+# ============================================
+
+def get_current_news(topic="latest"):
+    """Get current news (using NewsAPI - free tier)"""
+    try:
+        # You'll need a free API key from https://newsapi.org/
+        api_key = st.secrets.get("NEWS_API_KEY", "")
+        
+        if not api_key:
+            # Fallback to simple RSS feed
+            url = f"https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
+            response = requests.get(url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                items = data.get("items", [])[:3]
+                
+                news_text = "Latest news headlines:\n\n"
+                for item in items:
+                    news_text += f"• {item.get('title', '')}\n"
+                    news_text += f"  {item.get('description', '')[:150]}...\n\n"
+                return news_text[:1000]
+        
+        else:
+            # Use NewsAPI if you have key
+            url = f"https://newsapi.org/v2/everything?q={topic}&sortBy=publishedAt&apiKey={api_key}&pageSize=3"
+            response = requests.get(url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                articles = data.get("articles", [])
+                
+                news_text = f"Current news about '{topic}':\n\n"
+                for article in articles[:3]:
+                    news_text += f"• {article.get('title', '')}\n"
+                    news_text += f"  {article.get('description', '')[:150]}...\n\n"
+                return news_text[:1000]
+                
+    except Exception as e:
+        pass
+    return ""
 
 # ============================================
 # CALCULATOR
@@ -242,22 +351,33 @@ def calculator(query):
 # ROUTER
 # ============================================
 
+# ============================================
+# ROUTER with current info triggers
+# ============================================
+
 def route(query):
-
     q = query.lower()
-
+    
+    # Check for calculator
     if any(x in q for x in ["+","-","*","/","×","calculate"]):
         return "calculator"
-
+    
+    # Check for current time/date requests
+    if any(x in q for x in ["time", "date", "today", "current time", "what day", "what's the date"]):
+        return "datetime"
+    
+    # Check for news requests
+    if any(x in q for x in ["news", "headlines", "current events", "breaking", "latest"]):
+        return "news"
+    
+    # Check for general web search
     if any(x in q for x in [
-        "capital",
-        "population",
-        "leader",
-        "history",
-        "tell me about"
+        "capital", "population", "leader", "history", "tell me about",
+        "who is", "what is", "when did", "where is", "current", "recent",
+        "latest", "today's", "this week", "2024", "2025"
     ]):
         return "search"
-
+    
     return "reason"
 
 # ============================================
@@ -303,36 +423,48 @@ Answer clearly.
 # AGENT
 # ============================================
 
+# ============================================
+# AGENT with current information
+# ============================================
+
 def run_agent(query):
-
     tool = route(query)
-
     context = ""
-
-    # calculator
+    
+    # Calculator
     if tool == "calculator":
-
         result = calculator(query)
-
         if result:
             return result
-
-    # search
+    
+    # Date/Time
+    if tool == "datetime":
+        context += get_current_datetime()
+    
+    # News
+    if tool == "news":
+        news_context = get_current_news(query)
+        if news_context:
+            context += news_context
+    
+    # Web Search
     if tool == "search":
-
-        web = internet_search(query)
-
-        context += web
-
-    # memory
+        web_context = internet_search(query)
+        if web_context:
+            context += web_context
+    
+    # Memory retrieval
     mem = retrieve_memory(query)
-
-    context += "\n" + mem
-
+    if mem:
+        context += "\n\n" + mem
+    
+    # If no context found, add current date at least
+    if not context:
+        context = get_current_datetime()
+    
     answer = reason(query, context)
-
     store_memory(answer)
-
+    
     return answer
 
 # ============================================
