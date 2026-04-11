@@ -1,5 +1,6 @@
 streamlit
-sentence-transformers
-numpy
-requests
 groq
+requests
+numpy
+sentence-transformers
+pytz
