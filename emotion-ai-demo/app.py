@@ -703,97 +703,32 @@ with st.sidebar:
 # ============================================
 
 # Display chat history
+# ============================================
+# CHAT HISTORY & INPUT
+# ============================================
+
 for role, msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.write(msg)
 
-# Custom CSS to place upload button correctly
-st.markdown("""
-<style>
-    /* Container for chat input and upload button */
-    .chat-input-wrapper {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
-        padding: 10px 20px;
-        z-index: 1000;
-    }
-    
-    .chat-input-container {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        max-width: 800px;
-        margin: 0 auto;
-    }
-    
-    .chat-input-container > div:first-child {
-        flex: 1;
-    }
-    
-    /* Style the file uploader to be a small button */
-    div[data-testid="stFileUploader"] {
-        width: auto !important;
-        margin: 0 !important;
-    }
-    
-    div[data-testid="stFileUploader"] button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        border-radius: 50%;
-        width: 45px;
-        height: 45px;
-        font-size: 20px;
-        padding: 0;
-        margin: 0;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    div[data-testid="stFileUploader"] button:hover {
-        transform: scale(1.05);
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-    
-    /* Hide the default file uploader text and instructions */
-    div[data-testid="stFileUploader"] > div:first-child {
-        display: none;
-    }
-    
-    /* Style the chat input */
-    .stChatInputContainer {
-        border-radius: 25px;
-        border: 2px solid #667eea;
-        background: white;
-    }
-    
-    .stChatInputContainer textarea {
-        border-radius: 25px;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Simple two-column layout for chat input and upload
+chat_col, upload_col = st.columns([0.85, 0.15])
 
-# Create columns for chat input and upload button
-col1, col2 = st.columns([0.92, 0.08])
+with chat_col:
+    query = st.chat_input("Ask anything...")
 
-with col1:
-    query = st.chat_input("Ask anything...", key="main_chat_input")
-
-with col2:
-    # File upload button
+with upload_col:
+    st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
     uploaded_file = st.file_uploader(
-        "📎",
+        "📎 Upload",
         type=['pdf', 'docx', 'txt', 'csv', 'json'],
         label_visibility="collapsed",
-        key="inline_uploader",
-        help="Upload a file to analyze"
+        key="simple_uploader"
     )
     
     if uploaded_file:
         if uploaded_file.name not in st.session_state.uploaded_files:
-            with st.spinner(f"📖 Reading {uploaded_file.name}..."):
+            with st.spinner(f"Reading {uploaded_file.name}..."):
                 file_content = process_uploaded_file(uploaded_file)
                 if file_content and not file_content.startswith("Error"):
                     st.session_state.uploaded_files[uploaded_file.name] = file_content
@@ -803,23 +738,20 @@ with col2:
                     ])
                     st.success(f"✅ Loaded: {uploaded_file.name}")
                     st.rerun()
-                else:
-                    st.error(f"❌ Failed to load: {uploaded_file.name}")
 
-# Show active files status below chat input
+# Show active files
 if st.session_state.uploaded_files:
-    col1, col2 = st.columns([0.85, 0.15])
-    with col1:
-        st.caption(f"📄 Active files: {', '.join(list(st.session_state.uploaded_files.keys())[:3])}")
-        if len(st.session_state.uploaded_files) > 3:
-            st.caption(f"   ... and {len(st.session_state.uploaded_files) - 3} more")
-    with col2:
-        if st.button("🗑️ Clear all", key="clear_files_simple", use_container_width=True):
-            st.session_state.uploaded_files = {}
-            st.session_state.file_context = ""
-            st.rerun()
+    st.markdown("---")
+    st.markdown("**📎 Active Files:**")
+    for name in list(st.session_state.uploaded_files.keys()):
+        st.caption(f"• {name}")
+    
+    if st.button("🗑️ Clear all files"):
+        st.session_state.uploaded_files = {}
+        st.session_state.file_context = ""
+        st.rerun()
+    st.markdown("---")
 
-# Process the query
 if query:
     st.session_state.chat_history.append(("user", query))
     with st.chat_message("user"):
