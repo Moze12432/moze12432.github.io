@@ -743,153 +743,90 @@ def run_agent(query):
     return answer
 
 # ============================================
-# UI - MAIN PAGE
+# SIMPLE FIX - JUST POSITION THE CHAT INPUT
 # ============================================
 
-st.markdown('<h1>🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent</p>', unsafe_allow_html=True)
-st.markdown("---")
+# Add this CSS to your existing CSS
+st.markdown("""
+<style>
+    /* Just position the chat input at the bottom - that's it! */
+    .stChatInputContainer {
+        position: fixed !important;
+        bottom: 0px !important;
+        left: 0px !important;
+        right: 0px !important;
+        background: white !important;
+        padding: 15px !important;
+        z-index: 999 !important;
+        border-top: 1px solid #e0e0e0 !important;
+    }
+    
+    /* Add padding to main content so it doesn't hide behind the input */
+    .main .block-container {
+        padding-bottom: 100px !important;
+    }
+    
+    /* Style the upload button to look good next to chat input */
+    .stFileUploader button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 18px;
+        height: 46px;
+        width: 60px;
+    }
+    
+    .stFileUploader > div:first-child {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# ============================================
-# SIDEBAR
-# ============================================
+# Display chat history (this scrolls normally)
+for role, msg in st.session_state.chat_history:
+    with st.chat_message(role):
+        st.write(msg)
 
-with st.sidebar:
-    st.markdown("### 🧠 MozeAI")
-    st.markdown("---")
-    
-    if st.button("🔄 New Chat", use_container_width=True):
-        st.session_state.memory_store = []
-        st.session_state.chat_history = []
-        st.session_state.uploaded_files = {}
-        st.session_state.file_context = ""
-        st.rerun()
-    
-    # Clear file context button
-    if st.button("🗑️ Clear File Context", use_container_width=True):
-        st.session_state.uploaded_files = {}
-        st.session_state.file_context = ""
-        st.toast("✅ File context cleared! Now having normal conversation.", icon="🧹")
-        st.rerun()
-    
-    st.markdown("---")
-    st.markdown("### 📤 File Upload")
-    st.markdown("""
-    **Supported files:**
-    - PDF, DOCX, TXT, CSV, JSON
-    
-    **Ask about files:**
-    - "What does this file say?"
-    - "Summarize my document"
-    - "Analyze this data"
-    
-    **To clear files:**
-    - Say "clear context" or click the button above
-    """)
-    
-    st.markdown("---")
-    st.markdown("### About")
-    st.markdown("Created by **Mukiibi Moses**")
-    st.markdown("Computer Engineering @ Kyungdong University")
+# Create columns for chat input and upload button
+col1, col2 = st.columns([5, 1])
 
-# ============================================
-# UPDATED AGENT FUNCTION - NO RERUNS
-# ============================================
+with col1:
+    query = st.chat_input("Ask me anything...", key="chat_input")
 
-def run_agent(query):
-    # Check if user wants to reset/ignore files
-    reset_phrases = ["leave the document", "back to normal conversation", "ignore the file", "forget the file", "clear context", "start fresh"]
-    if any(phrase in query.lower() for phrase in reset_phrases):
-        st.session_state.file_context = ""
-        st.session_state.uploaded_files = {}
-        return "✅ Context cleared! I'll now have a normal conversation with you without referencing any files. How can I help you today?"
+with col2:
+    uploaded_files = st.file_uploader(
+        "📎",
+        type=['pdf', 'docx', 'txt', 'csv', 'json'],
+        accept_multiple_files=True,
+        key="inline_uploader",
+        label_visibility="collapsed"
+    )
     
-    tool = route(query)
-    context = ""
-    
-    # FILE TASK - Only if user explicitly asks about files AND files exist
-    if tool == "file_task" and st.session_state.file_context:
-        filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
-        with st.spinner("📖 Reading your document..."):
-            return analyze_uploaded_files(query, st.session_state.file_context, filenames)
-    
-    # EVALUATION task
-    elif tool == "evaluate" and st.session_state.file_context:
-        with st.spinner("📝 Evaluating your work..."):
-            return evaluate_work(query, st.session_state.file_context)
-    
-    # URL Scraping
-    elif tool == "scrape_url":
-        urls = extract_urls_from_query(query)
-        scraped_content = ""
-        for url in urls:
-            with st.spinner(f"Reading {url}..."):
-                content = scrape_webpage(url)
-                if content:
-                    scraped_content += f"\n\nContent from {url}:\n{content}\n"
-        if scraped_content:
-            context = scraped_content
-        else:
-            return "I couldn't read that link."
-    
-    # Calculator
-    if tool == "calculator":
-        result = calculator(query)
-        if result:
-            return result
-    
-    # Date/Time
-    if tool == "datetime":
-        context += get_current_datetime()
-    
-    # News
-    if tool == "news":
-        news_context = get_current_news(query)
-        if news_context:
-            context += news_context
-    
-    # Web Search
-    if tool == "search":
-        web_context = internet_search(query)
-        if web_context:
-            context += web_context
-    
-    # Memory retrieval
-    mem = retrieve_memory(query)
-    if mem:
-        context += "\n\n" + mem
-    
-    # If no context found, add current date
-    if not context:
-        context = get_current_datetime()
-    
-    answer = reason(query, context)
-    store_memory(answer)
-    
-    return answer
-def process_uploaded_file(uploaded_file):
-    """Route file to appropriate processor based on type"""
-    file_type = uploaded_file.type
-    file_name = uploaded_file.name.lower()
-    
-    try:
-        if file_type == "application/pdf" or file_name.endswith('.pdf'):
-            content = extract_text_from_pdf(uploaded_file)
-        elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_name.endswith('.docx'):
-            content = extract_text_from_docx(uploaded_file)
-        elif file_type == "text/plain" or file_name.endswith('.txt'):
-            content = extract_text_from_txt(uploaded_file)
-        elif file_type == "text/csv" or file_name.endswith('.csv'):
-            content = extract_text_from_csv(uploaded_file)
-        elif file_type == "application/json" or file_name.endswith('.json'):
-            content = extract_text_from_json(uploaded_file)
-        else:
-            return f"Unsupported file type: {file_type}"
+    if uploaded_files:
+        for file in uploaded_files:
+            if file.name not in st.session_state.uploaded_files:
+                file_content = process_uploaded_file(file)
+                if file_content and not file_content.startswith("Error"):
+                    st.session_state.uploaded_files[file.name] = file_content
+                    st.toast(f"✅ Loaded: {file.name}", icon="📎")
         
-        # Check if extraction was successful
-        if content.startswith("Error") or "empty" in content.lower():
-            return None
-        
-        return content
-    except Exception as e:
-        return None
+        if st.session_state.uploaded_files:
+            st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
+                f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
+                for name, content in st.session_state.uploaded_files.items()
+            ])
+
+# Process query
+if query:
+    st.session_state.chat_history.append(("user", query))
+    with st.chat_message("user"):
+        st.write(query)
+    
+    response = run_agent(query)
+    
+    with st.chat_message("assistant"):
+        st.write(response)
+    
+    st.session_state.chat_history.append(("assistant", response))
+    st.rerun()
