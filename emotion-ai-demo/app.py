@@ -6,6 +6,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from bs4 import BeautifulSoup
+import requests
 from urllib.parse import urlparse
 
 import PyPDF2
@@ -13,201 +14,244 @@ import docx
 from io import StringIO
 import csv
 import json
-from datetime import datetime
-import pytz
 
-# ================= FILE PROCESSING =================
+# ============================================
+# FILE PROCESSING FUNCTIONS
+# ============================================
+
 def extract_text_from_pdf(file):
+    """Extract text from PDF file"""
     try:
         pdf_reader = PyPDF2.PdfReader(file)
-        return "".join([p.extract_text() for p in pdf_reader.pages])[:5000]
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        return text[:5000]  # Limit to 5000 chars
     except Exception as e:
         return f"Error reading PDF: {str(e)}"
 
 def extract_text_from_docx(file):
+    """Extract text from Word document"""
     try:
         doc = docx.Document(file)
-        return "\n".join([p.text for p in doc.paragraphs])[:5000]
+        text = ""
+        for paragraph in doc.paragraphs:
+            text += paragraph.text + "\n"
+        return text[:5000]
     except Exception as e:
-        return f"Error reading DOCX: {str(e)}"
+        return f"Error reading Word document: {str(e)}"
 
 def extract_text_from_txt(file):
+    """Extract text from text file"""
     try:
-        return file.read().decode("utf-8")[:5000]
-    except Exception as e:
-        return f"Error reading TXT: {str(e)}"
-
-def extract_text_from_csv(file):
-    try:
-        content = file.read().decode("utf-8")
+        content = file.read().decode('utf-8')
         return content[:5000]
     except Exception as e:
-        return f"Error reading CSV: {str(e)}"
+        return f"Error reading text file: {str(e)}"
+
+def extract_text_from_csv(file):
+    """Extract text from CSV file"""
+    try:
+        content = file.read().decode('utf-8')
+        csv_reader = csv.reader(StringIO(content))
+        text = ""
+        for row in csv_reader:
+            text += " | ".join(row) + "\n"
+        return f"CSV Data:\n{text[:5000]}"
+    except Exception as e:
+        return f"Error reading CSV file: {str(e)}"
 
 def extract_text_from_json(file):
+    """Extract text from JSON file"""
     try:
-        content = file.read().decode("utf-8")
-        return json.dumps(json.loads(content), indent=2)[:5000]
+        content = file.read().decode('utf-8')
+        data = json.loads(content)
+        return f"JSON Data:\n{json.dumps(data, indent=2)[:5000]}"
     except Exception as e:
-        return f"Error reading JSON: {str(e)}"
+        return f"Error reading JSON file: {str(e)}"
 
 def process_uploaded_file(uploaded_file):
-    name = uploaded_file.name.lower()
-    if name.endswith(".pdf"): return extract_text_from_pdf(uploaded_file)
-    if name.endswith(".docx"): return extract_text_from_docx(uploaded_file)
-    if name.endswith(".txt"): return extract_text_from_txt(uploaded_file)
-    if name.endswith(".csv"): return extract_text_from_csv(uploaded_file)
-    if name.endswith(".json"): return extract_text_from_json(uploaded_file)
-    return "Unsupported file type"
+    """Route file to appropriate processor based on type"""
+    file_type = uploaded_file.type
+    file_name = uploaded_file.name.lower()
+    
+    # PDF files
+    if file_type == "application/pdf" or file_name.endswith('.pdf'):
+        return extract_text_from_pdf(uploaded_file)
+    
+    # Word documents
+    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_name.endswith('.docx'):
+        return extract_text_from_docx(uploaded_file)
+    
+    # Text files
+    elif file_type == "text/plain" or file_name.endswith('.txt'):
+        return extract_text_from_txt(uploaded_file)
+    
+    # CSV files
+    elif file_type == "text/csv" or file_name.endswith('.csv'):
+        return extract_text_from_csv(uploaded_file)
+    
+    # JSON files
+    elif file_type == "application/json" or file_name.endswith('.json'):
+        return extract_text_from_json(uploaded_file)
+    
+    else:
+        return f"Unsupported file type: {file_type}. Supported: PDF, DOCX, TXT, CSV, JSON"
 
-# ================= CONFIG =================
+
+# ============================================
+# CONFIG
+# ============================================
+
 MODEL_NAME = "llama-3.1-8b-instant"
 TEMPERATURE = 0
 MAX_TOKENS = 400
 
-st.set_page_config(page_title="MozeAI", page_icon="🧠")
+# ============================================
+# STREAMLIT SETTINGS
+# ============================================
 
-# ================= CSS (FIXED UI WITH TOOLTIP) =================
+st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠")
+
+# ============================================
+# CUSTOM CSS FOR PERSONAL STYLING
+# ============================================
+
 st.markdown("""
 <style>
-/* Chat input fixed at bottom */
-.stChatInputContainer {
-    position: fixed;
-    bottom: 20px;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.stChatInputContainer > div {
-    width: 100%;
-    max-width: 800px;
-    background: #40414f;
-    border-radius: 25px;
-    padding: 10px 60px 10px 15px;
-    border: 1px solid #555;
-}
-
-.stChatInputContainer textarea {
-    background: transparent !important;
-    color: white !important;
-    border: none !important;
-}
-
-/* Hide default file uploader text */
-div[data-testid="stFileUploader"] > div:first-child {
-    display: none;
-}
-
-div[data-testid="stFileUploader"] {
-    position: fixed;
-    bottom: 32px;
-    right: calc(50% - 360px);
-    z-index: 1001;
-}
-
-div[data-testid="stFileUploader"] button {
-    background: transparent;
-    border: none;
-    font-size: 22px;
-    padding: 0;
-    margin: 0;
-    width: 36px;
-    height: 36px;
-    cursor: pointer;
-    color: #888;
-    transition: all 0.3s ease;
-}
-
-div[data-testid="stFileUploader"] button:hover {
-    color: #667eea;
-    transform: scale(1.1);
-}
-
-/* Tooltip on hover */
-.upload-icon {
-    position: fixed;
-    bottom: 32px;
-    right: calc(50% - 360px);
-    font-size: 22px;
-    cursor: pointer;
-    z-index: 1002;
-    color: #888;
-    transition: all 0.3s ease;
-}
-
-.upload-icon:hover {
-    color: #667eea;
-    transform: scale(1.1);
-}
-
-/* Hide the actual file uploader display */
-.main > div {
-    padding-bottom: 120px;
-}
-
-/* Active files indicator */
-.active-files {
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(64, 65, 79, 0.9);
-    color: white;
-    padding: 5px 15px;
-    border-radius: 20px;
-    font-size: 12px;
-    z-index: 999;
-    backdrop-filter: blur(10px);
-    white-space: nowrap;
-}
-
-/* Sidebar styling */
-.css-1d391kg {
-    background: linear-gradient(180deg, #1e1e2f 0%, #2d2d44 100%);
-}
-
-.stButton button {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-weight: bold;
-    transition: transform 0.2s;
-}
-
-.stButton button:hover {
-    transform: scale(1.05);
-}
+    /* Main container */
+    .main {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    /* Chat messages */
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 10px;
+        margin: 5px 0;
+    }
+    
+    /* User message */
+    .stChatMessage [data-testid="stChatMessageContent"]:has(div:first-child) {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 12px;
+    }
+    
+    /* Assistant message */
+    .stChatMessage [data-testid="stChatMessageContent"]:has(div:last-child) {
+        background: #f0f2f6;
+        color: #1e1e2f;
+        border-radius: 15px;
+        padding: 12px;
+        border-left: 4px solid #764ba2;
+    }
+    
+    /* Title styling */
+    h1 {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5em;
+        font-weight: bold;
+        text-align: center;
+        padding: 20px;
+    }
+    
+    /* New Chat button */
+    .stButton button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 20px;
+        font-weight: bold;
+        transition: transform 0.2s;
+    }
+    
+    .stButton button:hover {
+        transform: scale(1.05);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background: linear-gradient(180deg, #1e1e2f 0%, #2d2d44 100%);
+    }
+    
+    /* Chat input */
+    .stChatInputContainer {
+        border-radius: 20px;
+        border: 2px solid #667eea;
+    }
 </style>
 """, unsafe_allow_html=True)
+# ============================================
+# GROQ CLIENT
+# ============================================
 
-# ================= CLIENT =================
-client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
+client = Groq(
+    api_key=st.secrets.get("GROQ_API_KEY")
+)
 
+# ============================================
+# LLM CALL
+# ============================================
+
+# ============================================
+# SESSION MEMORY & FILES
+# ============================================
+
+
+# ============================================
+# CURRENT DATE & TIME
+# ============================================
+
+from datetime import datetime
+import pytz  # You'll need to install: pip install pytz
+
+def get_current_datetime():
+    """Get current date and time"""
+    tz = pytz.timezone('Asia/Seoul')  # Change to your timezone
+    now = datetime.now(tz)
+    
+    return f"""Current Information:
+• Date: {now.strftime('%B %d, %Y')}
+• Time: {now.strftime('%I:%M %p')}
+• Day: {now.strftime('%A')}
+• Timezone: Asia/Seoul"""
+    
 def llm(messages):
+
     try:
+
         completion = client.chat.completions.create(
             model=MODEL_NAME,
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
             messages=messages
         )
+
         return completion.choices[0].message.content.strip()
+
     except Exception as e:
+
         return "AI service temporarily unavailable."
 
-# ================= SYSTEM PROMPT =================
+# ============================================
+# SYSTEM PROMPT
+# ============================================
+
 SYSTEM_PROMPT = """
-You are MozeAI, an AI with REAL-TIME information access and file analysis capabilities.
+You are MozeAI, an AI with REAL-TIME information access.
 
 Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University.
 He is an AI builder focused on designing intelligent autonomous agents, language model applications, and practical AI systems that solve real-world problems such as education, automation, and decision support.
+He is an active researcher on researchGate, Aademia and other research Platforms.
+
 
 CAPABILITIES:
-- Read and analyze uploaded files (PDF, DOCX, TXT, CSV, JSON)
 - Access to current date/time
 - Real-time web search
 - Latest news headlines
@@ -215,16 +259,27 @@ CAPABILITIES:
 - Memory of past conversations
 
 INSTRUCTIONS:
-- When users upload files, analyze them thoroughly
-- Provide summaries, answer questions, evaluate content based on user requests
-- For evaluation tasks, provide constructive feedback with strengths, improvements, and scores
 - When a user provides a URL, focus on answering based on that webpage's content
+- Provide summaries, answer questions, or extract specific information from webpages
+- Use the provided context which includes scraped webpage content
+- For time/date questions, use the current information provided
+- For news/events, rely on the search results given
 - Answer clearly and factually
 - If information isn't in context, say "I don't have that information"
 - Do not hallucinate or make up dates/events
+- Do not show internal reasoning
 """
 
-# ================= SESSION STATE =================
+
+
+# ============================================
+# SESSION MEMORY
+# ============================================
+
+# ============================================
+# SESSION MEMORY & FILES
+# ============================================
+
 if "memory_store" not in st.session_state:
     st.session_state.memory_store = []
 
@@ -232,50 +287,109 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = {}
+    st.session_state.uploaded_files = {}  # Store file contents
 
 if "file_context" not in st.session_state:
-    st.session_state.file_context = ""
+    st.session_state.file_context = ""  # Combined text from all uploaded files
 
-# ================= EMBEDDINGS =================
+# ============================================
+# EMBEDDINGS
+# ============================================
+
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ================= CURRENT DATE/TIME =================
-def get_current_datetime():
-    tz = pytz.timezone('Asia/Seoul')
-    now = datetime.now(tz)
-    return f"""Current Information:
-• Date: {now.strftime('%B %d, %Y')}
-• Time: {now.strftime('%I:%M %p')}
-• Day: {now.strftime('%A')}"""
+# ============================================
+# MEMORY FUNCTIONS
+# ============================================
 
-# ================= MEMORY FUNCTIONS =================
+# ============================================
+# EVALUATION FUNCTION
+# ============================================
+
+def evaluate_work(question, file_content):
+    """Evaluate user's work from uploaded files"""
+    evaluation_prompt = f"""
+You are an expert evaluator. Analyze the following file content and answer the user's evaluation request.
+
+File Content:
+{file_content[:3000]}
+
+User Request:
+{question}
+
+Please provide:
+1. Overall assessment
+2. Strengths (2-3 points)
+3. Areas for improvement (2-3 points)
+4. Score out of 100 (if applicable)
+5. Specific recommendations
+
+Be constructive, specific, and actionable.
+"""
+    
+    messages = [
+        {"role": "system", "content": "You are an expert evaluator providing constructive feedback."},
+        {"role": "user", "content": evaluation_prompt}
+    ]
+    
+    return clean_answer(llm(messages))
+
 def store_memory(text):
+
     if len(text) < 30:
         return
+
     vec = embedder.encode(text)
+
     st.session_state.memory_store.append((text, vec))
 
-def retrieve_memory(query):
-    if not st.session_state.memory_store:
-        return ""
-    qvec = embedder.encode(query)
-    scores = []
-    for text, vec in st.session_state.memory_store:
-        sim = np.dot(qvec, vec)
-        scores.append((sim, text))
-    scores.sort(reverse=True)
-    return "\n".join([t[1][:300] for t in scores[:2]])
 
-# ================= WEB SEARCH =================
+def retrieve_memory(query):
+
+    memory_store = st.session_state.memory_store
+
+    if not memory_store:
+        return ""
+
+    qvec = embedder.encode(query)
+
+    scores = []
+
+    for text, vec in memory_store:
+
+        sim = np.dot(qvec, vec)
+
+        scores.append((sim, text))
+
+    scores.sort(reverse=True)
+
+    top = scores[:2]
+
+    return "\n".join([t[1][:300] for t in top])
+
+# ============================================
+# WIKIPEDIA SEARCH
+# ============================================
+
+# ============================================
+# REAL-TIME WEB SEARCH (using DuckDuckGo - free, no API key)
+# ============================================
+
 def internet_search(query):
+    """Search the web for current information"""
     try:
+        # Using DuckDuckGo HTML API (free, no key needed)
         url = "https://html.duckduckgo.com/html/"
         params = {"q": query}
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        
         response = requests.post(url, data=params, headers=headers)
         
         if response.status_code == 200:
+            # Extract search results
+            import re
             results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
             snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
             
@@ -286,15 +400,21 @@ def internet_search(query):
                     if i < len(snippets):
                         context += f"  {snippets[i]}\n\n"
                 return context[:1500]
+        
+        # Fallback to Wikipedia
         return wikipedia_fallback(query)
-    except:
+        
+    except Exception as e:
         return wikipedia_fallback(query)
 
+
 def wikipedia_fallback(query):
+    """Wikipedia as backup search"""
     try:
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
         q = query.strip().replace(" ", "_")
         r = requests.get(url + q)
+        
         if r.status_code == 200:
             data = r.json()
             extract = data.get("extract", "")[:1000]
@@ -304,181 +424,433 @@ def wikipedia_fallback(query):
         pass
     return ""
 
+
+# ============================================
+# NEWS SEARCH for current events
+# ============================================
+
 def get_current_news(topic="latest"):
+    """Get current news (using NewsAPI - free tier)"""
     try:
+        # You'll need a free API key from https://newsapi.org/
         api_key = st.secrets.get("NEWS_API_KEY", "")
+        
         if not api_key:
-            url = "https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
+            # Fallback to simple RSS feed
+            url = f"https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
             response = requests.get(url)
+            
             if response.status_code == 200:
                 data = response.json()
                 items = data.get("items", [])[:3]
+                
                 news_text = "Latest news headlines:\n\n"
                 for item in items:
                     news_text += f"• {item.get('title', '')}\n"
                     news_text += f"  {item.get('description', '')[:150]}...\n\n"
                 return news_text[:1000]
-    except:
+        
+        else:
+            # Use NewsAPI if you have key
+            url = f"https://newsapi.org/v2/everything?q={topic}&sortBy=publishedAt&apiKey={api_key}&pageSize=3"
+            response = requests.get(url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                articles = data.get("articles", [])
+                
+                news_text = f"Current news about '{topic}':\n\n"
+                for article in articles[:3]:
+                    news_text += f"• {article.get('title', '')}\n"
+                    news_text += f"  {article.get('description', '')[:150]}...\n\n"
+                return news_text[:1000]
+                
+    except Exception as e:
         pass
     return ""
 
-# ================= CALCULATOR =================
+# ============================================
+# CALCULATOR
+# ============================================
+
 def calculator(query):
+
     try:
+
         expression = query.lower()
-        expression = expression.replace("×", "*").replace("x", "*")
+
+        expression = expression.replace("×","*")
+        expression = expression.replace("x","*")
+
         expression = re.findall(r"[0-9\+\-\*\/\.\(\) ]+", expression)
+
         if expression:
-            return str(eval(expression[0]))
+            result = eval(expression[0])
+            return str(result)
+
     except:
         return None
 
-# ================= WEB SCRAPING =================
+# ============================================
+# ROUTER
+# ============================================
+
+# ============================================
+# ROUTER with current info triggers
+# ============================================
+
+# ============================================
+# WEB PAGE SCRAPER (Read link content)
+# ============================================
+
+# ============================================
+# WEB PAGE SCRAPER (Multiple fallback methods)
+# ============================================
+
+def get_site_info_from_search(url):
+    """Get information about any website using search engines"""
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.replace('www.', '')
+        
+        search_url = f"https://www.google.com/search?q={domain}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        response = requests.get(search_url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            snippets = soup.find_all('div', class_='VwiC3b')
+            if snippets:
+                return f"Information about {domain} (from web search):\n{snippets[0].get_text()[:500]}"
+    except:
+        pass
+    return None
+
 def scrape_with_requests(url):
+    """Try to scrape with different request methods"""
+    
     user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
+        'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
     ]
+    
     for user_agent in user_agents:
         try:
-            headers = {'User-Agent': user_agent}
-            response = requests.get(url, headers=headers, timeout=15)
+            headers = {
+                'User-Agent': user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+            
             if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                for element in soup(["script", "style", "nav", "footer", "header"]):
-                    element.decompose()
-                text = soup.get_text()
-                text = ' '.join(text.split())
-                if len(text) > 200:
-                    return text[:3000]
-        except:
+                content_type = response.headers.get('content-type', '')
+                
+                if 'text/html' in content_type:
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    for element in soup(["script", "style", "nav", "footer", "header", "iframe", "noscript", "meta", "link"]):
+                        element.decompose()
+                    
+                    main_content = None
+                    for selector in ['main', 'article', '[role="main"]', '.content', '#content', '.post-content', '.entry-content']:
+                        main_content = soup.select_one(selector)
+                        if main_content:
+                            break
+                    
+                    if main_content:
+                        text = main_content.get_text()
+                    else:
+                        text = soup.get_text()
+                    
+                    lines = (line.strip() for line in text.splitlines())
+                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                    text = ' '.join(chunk for chunk in chunks if chunk)
+                    text = ' '.join(text.split())
+                    
+                    if len(text) > 200:
+                        return text[:3000]
+                        
+        except Exception as e:
             continue
+    
+    return None
+
+def scrape_with_textise(url):
+    """Use textise API as fallback"""
+    try:
+        textise_url = f"https://r.jina.ai/{url}"
+        response = requests.get(textise_url, timeout=10)
+        if response.status_code == 200 and len(response.text) > 200:
+            return response.text[:3000]
+    except:
+        pass
     return None
 
 def scrape_webpage(url):
+    """Universal webpage reader that works for ANY website"""
+    
     content = scrape_with_requests(url)
     if content:
         return content
-    return f"Unable to read {url}. Please open it in your browser."
+    
+    content = scrape_with_textise(url)
+    if content:
+        return content
+    
+    content = get_site_info_from_search(url)
+    if content:
+        return content + "\n\n(Note: Direct access blocked. Showing search results instead.)"
+    
+    from urllib.parse import urlparse
+    domain = urlparse(url).netloc
+    
+    return f"""Unable to directly read this website ({domain}).
+
+This can happen if:
+- The website requires login
+- The website blocks automated access
+- The link is behind a paywall
+
+Here's what you can do:
+1. Open the link directly in your browser
+2. Copy and paste the relevant text here
+3. Ask me to search for the information instead
+
+Would you like me to search for information about this topic?"""
+
+def is_url(text):
+    """Check if text contains a URL"""
+    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
+    import re
+    return re.match(url_pattern, text.strip()) is not None
+
 
 def extract_urls_from_query(query):
-    return re.findall(r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*', query)
+    """Extract URLs from user query"""
+    import re
+    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
+    return re.findall(url_pattern, query)
 
-# ================= ROUTER =================
+
+
+# ============================================
+# ROUTER with URL detection
+# ============================================
+
 def route(query):
     q = query.lower()
-    if extract_urls_from_query(query):
+    
+    # Check for URLs in query
+    urls = extract_urls_from_query(query)
+    if urls:
         return "scrape_url"
-    if any(x in q for x in ["summarize", "analyze", "from the file", "in the document", "based on the file"]):
+    
+    # Check for file-related tasks
+    if any(x in q for x in ["summarize", "analyze this file", "what does the file say", "from the file", "in the document", "based on the file"]):
         return "file_task"
-    if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
+    
+    # Check for calculator
+    if any(x in q for x in ["+","-","*","/","×","calculate"]):
         return "calculator"
-    if any(x in q for x in ["time", "date", "today"]):
+    
+    # Check for current time/date requests
+    if any(x in q for x in ["time", "date", "today", "current time", "what day"]):
         return "datetime"
-    if any(x in q for x in ["news", "headlines"]):
+    
+    # Check for news requests
+    if any(x in q for x in ["news", "headlines", "current events", "breaking"]):
         return "news"
-    if any(x in q for x in ["evaluate", "assess", "grade", "review", "score"]):
+    
+    # Check for evaluation/assessment tasks
+    if any(x in q for x in ["evaluate", "assess", "grade", "review my", "check my", "score"]):
         return "evaluate"
-    if any(x in q for x in ["capital", "population", "who is", "what is", "tell me about"]):
+    
+    # Check for general web search
+    if any(x in q for x in [
+        "capital", "population", "leader", "history", "tell me about",
+        "who is", "what is", "when did", "where is", "current"
+    ]):
         return "search"
+    
     return "reason"
+# ============================================
+# CLEAN OUTPUT
+# ============================================
 
-# ================= CLEAN OUTPUT =================
 def clean_answer(text):
+
     if "🧠" in text:
         text = text.split("🧠")[0]
+
     if "Plan:" in text:
         text = text.split("Plan:")[0]
+
     return text.strip()
 
-# ================= REASONING =================
+# ============================================
+# REASONING
+# ============================================
+
 def reason(question, context):
+
     context = context[:1500]
+
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}\n\nAnswer clearly."}
-    ]
-    return clean_answer(llm(messages))
 
-# ================= EVALUATION =================
-def evaluate_work(question, file_content):
-    prompt = f"""
-Analyze the following file content and answer the user's evaluation request.
+        {"role":"system","content":SYSTEM_PROMPT},
 
-File Content:
-{file_content[:3000]}
+        {"role":"user","content":f"""
+Context:
+{context}
 
-User Request:
+Question:
 {question}
 
-Provide:
-1. Overall assessment
-2. Strengths (2-3 points)
-3. Areas for improvement (2-3 points)
-4. Score out of 100
-5. Specific recommendations
-
-Be constructive and actionable.
-"""
-    messages = [
-        {"role": "system", "content": "You are an expert evaluator providing constructive feedback."},
-        {"role": "user", "content": prompt}
+Answer clearly.
+"""}
     ]
+
     return clean_answer(llm(messages))
 
-# ================= AGENT =================
+# ============================================
+# AGENT
+# ============================================
+
+# ============================================
+# AGENT with current information
+# ============================================
+
+# ============================================
+# AGENT with URL scraping
+# ============================================
+
+# ============================================
+# AGENT with improved URL scraping
+# ============================================
+
 def run_agent(query):
     tool = route(query)
     context = ""
     
+    # File task (NEW)
     if tool == "file_task" and st.session_state.file_context:
         context = f"\n\nUploaded Files Content:\n{st.session_state.file_context}\n"
+        context += "\nAnswer the user's question based ONLY on these files if possible.\n"
     
+    # Evaluation task (NEW)
     elif tool == "evaluate" and st.session_state.file_context:
         return evaluate_work(query, st.session_state.file_context)
     
+    # URL Scraping
     elif tool == "scrape_url":
         urls = extract_urls_from_query(query)
-        scraped = ""
+        scraped_content = ""
         for url in urls:
-            content = scrape_webpage(url)
-            if content:
-                scraped += f"\n\nContent from {url}:\n{content}\n"
-        if scraped:
-            context = scraped
+            with st.spinner(f"Reading {url}..."):
+                content = scrape_webpage(url)
+                if content and not content.startswith("Unable"):
+                    scraped_content += f"\n\nContent from {url}:\n{content}\n"
+                else:
+                    scraped_content += f"\n\nNote: Limited access to {url}\n"
+        
+        if scraped_content:
+            context = scraped_content
         else:
-            return "I couldn't read that link. Try asking me to search instead."
+            return "I couldn't read that link. Try asking me to search for the information instead."
     
+    # Calculator
     if tool == "calculator":
         result = calculator(query)
         if result:
             return result
     
+    # Date/Time
     if tool == "datetime":
         context += get_current_datetime()
     
+    # News
     if tool == "news":
-        news = get_current_news(query)
-        if news:
-            context += news
+        news_context = get_current_news(query)
+        if news_context:
+            context += news_context
     
+    # Web Search
     if tool == "search":
-        web = internet_search(query)
-        if web:
-            context += web
+        web_context = internet_search(query)
+        if web_context:
+            context += web_context
     
+    # Memory retrieval
     mem = retrieve_memory(query)
     if mem:
         context += "\n\n" + mem
     
+    # If no context found and no files, add current date at least
     if not context and not st.session_state.file_context:
         context = get_current_datetime()
     
     answer = reason(query, context)
     store_memory(answer)
+    
     return answer
 
-# ================= SIDEBAR =================
+# ============================================
+# UI
+# ============================================
+
+# Welcome message with styling
+st.markdown('<h1>🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent</p>', unsafe_allow_html=True)
+st.markdown("---")
+# ============================================
+# SIDEBAR WITH NEW CHAT BUTTON
+# ============================================
+# ============================================
+# FILE UPLOAD SECTION
+# ============================================
+
+with st.expander("📎 Upload Files for AI to Read", expanded=False):
+    uploaded_files = st.file_uploader(
+        "Choose files (PDF, DOCX, TXT, CSV, JSON)",
+        type=['pdf', 'docx', 'txt', 'csv', 'json'],
+        accept_multiple_files=True,
+        help="Upload documents for the AI to analyze, summarize, or answer questions about"
+    )
+    
+    if uploaded_files:
+        for file in uploaded_files:
+            if file.name not in st.session_state.uploaded_files:
+                with st.spinner(f"Processing {file.name}..."):
+                    file_content = process_uploaded_file(file)
+                    if file_content and not file_content.startswith("Error"):
+                        st.session_state.uploaded_files[file.name] = file_content
+                        st.success(f"✅ Loaded: {file.name}")
+                    else:
+                        st.error(f"❌ Failed to load: {file.name}")
+        
+        # Combine all file contents for context
+        if st.session_state.uploaded_files:
+            st.session_state.file_context = "\n\n".join([
+                f"=== FILE: {name} ===\n{content}" 
+                for name, content in st.session_state.uploaded_files.items()
+            ])
+            
+            st.info(f"📄 {len(st.session_state.uploaded_files)} file(s) loaded. Ask me questions about them!")
+            
+            # Clear files button
+            if st.button("🗑️ Clear All Files"):
+                st.session_state.uploaded_files = {}
+                st.session_state.file_context = ""
+                st.rerun()
+                
 with st.sidebar:
     st.markdown("### 🧠 MozeAI")
     st.markdown("---")
@@ -490,75 +862,51 @@ with st.sidebar:
         st.session_state.file_context = ""
         st.rerun()
     
+    # 👇 ADD THIS TIPS SECTION HERE 👇
     st.markdown("---")
-    st.markdown("### 📤 Tips")
-    st.markdown("**Supported:** PDF, DOCX, TXT, CSV, JSON")
-    st.markdown("**Try:** Summarize, Evaluate, Analyze")
+    st.markdown("### 📤 File Upload Tips")
+    st.markdown("""
+    **Supported files:**
+    - PDF, DOCX, TXT, CSV, JSON
+    
+    **Example tasks:**
+    - "Summarize this document"
+    - "What are the key points?"
+    - "Evaluate my essay"
+    - "Analyze this data"
+    - "Check my work for errors"
+    - "Give me a score out of 100"
+    """)
+    
     st.markdown("---")
     st.markdown("### About")
-    st.markdown("**Mukiibi Moses**")
+    st.markdown("Created by **Mukiibi Moses**")
     st.markdown("Computer Engineering @ Kyungdong University")
     st.markdown("---")
     st.markdown("### Features")
-    st.markdown("✅ File reading & analysis")
-    st.markdown("✅ Document summarization")
-    st.markdown("✅ Work evaluation & grading")
-    st.markdown("✅ Web search & news")
-    st.markdown("✅ Calculator & memory")
+    st.markdown("✅ Access to current date/time")
+    st.markdown("✅ Real-time web search")
+    st.markdown("✅ Latest news headlines")
+    st.markdown("✅ Calculator for math problems")
+    st.markdown("✅ Memory of past Conversations")
 
-# ================= UI =================
-st.title("🧠 Mukiibi Moses AI")
-st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent</p>', unsafe_allow_html=True)
-st.markdown("---")
-
-# Display chat history
 for role, msg in st.session_state.chat_history:
+
     with st.chat_message(role):
         st.write(msg)
 
-# Chat input
-query = st.chat_input("Message MozeAI...")
+query = st.chat_input("Ask anything")
 
-# Hidden file uploader with tooltip
-uploaded_file = st.file_uploader("", label_visibility="collapsed", type=['pdf', 'docx', 'txt', 'csv', 'json'])
-
-# Process uploaded file
-if uploaded_file:
-    if uploaded_file.name not in st.session_state.uploaded_files:
-        with st.spinner(f"Reading {uploaded_file.name}..."):
-            content = process_uploaded_file(uploaded_file)
-            if content and not content.startswith("Error"):
-                st.session_state.uploaded_files[uploaded_file.name] = content
-                st.session_state.file_context = "\n\n".join([
-                    f"=== {name} ===\n{content}" 
-                    for name, content in st.session_state.uploaded_files.items()
-                ])
-                st.success(f"✅ Loaded: {uploaded_file.name}")
-                st.rerun()
-            else:
-                st.error(f"❌ Failed: {uploaded_file.name}")
-
-# Show active files
-if st.session_state.uploaded_files:
-    file_list = ', '.join(list(st.session_state.uploaded_files.keys())[:2])
-    extra = f" +{len(st.session_state.uploaded_files)-2}" if len(st.session_state.uploaded_files) > 2 else ""
-    st.markdown(f'<div class="active-files">📎 {file_list}{extra}</div>', unsafe_allow_html=True)
-    
-    if st.button("🗑️ Clear all", key="clear_files"):
-        st.session_state.uploaded_files = {}
-        st.session_state.file_context = ""
-        st.rerun()
-
-# Process chat query
 if query:
+
     st.session_state.chat_history.append(("user", query))
+
     with st.chat_message("user"):
         st.write(query)
-    
+
     response = run_agent(query)
-    
+
     with st.chat_message("assistant"):
         st.write(response)
-    
+
     st.session_state.chat_history.append(("assistant", response))
-    st.rerun()
