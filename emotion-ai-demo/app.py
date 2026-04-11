@@ -5,6 +5,11 @@ import re
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+from bs4 import BeautifulSoup
+import requests
+from urllib.parse import urlparse
+import trafilatura
+
 # ============================================
 # CONFIG
 # ============================================
@@ -159,11 +164,13 @@ CAPABILITIES:
 - Memory of past conversations
 
 INSTRUCTIONS:
-- Use the provided context which includes CURRENT information
+- When a user provides a URL, focus on answering based on that webpage's content
+- Provide summaries, answer questions, or extract specific information from webpages
+- Use the provided context which includes scraped webpage content
 - For time/date questions, use the current information provided
 - For news/events, rely on the search results given
 - Answer clearly and factually
-- If information isn't in context, say "I don't have current information on that"
+- If information isn't in context, say "I don't have that information"
 - Do not hallucinate or make up dates/events
 - Do not show internal reasoning
 """
@@ -355,26 +362,89 @@ def calculator(query):
 # ROUTER with current info triggers
 # ============================================
 
+# ============================================
+# WEB PAGE SCRAPER (Read link content)
+# ============================================
+
+def scrape_webpage(url):
+    """Extract clean text content from any webpage URL"""
+    try:
+        # Method 1: Try trafilatura (best for clean text extraction)
+        downloaded = trafilatura.fetch_url(url)
+        if downloaded:
+            text = trafilatura.extract(downloaded, include_links=False, include_formatting=True)
+            if text and len(text) > 100:
+                return text[:3000]  # Limit to 3000 chars for context
+        
+        # Method 2: Fallback to BeautifulSoup
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Remove script and style elements
+        for script in soup(["script", "style", "nav", "footer", "header"]):
+            script.decompose()
+        
+        # Get text and clean it
+        text = soup.get_text()
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text = ' '.join(chunk for chunk in chunks if chunk)
+        
+        # Remove excess whitespace
+        text = ' '.join(text.split())
+        
+        return text[:3000]  # Limit to 3000 chars
+        
+    except Exception as e:
+        return f"Error scraping URL: {str(e)}"
+
+
+def is_url(text):
+    """Check if text contains a URL"""
+    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
+    import re
+    return re.match(url_pattern, text.strip()) is not None
+
+
+def extract_urls_from_query(query):
+    """Extract URLs from user query"""
+    import re
+    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
+    return re.findall(url_pattern, query)
+
+# ============================================
+# ROUTER with URL detection
+# ============================================
+
 def route(query):
     q = query.lower()
+    
+    # Check for URLs in query
+    urls = extract_urls_from_query(query)
+    if urls:
+        return "scrape_url"
     
     # Check for calculator
     if any(x in q for x in ["+","-","*","/","×","calculate"]):
         return "calculator"
     
     # Check for current time/date requests
-    if any(x in q for x in ["time", "date", "today", "current time", "what day", "what's the date"]):
+    if any(x in q for x in ["time", "date", "today", "current time", "what day"]):
         return "datetime"
     
     # Check for news requests
-    if any(x in q for x in ["news", "headlines", "current events", "breaking", "latest"]):
+    if any(x in q for x in ["news", "headlines", "current events", "breaking"]):
         return "news"
     
     # Check for general web search
     if any(x in q for x in [
         "capital", "population", "leader", "history", "tell me about",
-        "who is", "what is", "when did", "where is", "current", "recent",
-        "latest", "today's", "this week", "2024", "2025"
+        "who is", "what is", "when did", "where is", "current"
     ]):
         return "search"
     
@@ -427,9 +497,27 @@ Answer clearly.
 # AGENT with current information
 # ============================================
 
+# ============================================
+# AGENT with URL scraping
+# ============================================
+
 def run_agent(query):
     tool = route(query)
     context = ""
+    
+    # URL Scraping (NEW)
+    if tool == "scrape_url":
+        urls = extract_urls_from_query(query)
+        scraped_content = ""
+        for url in urls:
+            content = scrape_webpage(url)
+            if content and not content.startswith("Error"):
+                scraped_content += f"\n\nContent from {url}:\n{content}\n"
+        
+        if scraped_content:
+            context = scraped_content
+        else:
+            return "I couldn't read that link. It might be blocked or inaccessible."
     
     # Calculator
     if tool == "calculator":
@@ -461,6 +549,10 @@ def run_agent(query):
     # If no context found, add current date at least
     if not context:
         context = get_current_datetime()
+    
+    # If we scraped a URL, add instruction to answer based on it
+    if tool == "scrape_url":
+        context += "\n\nBased on the webpage content above, answer the user's question. If the user asked to summarize, provide a clear summary."
     
     answer = reason(query, context)
     store_memory(answer)
