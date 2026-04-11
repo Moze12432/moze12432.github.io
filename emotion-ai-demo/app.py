@@ -366,42 +366,91 @@ def calculator(query):
 # WEB PAGE SCRAPER (Read link content)
 # ============================================
 
+# ============================================
+# WEB PAGE SCRAPER (Multiple fallback methods)
+# ============================================
+
 def scrape_webpage(url):
-    """Extract clean text content from any webpage URL"""
+    """Extract clean text content from any webpage URL with multiple fallbacks"""
+    
+    # Method 1: Try with different user agents
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ]
+    
+    for user_agent in user_agents:
+        try:
+            headers = {
+                'User-Agent': user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Remove unwanted elements
+                for element in soup(["script", "style", "nav", "footer", "header", "iframe", "noscript", "meta", "link"]):
+                    element.decompose()
+                
+                # Get text
+                text = soup.get_text()
+                
+                # Clean up whitespace
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                text = ' '.join(chunk for chunk in chunks if chunk)
+                
+                # Remove extra spaces
+                text = ' '.join(text.split())
+                
+                if len(text) > 100:  # Only return if we got substantial content
+                    return text[:3000]
+                    
+        except:
+            continue
+    
+    # Method 2: Try using textise dot iitty (alternative service)
     try:
-        # Method 1: Try trafilatura (best for clean text extraction)
-        downloaded = trafilatura.fetch_url(url)
-        if downloaded:
-            text = trafilatura.extract(downloaded, include_links=False, include_formatting=True)
-            if text and len(text) > 100:
-                return text[:3000]  # Limit to 3000 chars for context
-        
-        # Method 2: Fallback to BeautifulSoup
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        textise_url = f"https://r.jina.ai/{url}"
+        response = requests.get(textise_url, timeout=10)
+        if response.status_code == 200 and len(response.text) > 100:
+            return response.text[:3000]
+    except:
+        pass
+    
+    # Method 3: Try using BeautifulSoup with different parser
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
         response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
         
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Remove script and style elements
-        for script in soup(["script", "style", "nav", "footer", "header"]):
-            script.decompose()
-        
-        # Get text and clean it
-        text = soup.get_text()
-        lines = (line.strip() for line in text.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        text = ' '.join(chunk for chunk in chunks if chunk)
-        
-        # Remove excess whitespace
-        text = ' '.join(text.split())
-        
-        return text[:3000]  # Limit to 3000 chars
-        
-    except Exception as e:
-        return f"Error scraping URL: {str(e)}"
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Try to find main content
+            main_content = soup.find('main') or soup.find('article') or soup.find('div', class_='content')
+            
+            if main_content:
+                text = main_content.get_text()
+            else:
+                text = soup.get_text()
+            
+            # Clean text
+            text = ' '.join(text.split())
+            
+            if len(text) > 100:
+                return text[:3000]
+    except:
+        pass
+    
+    return "Unable to read the link. The website might be blocking access or the link might be invalid."
 
 
 def is_url(text):
@@ -416,6 +465,8 @@ def extract_urls_from_query(query):
     import re
     url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
     return re.findall(url_pattern, query)
+
+
 
 # ============================================
 # ROUTER with URL detection
@@ -501,23 +552,30 @@ Answer clearly.
 # AGENT with URL scraping
 # ============================================
 
+# ============================================
+# AGENT with improved URL scraping
+# ============================================
+
 def run_agent(query):
     tool = route(query)
     context = ""
     
-    # URL Scraping (NEW)
+    # URL Scraping (NEW - with better error handling)
     if tool == "scrape_url":
         urls = extract_urls_from_query(query)
         scraped_content = ""
         for url in urls:
-            content = scrape_webpage(url)
-            if content and not content.startswith("Error"):
-                scraped_content += f"\n\nContent from {url}:\n{content}\n"
+            with st.spinner(f"Reading {url}..."):
+                content = scrape_webpage(url)
+                if content and not content.startswith("Unable"):
+                    scraped_content += f"\n\nContent from {url}:\n{content}\n"
+                else:
+                    scraped_content += f"\n\nCould not read {url}. {content}\n"
         
-        if scraped_content:
+        if scraped_content and "Content from" in scraped_content:
             context = scraped_content
         else:
-            return "I couldn't read that link. It might be blocked or inaccessible."
+            return "I couldn't read that link. The website might be blocking access. Try: \n- Using a different link\n- Asking me to search for the information instead"
     
     # Calculator
     if tool == "calculator":
@@ -547,11 +605,11 @@ def run_agent(query):
         context += "\n\n" + mem
     
     # If no context found, add current date at least
-    if not context:
+    if not context and tool != "scrape_url":
         context = get_current_datetime()
     
     # If we scraped a URL, add instruction to answer based on it
-    if tool == "scrape_url":
+    if tool == "scrape_url" and context:
         context += "\n\nBased on the webpage content above, answer the user's question. If the user asked to summarize, provide a clear summary."
     
     answer = reason(query, context)
