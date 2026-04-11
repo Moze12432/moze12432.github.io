@@ -1,128 +1,96 @@
 import streamlit as st
-import sqlite3
-import numpy as np
-import re
-import requests
-from datetime import datetime
-from sentence_transformers import SentenceTransformer
 from groq import Groq
+import requests
+import re
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from datetime import datetime
 
-
-# -----------------------------
+# ======================================================
 # CONFIG
-# -----------------------------
+# ======================================================
 
-st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
+MODEL_NAME = "llama3-70b-8192"
+TEMPERATURE = 0.1
+MAX_TOKENS = 700
+
+# ======================================================
+# LLM SETUP
+# ======================================================
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-
-# -----------------------------
-# LLM FUNCTION
-# -----------------------------
-
-def llm_generate(prompt):
+def llm(messages):
 
     completion = client.chat.completions.create(
-        model="llama3-8b-8192",
-        temperature=0.2,
-        max_tokens=400,
-        messages=[
-            {
-                "role": "system",
-                "content": """
-You are MozeAI.
-
-Created by Mukiibi Moses,
-a Computer Engineering student at KyungDong University.
-
-Rules:
-- Be factual.
-- If unsure, say you are unsure.
-- Use reasoning.
-"""
-            },
-            {"role": "user", "content": prompt}
-        ]
+        model=MODEL_NAME,
+        temperature=TEMPERATURE,
+        max_tokens=MAX_TOKENS,
+        messages=messages
     )
 
     return completion.choices[0].message.content
 
 
-# -----------------------------
-# MEMORY DATABASE
-# -----------------------------
+# ======================================================
+# SYSTEM PROMPT
+# ======================================================
 
-conn = sqlite3.connect("memory.db", check_same_thread=False)
-cursor = conn.cursor()
+SYSTEM_PROMPT = """
+You are MozeAI.
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS memory(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-content TEXT
-)
-""")
+Created by Mukiibi Moses,
+a Computer Engineering student at Kyungdong University.
 
-conn.commit()
-
-
-def save_memory(text):
-
-    cursor.execute("INSERT INTO memory(content) VALUES (?)", (text,))
-    conn.commit()
+Rules:
+- Always prefer factual answers
+- Never invent facts
+- If unsure say "I am not sure"
+- Use context provided
+- Be concise but clear
+"""
 
 
-def load_memory():
+# ======================================================
+# EMBEDDINGS + MEMORY
+# ======================================================
 
-    cursor.execute("SELECT content FROM memory ORDER BY id DESC LIMIT 10")
-    rows = cursor.fetchall()
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-    return [r[0] for r in rows]
+memory_store = []
 
+def store_memory(text):
 
-# -----------------------------
-# VECTOR MEMORY
-# -----------------------------
+    vec = embedder.encode(text)
 
-@st.cache_resource
-def load_embed_model():
-
-    return SentenceTransformer("all-MiniLM-L6-v2")
+    memory_store.append((text, vec))
 
 
-embed_model = load_embed_model()
+def retrieve_memory(query):
 
-vector_memory = []
+    if len(memory_store) == 0:
+        return ""
 
-
-def store_vector(text):
-
-    vec = embed_model.encode(text)
-    vector_memory.append((text, vec))
-
-
-def retrieve_vector(query, k=3):
-
-    if not vector_memory:
-        return []
-
-    qvec = embed_model.encode(query)
+    qvec = embedder.encode(query)
 
     scores = []
 
-    for text, vec in vector_memory:
+    for text, vec in memory_store:
 
         sim = np.dot(qvec, vec)
+
         scores.append((sim, text))
 
     scores.sort(reverse=True)
 
-    return [s[1] for s in scores[:k]]
+    top = scores[:3]
+
+    return "\n".join([t[1] for t in top])
 
 
-# -----------------------------
+# ======================================================
 # INTERNET SEARCH
-# -----------------------------
+# ======================================================
 
 def internet_search(query):
 
@@ -134,27 +102,30 @@ def internet_search(query):
 
         data = r.json()
 
-        if data.get("AbstractText"):
-            return data["AbstractText"]
+        text = data.get("AbstractText","")
+
+        if text == "":
+            text = data.get("Heading","")
+
+        return text
 
     except:
-        pass
-
-    return None
+        return ""
 
 
-# -----------------------------
+# ======================================================
 # CALCULATOR
-# -----------------------------
+# ======================================================
 
 def calculator(query):
 
     try:
 
-        expression = re.findall(r'[\d\.\+\-\*\/\(\)]+', query)
+        exp = re.findall(r'[\d\+\-\*\/\.\(\)]+',query)
 
-        if expression:
-            return str(eval(expression[0]))
+        if exp:
+            result = eval(exp[0])
+            return str(result)
 
     except:
         pass
@@ -162,158 +133,176 @@ def calculator(query):
     return None
 
 
-# -----------------------------
-# THINKING AGENT LOOP
-# -----------------------------
+# ======================================================
+# ROUTER
+# ======================================================
 
-def reasoning_loop(query):
+def route(query):
 
-    context = ""
-    thoughts = []
+    q = query.lower()
 
-    for step in range(3):  # multi-step reasoning
+    if any(x in q for x in ["+","-","*","/","calculate"]):
+        return "calculator"
 
-        prompt = f"""
-User question: {query}
+    if any(x in q for x in [
+        "who","when","where","president","leader",
+        "capital","country","population"
+    ]):
+        return "search"
 
-Current context:
-{context}
+    return "reason"
 
-Think about the next step.
 
-Choose one action:
-SEARCH
-CALCULATE
-ANSWER
+# ======================================================
+# PLANNING STEP
+# ======================================================
 
-Explain briefly.
-"""
+def plan(question):
 
-        thought = llm_generate(prompt)
+    prompt = [
+        {"role":"system","content":SYSTEM_PROMPT},
+        {"role":"user","content":f"""
+Create a short reasoning plan to answer this question.
 
-        thoughts.append(thought)
+Question:
+{question}
 
-        if "SEARCH" in thought:
+Plan steps only.
+"""}
+    ]
 
-            result = internet_search(query)
+    return llm(prompt)
 
-            if result:
-                context += result + "\n"
 
-        elif "CALCULATE" in thought:
+# ======================================================
+# REASONING
+# ======================================================
 
-            result = calculator(query)
+def reason(question, context):
 
-            if result:
-                context += "Calculation result: " + result
-
-        elif "ANSWER" in thought:
-
-            break
-
-    final_prompt = f"""
-Use the gathered information to answer.
-
+    prompt = [
+        {"role":"system","content":SYSTEM_PROMPT},
+        {"role":"user","content":f"""
 Context:
 {context}
 
 Question:
-{query}
-"""
+{question}
 
-    answer = llm_generate(final_prompt)
+Answer using the context if possible.
+If the context is insufficient say you are unsure.
+"""}
+    ]
 
-    return thoughts, answer
+    return llm(prompt)
 
 
-# -----------------------------
-# AGENT CONTROLLER
-# -----------------------------
+# ======================================================
+# FACT CHECK
+# ======================================================
 
-def agent_controller(query):
+def verify(question, answer):
 
-    today = datetime.now().strftime("%A, %B %d, %Y")
+    prompt = [
+        {"role":"system","content":SYSTEM_PROMPT},
+        {"role":"user","content":f"""
+Question:
+{question}
 
-    memories = retrieve_vector(query)
-
-    memory_context = "\n".join(memories)
-
-    thoughts, answer = reasoning_loop(query)
-
-    store_vector(query)
-    store_vector(answer)
-
-    save_memory(query)
-    save_memory(answer)
-
-    thought_text = "\n".join(thoughts)
-
-    return f"""
-🧠 Reasoning:
-{thought_text}
-
-💡 Answer:
+Answer:
 {answer}
-"""
+
+Is the answer factually correct and grounded?
+
+Reply only YES or NO.
+"""}
+    ]
+
+    result = llm(prompt)
+
+    return "yes" in result.lower()
 
 
-# -----------------------------
-# SESSION STATE
-# -----------------------------
+# ======================================================
+# AGENT CORE
+# ======================================================
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+def run_agent(query):
+
+    # Step 1: plan
+    reasoning_plan = plan(query)
+
+    # Step 2: route tool
+    tool = route(query)
+
+    context = ""
+
+    # Step 3: tools
+    if tool == "calculator":
+
+        calc = calculator(query)
+
+        if calc:
+            return calc
+
+    if tool == "search":
+
+        web = internet_search(query)
+
+        context += web + "\n"
+
+    # Step 4: memory
+    mem = retrieve_memory(query)
+
+    context += mem
+
+    # Step 5: reasoning
+    answer = reason(query, context)
+
+    # Step 6: verification
+    if not verify(query, answer):
+
+        fallback = internet_search(query)
+
+        answer = reason(query, fallback)
+
+    # Step 7: store memory
+    store_memory(query)
+    store_memory(answer)
+
+    return answer
 
 
-# -----------------------------
-# SIDEBAR
-# -----------------------------
+# ======================================================
+# STREAMLIT UI
+# ======================================================
 
-with st.sidebar:
+st.set_page_config(page_title="MozeAI", page_icon="🧠")
 
-    st.title("MozeAI")
+st.title("MozeAI")
 
-    if st.button("Clear Chat"):
-        st.session_state.messages = []
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
-    st.subheader("Recent Memory")
+for role, msg in st.session_state.chat:
 
-    mems = load_memory()
-
-    for m in mems[:5]:
-        st.write("-", m[:60])
+    with st.chat_message(role):
+        st.write(msg)
 
 
-# -----------------------------
-# CHAT UI
-# -----------------------------
+query = st.chat_input("Ask anything")
 
-st.title("🧠 MozeAI Autonomous Agent")
-
-for m in st.session_state.messages:
-
-    with st.chat_message(m["role"]):
-        st.write(m["content"])
-
-
-query = st.chat_input("Ask anything...")
 
 if query:
 
-    st.session_state.messages.append(
-        {"role": "user", "content": query}
-    )
+    st.session_state.chat.append(("user",query))
 
     with st.chat_message("user"):
         st.write(query)
 
-    with st.spinner("Thinking..."):
-
-        response = agent_controller(query)
+    response = run_agent(query)
 
     with st.chat_message("assistant"):
         st.write(response)
 
-    st.session_state.messages.append(
-        {"role": "assistant", "content": response}
-    )
+    st.session_state.chat.append(("assistant",response))
