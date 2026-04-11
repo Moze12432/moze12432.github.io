@@ -4,14 +4,15 @@ import numpy as np
 import re
 import requests
 import os
+from datetime import datetime
 
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sentence_transformers import SentenceTransformer
+from groq import Groq
 
 
-# ----------------------------------
+# -----------------------------
 # PAGE CONFIG
-# ----------------------------------
+# -----------------------------
 
 st.set_page_config(
     page_title="MozeAI Autonomous Agent",
@@ -19,9 +20,28 @@ st.set_page_config(
     layout="wide"
 )
 
-# ----------------------------------
+# -----------------------------
+# GROQ CLIENT
+# -----------------------------
+
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+
+def llm_generate(prompt):
+
+    completion = client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.6,
+        max_tokens=400
+    )
+
+    return completion.choices[0].message.content
+
+
+# -----------------------------
 # SQLITE MEMORY
-# ----------------------------------
+# -----------------------------
 
 conn = sqlite3.connect("memory.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -37,22 +57,26 @@ conn.commit()
 
 
 def save_memory(text):
+
     cursor.execute("INSERT INTO memories(content) VALUES (?)", (text,))
     conn.commit()
 
 
 def load_memories():
+
     cursor.execute("SELECT content FROM memories ORDER BY id DESC LIMIT 20")
     rows = cursor.fetchall()
+
     return [r[0] for r in rows]
 
 
-# ----------------------------------
+# -----------------------------
 # VECTOR MEMORY
-# ----------------------------------
+# -----------------------------
 
 @st.cache_resource
 def load_embed_model():
+
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 
@@ -62,7 +86,9 @@ vector_memory = []
 
 
 def store_vector(text):
+
     vec = embed_model.encode(text)
+
     vector_memory.append((text, vec))
 
 
@@ -76,7 +102,9 @@ def retrieve_vector(query, k=3):
     scores = []
 
     for text, vec in vector_memory:
+
         sim = np.dot(qvec, vec)
+
         scores.append((sim, text))
 
     scores.sort(reverse=True)
@@ -84,9 +112,9 @@ def retrieve_vector(query, k=3):
     return [s[1] for s in scores[:k]]
 
 
-# ----------------------------------
+# -----------------------------
 # KNOWLEDGE BASE
-# ----------------------------------
+# -----------------------------
 
 knowledge_base = []
 
@@ -103,9 +131,13 @@ def load_knowledge():
         path = os.path.join(folder, file)
 
         try:
+
             with open(path, "r", encoding="utf-8") as f:
+
                 text = f.read()
+
                 knowledge_base.append(text)
+
         except:
             pass
 
@@ -135,48 +167,9 @@ def retrieve_knowledge(query):
     return scores[0][1]
 
 
-def learn_new_fact(query, answer):
-
-    if len(answer) > 10:
-        knowledge_base.append(f"{query} -> {answer}")
-
-
-# ----------------------------------
-# LOAD LLM
-# ----------------------------------
-
-@st.cache_resource
-def load_llm():
-
-    model_name = "google/flan-t5-small"
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-
-    return tokenizer, model
-
-
-tokenizer, model = load_llm()
-
-
-def llm_generate(prompt):
-
-    inputs = tokenizer(prompt, return_tensors="pt")
-
-    outputs = model.generate(
-        **inputs,
-        max_length=200,
-        temperature=0.6,
-        do_sample=True
-    )
-
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-
-# ----------------------------------
-# INTERNET SEARCH TOOL
-# ----------------------------------
+# -----------------------------
+# INTERNET SEARCH
+# -----------------------------
 
 def internet_search(query):
 
@@ -197,9 +190,9 @@ def internet_search(query):
     return None
 
 
-# ----------------------------------
-# CALCULATOR TOOL
-# ----------------------------------
+# -----------------------------
+# CALCULATOR
+# -----------------------------
 
 def calculator(query):
 
@@ -208,6 +201,7 @@ def calculator(query):
         expression = re.findall(r'[\d\.\+\-\*\/\(\)]+', query)
 
         if expression:
+
             return str(eval(expression[0]))
 
     except:
@@ -216,9 +210,9 @@ def calculator(query):
     return None
 
 
-# ----------------------------------
+# -----------------------------
 # AI TASK PLANNER
-# ----------------------------------
+# -----------------------------
 
 def create_plan(query):
 
@@ -236,9 +230,9 @@ Steps:
     return llm_generate(prompt)
 
 
-# ----------------------------------
-# AI TOOL DECISION
-# ----------------------------------
+# -----------------------------
+# TOOL DECISION
+# -----------------------------
 
 def decide_tool(query):
 
@@ -258,27 +252,30 @@ User query:
 Return ONLY the tool name.
 """
 
-    tool = llm_generate(prompt).lower()
+    tool = llm_generate(prompt)
 
-    return tool.strip()
+    return tool.lower().strip()
 
 
-# ----------------------------------
+# -----------------------------
 # AGENT CONTROLLER
-# ----------------------------------
+# -----------------------------
 
 def agent_controller(query):
 
-    plan = create_plan(query)
+    today = datetime.now().strftime("%Y-%m-%d")
 
-    tool = decide_tool(query)
-
-    if tool == "calculator":
+    # Force calculator if math detected
+    if re.search(r"\d+\s*[\+\-\*\/]\s*\d+", query):
 
         result = calculator(query)
 
         if result:
             return f"🧮 Result: {result}"
+
+    plan = create_plan(query)
+
+    tool = decide_tool(query)
 
     if tool == "search":
 
@@ -294,8 +291,10 @@ def agent_controller(query):
     knowledge_context = retrieve_knowledge(query)
 
     prompt = f"""
-You are MozeAI, created by Mukiibi Moses,
+You are MozeAI created by Mukiibi Moses,
 a Computer Engineering student at KyungDong University.
+
+Today's date: {today}
 
 Relevant knowledge:
 {knowledge_context}
@@ -317,22 +316,20 @@ Answer clearly and accurately.
     save_memory(query)
     save_memory(answer)
 
-    learn_new_fact(query, answer)
-
     return f"🧠 Plan:\n{plan}\n\n💡 Answer:\n{answer}"
 
 
-# ----------------------------------
+# -----------------------------
 # SESSION STATE
-# ----------------------------------
+# -----------------------------
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
-# ----------------------------------
+# -----------------------------
 # SIDEBAR
-# ----------------------------------
+# -----------------------------
 
 with st.sidebar:
 
@@ -341,6 +338,7 @@ with st.sidebar:
     st.write("Autonomous AI Agent")
 
     if st.button("Clear Chat"):
+
         st.session_state.messages = []
 
     st.subheader("Recent Memory")
@@ -348,18 +346,20 @@ with st.sidebar:
     mems = load_memories()
 
     for m in mems[:5]:
+
         st.write("-", m[:60])
 
 
-# ----------------------------------
+# -----------------------------
 # CHAT UI
-# ----------------------------------
+# -----------------------------
 
 st.title("🧠 MozeAI Autonomous Agent")
 
 for m in st.session_state.messages:
 
     with st.chat_message(m["role"]):
+
         st.write(m["content"])
 
 
@@ -367,9 +367,12 @@ query = st.chat_input("Ask anything...")
 
 if query:
 
-    st.session_state.messages.append({"role": "user", "content": query})
+    st.session_state.messages.append(
+        {"role": "user", "content": query}
+    )
 
     with st.chat_message("user"):
+
         st.write(query)
 
     with st.spinner("Thinking..."):
@@ -377,6 +380,9 @@ if query:
         response = agent_controller(query)
 
     with st.chat_message("assistant"):
+
         st.write(response)
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append(
+        {"role": "assistant", "content": response}
+    )
