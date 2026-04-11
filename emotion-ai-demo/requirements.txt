@@ -1,6 +1,5 @@
-streamlit==1.36.0
-transformers==4.41.2
-sentence-transformers==2.7.0
-torch==2.2.2
+streamlit
+sentence-transformers
 numpy
 requests
+groq
