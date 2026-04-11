@@ -912,7 +912,7 @@ with st.sidebar:
     st.markdown("✅ Work evaluation")
 
 # ============================================
-# CHAT INTERFACE WITH FIXED BOTTOM BAR
+# CHAT INTERFACE WITH FIXED BOTTOM BAR (CORRECTED)
 # ============================================
 
 # Add custom CSS for fixed bottom bar
@@ -998,7 +998,8 @@ st.markdown('<div class="fixed-chat-bar">', unsafe_allow_html=True)
 col1, col2 = st.columns([6, 1])
 
 with col1:
-    query = st.chat_input("Ask me anything...", key="chat_input", label_visibility="collapsed")
+    # REMOVED label_visibility parameter - it doesn't exist for chat_input
+    query = st.chat_input("Ask me anything...", key="chat_input")
 
 with col2:
     # Upload button right next to chat input
