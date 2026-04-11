@@ -12,6 +12,7 @@ import csv
 import json
 from datetime import datetime
 import pytz
+import time
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -213,45 +214,44 @@ def llm(messages):
         return "AI service temporarily unavailable."
 
 # ============================================
-# ENHANCED SYSTEM PROMPT WITH IDENTITY
+# ENHANCED SYSTEM PROMPT
 # ============================================
 
 SYSTEM_PROMPT = """
-You are MozeAI, an advanced AI assistant with real-time information access and file analysis capabilities.
+You are MozeAI, an advanced AI assistant with REAL-TIME internet access and file analysis capabilities.
 
 CREATOR INFORMATION:
 - Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University, South Korea
 - He specializes in AI development, focusing on intelligent autonomous agents, language model applications, and practical AI systems
 - His research interests include education technology, automation, decision support systems, and human-AI interaction
 - He actively publishes research on platforms like ResearchGate and Academia.edu
-- He is passionate about building AI that solves real-world problems and makes technology accessible to everyone
 
 YOUR CAPABILITIES:
-- Real-time web search for current information
+- REAL-TIME web search for current information (weather, news, facts)
 - Latest news headlines and updates
 - Calculator for mathematical problems
 - Memory of past conversations for context
 - File analysis for PDF, DOCX, TXT, CSV, and JSON files
+- File comparison (compare multiple documents)
 - Current date and time awareness
 - Webpage reading and summarization
 
 CRITICAL RULES:
-1. ONLY use uploaded file content if the user SPECIFICALLY asks about "the file", "the document", "my upload", "analyze this", or similar explicit references
-2. For normal conversation (greetings, "who are you", "what is your purpose", "tell me about yourself", general questions), IGNORE any uploaded files completely
-3. When users ask about your identity or creator, enthusiastically share information about Mukiibi Moses and his work at Kyungdong University
-4. Answer conversationally and naturally - be helpful, friendly, and engaging
-5. For time/date questions, use the current information provided
-6. For news/events, use search results
-7. If information isn't available, say "I don't have that information"
-8. Do not hallucinate or make up information
+1. When users ask for CURRENT information (weather, temperature, news, stock prices, events), you MUST use the search results provided in the context
+2. ONLY use uploaded file content if the user SPECIFICALLY asks about "the file", "the document", "my upload", "analyze this", "compare files", or similar explicit references
+3. For normal conversation, ignore uploaded files completely
+4. When users ask about your identity or creator, enthusiastically share information about Mukiibi Moses
+5. Answer conversationally and naturally - be helpful, friendly, and engaging
+6. For weather questions like "temperature in Sokcho", use the search results
+7. If search results don't contain the answer, say "I couldn't find that information in my search results"
 
 EXAMPLE BEHAVIOR:
-- User: "who created you?" → "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea..."
-- User: "what is your purpose?" → "My purpose is to assist you with information, answer questions, analyze files, and help with tasks..."
-- User: "what does my file say?" → Use the uploaded file content
-- User: "tell me about yourself" → Share your capabilities and your creator's work
+- User: "what is the temperature in Sokcho?" → Use search results to provide current temperature
+- User: "who created you?" → "I was created by Mukiibi Moses..."
+- User: "compare these files" → Use uploaded file content to compare
+- User: "what does my file say?" → Use uploaded file content
 
-Remember: Normal conversation = ignore files. Explicit file questions = use files. Always be helpful and conversational!
+Remember: ALWAYS use search results for real-time information!
 """
 
 # ============================================
@@ -293,32 +293,64 @@ def retrieve_memory(query):
         return ""
 
 # ============================================
-# WEB SEARCH FUNCTIONS
+# IMPROVED WEB SEARCH FUNCTIONS
 # ============================================
 
 def internet_search(query):
+    """Search the web for current information including weather"""
     try:
+        # Try DuckDuckGo first
         url = "https://html.duckduckgo.com/html/"
         params = {"q": query}
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         response = requests.post(url, data=params, headers=headers, timeout=10)
         
         if response.status_code == 200:
+            # Extract results
             results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
             snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
             
             if results:
-                context = f"Search results for '{query}':\n\n"
+                context = f"SEARCH RESULTS for '{query}':\n\n"
                 for i in range(min(3, len(results))):
                     context += f"• {results[i]}\n"
                     if i < len(snippets):
-                        context += f"  {snippets[i][:150]}...\n\n"
-                return context[:1500]
+                        # Clean HTML tags from snippets
+                        snippet = re.sub(r'<[^>]+>', '', snippets[i])
+                        context += f"  {snippet[:200]}...\n\n"
+                return context[:2000]
+        
+        # Try weather API for weather queries
+        if "weather" in query.lower() or "temperature" in query.lower() or "temp" in query.lower():
+            return get_weather_from_api(query)
+            
         return wikipedia_fallback(query)
-    except:
+    except Exception as e:
         return wikipedia_fallback(query)
 
+def get_weather_from_api(query):
+    """Get weather information from free weather API"""
+    try:
+        # Extract location from query
+        location_match = re.search(r'in (\w+)|at (\w+)|for (\w+)', query.lower())
+        if location_match:
+            location = location_match.group(1) or location_match.group(2) or location_match.group(3)
+        else:
+            location = "Sokcho"  # Default
+        
+        # Use wttr.in for weather (free, no API key)
+        weather_url = f"https://wttr.in/{location}?format=%C+%t+%w+%h"
+        response = requests.get(weather_url, timeout=10)
+        
+        if response.status_code == 200:
+            weather_data = response.text.strip()
+            return f"Current weather in {location.title()}: {weather_data}\n"
+    except:
+        pass
+    return ""
+
 def wikipedia_fallback(query):
+    """Wikipedia as backup search"""
     try:
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
         q = query.strip().replace(" ", "_")
@@ -333,13 +365,14 @@ def wikipedia_fallback(query):
     return ""
 
 def get_current_news():
+    """Get current news headlines"""
     try:
         url = "https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
             items = data.get("items", [])[:3]
-            news_text = "Latest news headlines:\n\n"
+            news_text = "LATEST NEWS HEADLINES:\n\n"
             for item in items:
                 news_text += f"• {item.get('title', '')}\n"
                 news_text += f"  {item.get('description', '')[:150]}...\n\n"
@@ -398,6 +431,15 @@ def route(query):
     if extract_urls_from_query(query):
         return "scrape_url"
     
+    # Check for COMPARISON keywords
+    comparison_keywords = [
+        "compare", "comparison", "difference between", "differences between", 
+        "similarities", "versus", "vs", "diff", "which one", "how do these",
+        "compare these files", "compare the files"
+    ]
+    if any(x in q for x in comparison_keywords):
+        return "compare_files"
+    
     # File-related tasks
     file_keywords = [
         "summarize", "analyze this file", "what does the file say", "from the file",
@@ -412,6 +454,10 @@ def route(query):
     if any(x in q for x in ["evaluate", "assess", "grade", "review", "score", "check my work"]):
         return "evaluate"
     
+    # Weather specific (high priority)
+    if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast"]):
+        return "search"
+    
     # Calculator
     if any(x in q for x in ["+", "-", "*", "/", "×", "calculate", "="]):
         return "calculator"
@@ -424,8 +470,8 @@ def route(query):
     if any(x in q for x in ["news", "headlines", "current events", "breaking news"]):
         return "news"
     
-    # Search
-    if any(x in q for x in ["who is", "what is", "where is", "when did", "search", "tell me about"]):
+    # Search for other real-time info
+    if any(x in q for x in ["who is", "what is", "where is", "when did", "search", "tell me about", "current"]):
         return "search"
     
     return "reason"
@@ -448,21 +494,66 @@ def reason(question, context):
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"""
-Context Information:
+CONTEXT (use this for real-time information like weather, news, etc.):
 {context[:2000]}
 
-User Question: {question}
+USER QUESTION: {question}
 
-Instructions:
+INSTRUCTIONS:
+- If the user asks for weather, temperature, or current conditions, USE THE SEARCH RESULTS ABOVE
+- If the user asks about your creator, enthusiastically share about Mukiibi Moses
 - Answer naturally and conversationally
-- If asked about your creator, enthusiastically share about Mukiibi Moses
-- If context includes file content, only use it if explicitly asked
-- Be helpful and engaging
+- Be specific and factual
 
-Answer:
+ANSWER:
 """}
     ]
     return clean_answer(llm(messages))
+
+# ============================================
+# FILE COMPARISON FUNCTION
+# ============================================
+
+def compare_files(query, file_context, filenames):
+    """Compare multiple uploaded files"""
+    
+    comparison_prompt = f"""
+You are comparing multiple uploaded files.
+
+**Uploaded Files:**
+{filenames}
+
+**FILE CONTENTS:**
+{file_context[:4000]}
+
+**USER REQUEST:** {query}
+
+**INSTRUCTIONS:**
+1. Compare the content across the different files
+2. Highlight:
+   - Similarities between the files
+   - Differences between the files  
+   - Unique information in each file
+3. Quote specific content from each file
+4. Be specific about which file information comes from
+
+**FORMAT:**
+- **File 1 (name):** [summary]
+- **File 2 (name):** [summary]
+- **Similarities:** [what's common]
+- **Differences:** [what's different]
+- **Conclusion:** [overall comparison]
+
+Now compare the files:
+"""
+    
+    messages = [
+        {"role": "system", "content": "You are a file comparison assistant. Compare files based ONLY on their actual content."},
+        {"role": "user", "content": comparison_prompt}
+    ]
+    
+    response = llm(messages)
+    return clean_answer(response)
 
 # ============================================
 # FILE ANALYSIS FUNCTION
@@ -470,20 +561,14 @@ Answer:
 
 def analyze_uploaded_files(query, file_context, filenames):
     prompt = f"""
-Files uploaded: {filenames}
+Files: {filenames}
 
-File Content:
+Content:
 {file_context[:3500]}
 
-User Question: {query}
+Question: {query}
 
-Instructions:
-- Answer based ONLY on the file content above
-- Quote specific parts from the files
-- Be detailed and specific
-- If the answer isn't in the files, say so
-
-Answer:
+Answer based ONLY on the file content above. Be specific and quote from the files.
 """
     messages = [
         {"role": "system", "content": "You are a file analysis assistant. Answer only from the provided file content."},
@@ -493,22 +578,19 @@ Answer:
 
 def evaluate_work(question, file_context):
     prompt = f"""
-File Content to Evaluate:
+Content to Evaluate:
 {file_context[:3000]}
 
-User Request: {question}
+Request: {question}
 
-Please provide:
+Provide:
 1. Overall assessment
-2. Strengths (with specific examples)
-3. Areas for improvement (with specific suggestions)
+2. Strengths (with examples)
+3. Areas for improvement (with suggestions)
 4. Score out of 100 (if applicable)
-5. Actionable recommendations
-
-Be constructive and specific:
 """
     messages = [
-        {"role": "system", "content": "You are an expert evaluator providing constructive feedback."},
+        {"role": "system", "content": "You are an expert evaluator."},
         {"role": "user", "content": prompt}
     ]
     return clean_answer(llm(messages))
@@ -528,23 +610,32 @@ def run_agent(query):
     tool = route(query)
     context = ""
     
-    # Handle file task
+    # Handle FILE COMPARISON
+    if tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
+        filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
+        with st.spinner("📊 Comparing files..."):
+            return compare_files(query, st.session_state.file_context, filenames)
+    
+    # Handle single file task
     if tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
-        return analyze_uploaded_files(query, st.session_state.file_context, filenames)
+        with st.spinner("📖 Reading your document..."):
+            return analyze_uploaded_files(query, st.session_state.file_context, filenames)
     
     # Handle evaluation
     if tool == "evaluate" and st.session_state.file_context:
-        return evaluate_work(query, st.session_state.file_context)
+        with st.spinner("📝 Evaluating your work..."):
+            return evaluate_work(query, st.session_state.file_context)
     
     # Handle URL scraping
     if tool == "scrape_url":
         urls = extract_urls_from_query(query)
         scraped = ""
         for url in urls:
-            content = scrape_webpage(url)
-            if content:
-                scraped += f"\nContent from {url}:\n{content}\n"
+            with st.spinner(f"Reading {url}..."):
+                content = scrape_webpage(url)
+                if content:
+                    scraped += f"\nContent from {url}:\n{content}\n"
         if scraped:
             context = scraped
         else:
@@ -566,11 +657,13 @@ def run_agent(query):
         if news:
             context += "\n" + news
     
-    # Handle search
+    # Handle search (for weather and other real-time info)
     if tool == "search":
         search_result = internet_search(query)
         if search_result:
             context += "\n" + search_result
+        else:
+            context += f"\nSearched for: {query}\nNo specific results found."
     
     # Add memory context
     memory = retrieve_memory(query)
@@ -591,7 +684,7 @@ def run_agent(query):
 # ============================================
 
 st.markdown('<h1 style="text-align: center;">🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent | Created by Mukiibi Moses</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Real-Time Internet Access</p>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ============================================
@@ -610,7 +703,7 @@ with st.sidebar:
         st.session_state.file_context = ""
         st.rerun()
     
-    # Clear Files button - also clears from display
+    # Clear Files button
     if st.button("🗑️ Clear Files", use_container_width=True):
         st.session_state.uploaded_files = {}
         st.session_state.file_context = ""
@@ -656,7 +749,15 @@ with st.sidebar:
         for name in st.session_state.uploaded_files.keys():
             st.markdown(f"- {name}")
         
-        # Example prompts
+        # Comparison tips for multiple files
+        if len(st.session_state.uploaded_files) >= 2:
+            st.markdown("---")
+            st.markdown("### 🔍 Comparison Tips")
+            st.markdown("**Try asking:**")
+            st.markdown("- \"Compare these files\"")
+            st.markdown("- \"What are the differences?\"")
+            st.markdown("- \"Which file has more detail?\"")
+        
         st.markdown("---")
         st.markdown("**💡 Try asking:**")
         st.markdown("- \"What is this file about?\"")
@@ -668,15 +769,16 @@ with st.sidebar:
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**Student:** Computer Engineering")
     st.markdown("**University:** Kyungdong University, South Korea")
-    st.markdown("**Focus:** AI Agents, LLM Applications")
+    st.markdown("**Focus:** AI Agents, LLM Applications, Real-time Systems")
     st.markdown("---")
     st.markdown("### ✨ Features")
-    st.markdown("✅ Real-time web search")
-    st.markdown("✅ File analysis (PDF, DOCX, CSV, JSON, TXT)")
-    st.markdown("✅ Current news headlines")
-    st.markdown("✅ Calculator")
-    st.markdown("✅ Conversation memory")
-    st.markdown("✅ Work evaluation")
+    st.markdown("✅ **Real-time web search** (weather, news, facts)")
+    st.markdown("✅ **File analysis** (PDF, DOCX, CSV, JSON, TXT)")
+    st.markdown("✅ **File comparison** (compare multiple documents)")
+    st.markdown("✅ **Current news headlines**")
+    st.markdown("✅ **Calculator**")
+    st.markdown("✅ **Conversation memory**")
+    st.markdown("✅ **Work evaluation**")
 
 # ============================================
 # CHAT DISPLAY
@@ -688,7 +790,7 @@ for role, msg in st.session_state.chat_history:
         st.write(msg)
 
 # Chat input (fixed at bottom by CSS)
-query = st.chat_input("Ask me anything... I can analyze files, search the web, calculate, and more!")
+query = st.chat_input("Ask me anything... I can check weather, compare files, search the web, and more!")
 
 # Process query
 if query:
