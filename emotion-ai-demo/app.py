@@ -793,75 +793,77 @@ with st.sidebar:
     st.markdown("Computer Engineering @ Kyungdong University")
 
 # ============================================
-# CHAT INTERFACE WITH FIXED BOTTOM BAR - FIXED
+# UPDATED AGENT FUNCTION - NO RERUNS
 # ============================================
 
-# Display chat history
-for role, msg in st.session_state.chat_history:
-    with st.chat_message(role):
-        st.write(msg)
-
-# Fixed bottom bar
-st.markdown('<div class="fixed-chat-bar">', unsafe_allow_html=True)
-
-col1, col2 = st.columns([6, 1])
-
-with col1:
-    query = st.chat_input("Ask me anything...", key="chat_input")
-
-with col2:
-    uploaded_files = st.file_uploader(
-        "📎",
-        type=['pdf', 'docx', 'txt', 'csv', 'json'],
-        accept_multiple_files=True,
-        key="inline_uploader",
-        label_visibility="collapsed",
-        help="Upload PDF, DOCX, TXT, CSV, or JSON files"
-    )
+def run_agent(query):
+    # Check if user wants to reset/ignore files
+    reset_phrases = ["leave the document", "back to normal conversation", "ignore the file", "forget the file", "clear context", "start fresh"]
+    if any(phrase in query.lower() for phrase in reset_phrases):
+        st.session_state.file_context = ""
+        st.session_state.uploaded_files = {}
+        return "✅ Context cleared! I'll now have a normal conversation with you without referencing any files. How can I help you today?"
     
-    # Process files if uploaded - REMOVED st.rerun()
-    if uploaded_files:
-        files_processed = False
-        for file in uploaded_files:
-            if file.name not in st.session_state.uploaded_files:
-                with st.spinner(f"Processing {file.name}..."):
-                    file_content = process_uploaded_file(file)
-                    if file_content and not file_content.startswith("Error"):
-                        st.session_state.uploaded_files[file.name] = file_content
-                        st.toast(f"✅ Loaded: {file.name}", icon="📎")
-                        files_processed = True
-                    else:
-                        st.toast(f"❌ Failed: {file.name}", icon="⚠️")
-        
-        # Update file context if any files were processed
-        if files_processed and st.session_state.uploaded_files:
-            st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
-                f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
-                for name, content in st.session_state.uploaded_files.items()
-            ])
-            # Don't call st.rerun() - let Streamlit handle it naturally
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# File count badge
-if len(st.session_state.uploaded_files) > 0:
-    file_count = len(st.session_state.uploaded_files)
-    st.markdown(f"""
-    <div class="file-count-badge" title="{file_count} file(s) loaded - Click sidebar button to clear">
-        📎 {file_count}
-    </div>
-    """, unsafe_allow_html=True)
-
-# Process chat input
-if query:
-    st.session_state.chat_history.append(("user", query))
-    with st.chat_message("user"):
-        st.write(query)
+    tool = route(query)
+    context = ""
     
-    response = run_agent(query)
+    # FILE TASK - Only if user explicitly asks about files AND files exist
+    if tool == "file_task" and st.session_state.file_context:
+        filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
+        with st.spinner("📖 Reading your document..."):
+            return analyze_uploaded_files(query, st.session_state.file_context, filenames)
     
-    with st.chat_message("assistant"):
-        st.write(response)
+    # EVALUATION task
+    elif tool == "evaluate" and st.session_state.file_context:
+        with st.spinner("📝 Evaluating your work..."):
+            return evaluate_work(query, st.session_state.file_context)
     
-    st.session_state.chat_history.append(("assistant", response))
-    st.rerun()
+    # URL Scraping
+    elif tool == "scrape_url":
+        urls = extract_urls_from_query(query)
+        scraped_content = ""
+        for url in urls:
+            with st.spinner(f"Reading {url}..."):
+                content = scrape_webpage(url)
+                if content:
+                    scraped_content += f"\n\nContent from {url}:\n{content}\n"
+        if scraped_content:
+            context = scraped_content
+        else:
+            return "I couldn't read that link."
+    
+    # Calculator
+    if tool == "calculator":
+        result = calculator(query)
+        if result:
+            return result
+    
+    # Date/Time
+    if tool == "datetime":
+        context += get_current_datetime()
+    
+    # News
+    if tool == "news":
+        news_context = get_current_news(query)
+        if news_context:
+            context += news_context
+    
+    # Web Search
+    if tool == "search":
+        web_context = internet_search(query)
+        if web_context:
+            context += web_context
+    
+    # Memory retrieval
+    mem = retrieve_memory(query)
+    if mem:
+        context += "\n\n" + mem
+    
+    # If no context found, add current date
+    if not context:
+        context = get_current_datetime()
+    
+    answer = reason(query, context)
+    store_memory(answer)
+    
+    return answer
