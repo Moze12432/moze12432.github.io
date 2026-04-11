@@ -16,27 +16,66 @@ import csv
 import json
 
 # ============================================
-# FILE PROCESSING FUNCTIONS
+# FILE PROCESSING FUNCTIONS - IMPROVED
 # ============================================
 
 def extract_text_from_pdf(file):
     """Extract text from PDF file"""
     try:
+        file.seek(0)  # Reset file pointer
         pdf_reader = PyPDF2.PdfReader(file)
         text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+        for page_num, page in enumerate(pdf_reader.pages):
+            page_text = page.extract_text()
+            if page_text and page_text.strip():
+                text += f"\n--- Page {page_num + 1} ---\n"
+                text += page_text.strip() + "\n"
+        
+        if not text.strip():
+            return "The PDF appears to be empty or contains only scanned images (no extractable text)."
+        
         return text[:5000]  # Limit to 5000 chars
     except Exception as e:
         return f"Error reading PDF: {str(e)}"
 
 def extract_text_from_docx(file):
-    """Extract text from Word document"""
+    """Extract text from Word document with better extraction"""
     try:
+        file.seek(0)  # Reset file pointer
         doc = docx.Document(file)
         text = ""
-        for paragraph in doc.paragraphs:
-            text += paragraph.text + "\n"
+        
+        # Extract from paragraphs
+        for para in doc.paragraphs:
+            if para.text and para.text.strip():
+                text += para.text.strip() + "\n\n"
+        
+        # Extract from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    if cell.text and cell.text.strip():
+                        row_text.append(cell.text.strip())
+                if row_text:
+                    text += " | ".join(row_text) + "\n"
+            text += "\n"
+        
+        # Extract from headers and footers
+        for section in doc.sections:
+            header = section.header
+            for para in header.paragraphs:
+                if para.text and para.text.strip():
+                    text += f"[HEADER] {para.text.strip()}\n"
+            
+            footer = section.footer
+            for para in footer.paragraphs:
+                if para.text and para.text.strip():
+                    text += f"[FOOTER] {para.text.strip()}\n"
+        
+        if not text.strip():
+            return "The Word document appears to be empty or contains only images/tables that couldn't be extracted."
+        
         return text[:5000]
     except Exception as e:
         return f"Error reading Word document: {str(e)}"
@@ -44,29 +83,86 @@ def extract_text_from_docx(file):
 def extract_text_from_txt(file):
     """Extract text from text file"""
     try:
+        file.seek(0)  # Reset file pointer
         content = file.read().decode('utf-8')
+        if not content.strip():
+            return "The text file is empty."
         return content[:5000]
+    except UnicodeDecodeError:
+        try:
+            file.seek(0)
+            content = file.read().decode('latin-1')
+            return content[:5000]
+        except Exception as e:
+            return f"Error reading text file: {str(e)}"
     except Exception as e:
         return f"Error reading text file: {str(e)}"
 
 def extract_text_from_csv(file):
-    """Extract text from CSV file"""
+    """Extract text from CSV file with better formatting"""
     try:
+        file.seek(0)  # Reset file pointer
         content = file.read().decode('utf-8')
         csv_reader = csv.reader(StringIO(content))
-        text = ""
-        for row in csv_reader:
-            text += " | ".join(row) + "\n"
-        return f"CSV Data:\n{text[:5000]}"
+        text = "CSV Data:\n\n"
+        
+        # Get headers if they exist
+        rows = list(csv_reader)
+        if rows:
+            # First row as headers
+            headers = rows[0]
+            text += "Headers: " + " | ".join(headers) + "\n\n"
+            text += "Data rows:\n"
+            
+            # Show first 10 rows of data
+            for i, row in enumerate(rows[1:11], 1):
+                text += f"Row {i}: " + " | ".join(row) + "\n"
+            
+            if len(rows) > 11:
+                text += f"\n... and {len(rows) - 11} more rows"
+        
+        if not text.strip():
+            return "The CSV file appears to be empty."
+        
+        return text[:5000]
     except Exception as e:
         return f"Error reading CSV file: {str(e)}"
 
 def extract_text_from_json(file):
-    """Extract text from JSON file"""
+    """Extract text from JSON file with better formatting"""
     try:
+        file.seek(0)  # Reset file pointer
         content = file.read().decode('utf-8')
         data = json.loads(content)
-        return f"JSON Data:\n{json.dumps(data, indent=2)[:5000]}"
+        
+        # Format JSON nicely
+        formatted_json = json.dumps(data, indent=2)
+        
+        # If JSON is too large, summarize it
+        if len(formatted_json) > 3000:
+            text = "JSON Data Summary:\n\n"
+            text += f"Type: {type(data).__name__}\n"
+            
+            if isinstance(data, dict):
+                text += f"Top-level keys: {', '.join(list(data.keys())[:10])}\n"
+                if len(data.keys()) > 10:
+                    text += f"... and {len(data.keys()) - 10} more keys\n"
+                text += "\nFull JSON (truncated):\n"
+                text += formatted_json[:3000]
+            elif isinstance(data, list):
+                text += f"Number of items: {len(data)}\n"
+                if len(data) > 0:
+                    text += f"First item preview: {json.dumps(data[0], indent=2)[:500]}\n"
+                text += "\nFull JSON (truncated):\n"
+                text += formatted_json[:3000]
+            else:
+                text += f"Value: {str(data)[:500]}\n"
+        else:
+            text = f"JSON Data:\n\n{formatted_json}"
+        
+        return text[:5000]
+    except json.JSONDecodeError as e:
+        return f"Error parsing JSON: Invalid JSON format - {str(e)}"
     except Exception as e:
         return f"Error reading JSON file: {str(e)}"
 
@@ -98,20 +194,19 @@ def process_uploaded_file(uploaded_file):
     else:
         return f"Unsupported file type: {file_type}. Supported: PDF, DOCX, TXT, CSV, JSON"
 
-
 # ============================================
 # CONFIG
 # ============================================
 
 MODEL_NAME = "llama-3.1-8b-instant"
 TEMPERATURE = 0
-MAX_TOKENS = 400
+MAX_TOKENS = 800  # Increased for better file analysis
 
 # ============================================
 # STREAMLIT SETTINGS
 # ============================================
 
-st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠")
+st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠", layout="wide")
 
 # ============================================
 # CUSTOM CSS FOR PERSONAL STYLING
@@ -159,7 +254,7 @@ st.markdown("""
         padding: 20px;
     }
     
-    /* New Chat button */
+    /* Button styling */
     .stButton button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -175,15 +270,15 @@ st.markdown("""
         background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
     }
     
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #1e1e2f 0%, #2d2d44 100%);
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+        border-radius: 10px;
     }
     
-    /* Chat input */
-    .stChatInputContainer {
-        border-radius: 20px;
-        border: 2px solid #667eea;
+    /* Success message */
+    .stAlert {
+        border-radius: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -224,18 +319,17 @@ def llm(messages):
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
-        return "AI service temporarily unavailable."
+        return f"AI service temporarily unavailable. Error: {str(e)}"
 
 # ============================================
 # SYSTEM PROMPT
 # ============================================
 
 SYSTEM_PROMPT = """
-You are MozeAI, an AI with REAL-TIME information access.
+You are MozeAI, an AI with REAL-TIME information access and FILE ANALYSIS capabilities.
 
 Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University.
 He is an AI builder focused on designing intelligent autonomous agents, language model applications, and practical AI systems that solve real-world problems such as education, automation, and decision support.
-He is an active researcher on researchGate, Aademia and other research Platforms.
 
 CAPABILITIES:
 - Access to current date/time
@@ -243,19 +337,18 @@ CAPABILITIES:
 - Latest news headlines
 - Calculator for math problems
 - Memory of past conversations
-- File analysis and document understanding
+- File analysis and document understanding (PDF, DOCX, TXT, CSV, JSON)
 
 INSTRUCTIONS:
-- When a user provides a URL, focus on answering based on that webpage's content
-- Provide summaries, answer questions, or extract specific information from webpages
-- Use the provided context which includes scraped webpage content
+- When analyzing files, BASE YOUR ANSWER SOLELY ON THE ACTUAL FILE CONTENT PROVIDED
+- DO NOT guess or make up information not present in the files
+- Quote specific sections from the files when answering
+- For CSV/JSON data, provide specific insights about the data structure and content
 - For time/date questions, use the current information provided
 - For news/events, rely on the search results given
-- For file-related questions, answer based on the uploaded file content
-- Answer clearly and factually
-- If information isn't in context, say "I don't have that information"
-- Do not hallucinate or make up dates/events
-- Do not show internal reasoning
+- Answer clearly, factually, and with specific references to the source material
+- If information isn't in the provided context, say "I don't have that information in the uploaded files"
+- Do not hallucinate or make up information
 """
 
 # ============================================
@@ -304,34 +397,47 @@ def retrieve_memory(query):
     return "\n".join([t[1][:300] for t in top])
 
 # ============================================
-# FILE ANALYSIS FUNCTION
+# IMPROVED FILE ANALYSIS FUNCTION
 # ============================================
 
-def analyze_uploaded_files(query, file_context):
+def analyze_uploaded_files(query, file_context, filenames):
     """Analyze uploaded files and answer questions about them"""
     
     analysis_prompt = f"""
-You are analyzing uploaded files. Answer the user's question based ONLY on the file contents provided.
+You are analyzing uploaded files. Answer the user's question based ONLY on the actual file contents provided below.
 
-Uploaded Files Content:
+**Uploaded Files:**
+{filenames}
+
+**ACTUAL FILE CONTENT (This is what you MUST base your answer on):**
 {file_context}
 
-User Question: {query}
+**User Question:** {query}
 
-Instructions:
-- If the user asks for a summary, provide a clear summary of what the files contain
-- If asking what the file is about, describe the main topics and purpose
-- Answer specific questions based on file content
-- If the question cannot be answered from the files, say "I cannot find that information in the uploaded files"
-- Be specific and reference which file contains the information when possible
+**CRITICAL INSTRUCTIONS:**
+1. You MUST base your answer on the ACTUAL file content above, NOT on the filenames alone
+2. Read the content carefully and provide specific information from it
+3. If the user asks for a summary, summarize what is ACTUALLY written in the files
+4. Quote specific sentences, paragraphs, or data points from the content
+5. For CSV files, describe the data structure, headers, and provide insights
+6. For JSON files, explain the data structure and key information
+7. If the content shows an error message (like "empty" or "no extractable text"), inform the user
+8. Be specific and detailed - reference exact text from the files
+
+Example good response: "Based on the document, it states: '[actual quote from file]'. This shows that [analysis of that content]."
+
+Example bad response: "This document is about [topic not actually in the file]" - NEVER do this!
+
+Now analyze the content and answer the user's question.
 """
     
     messages = [
-        {"role": "system", "content": "You are a document analysis assistant. Answer questions based only on the provided file contents."},
+        {"role": "system", "content": "You are a document analysis assistant. You MUST answer based ONLY on the actual file content provided. Never guess or rely on filenames alone. Always quote or reference specific content from the files."},
         {"role": "user", "content": analysis_prompt}
     ]
     
-    return clean_answer(llm(messages))
+    response = llm(messages)
+    return clean_answer(response)
 
 # ============================================
 # EVALUATION FUNCTION
@@ -342,24 +448,24 @@ def evaluate_work(question, file_content):
     evaluation_prompt = f"""
 You are an expert evaluator. Analyze the following file content and answer the user's evaluation request.
 
-File Content:
+**File Content to Evaluate:**
 {file_content[:3000]}
 
-User Request:
+**User Request:**
 {question}
 
 Please provide:
-1. Overall assessment
-2. Strengths (2-3 points)
-3. Areas for improvement (2-3 points)
+1. Overall assessment based on actual content
+2. Strengths (2-3 points with specific examples from the content)
+3. Areas for improvement (2-3 points with specific suggestions)
 4. Score out of 100 (if applicable)
-5. Specific recommendations
+5. Specific, actionable recommendations
 
-Be constructive, specific, and actionable.
+Be constructive, specific, and base everything on the actual file content.
 """
     
     messages = [
-        {"role": "system", "content": "You are an expert evaluator providing constructive feedback."},
+        {"role": "system", "content": "You are an expert evaluator providing constructive feedback based solely on the provided content."},
         {"role": "user", "content": evaluation_prompt}
     ]
     
@@ -378,10 +484,9 @@ def internet_search(query):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
         
-        response = requests.post(url, data=params, headers=headers)
+        response = requests.post(url, data=params, headers=headers, timeout=10)
         
         if response.status_code == 200:
-            import re
             results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
             snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
             
@@ -403,7 +508,7 @@ def wikipedia_fallback(query):
     try:
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
         q = query.strip().replace(" ", "_")
-        r = requests.get(url + q)
+        r = requests.get(url + q, timeout=10)
         
         if r.status_code == 200:
             data = r.json()
@@ -418,7 +523,7 @@ def get_current_news(topic="latest"):
     """Get current news"""
     try:
         url = f"https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
@@ -517,16 +622,12 @@ def scrape_webpage(url):
     
     return f"""Unable to directly read this website ({domain}).
 
-This can happen if:
-- The website requires login
-- The website blocks automated access
-- The link is behind a paywall
+The website may block automated access or require login.
 
 Would you like me to search for information about this topic instead?"""
 
 def extract_urls_from_query(query):
     """Extract URLs from user query"""
-    import re
     url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
     return re.findall(url_pattern, query)
 
@@ -549,7 +650,8 @@ def route(query):
         "what's in this file", "describe the file", "what does this document", "read the file",
         "file content", "document says", "this file about", "uploaded file", "my file",
         "explain this file", "what's in the document", "show me the file", "file contains",
-        "what is this document about", "tell me about the file", "analyze this document"
+        "what is this document about", "tell me about the file", "analyze this document",
+        "what does the file contain", "give me information from the file", "extract from file"
     ]
     
     if any(x in q for x in file_keywords):
@@ -596,7 +698,7 @@ def clean_answer(text):
 # ============================================
 
 def reason(question, context):
-    context = context[:1500]
+    context = context[:2000]  # Increased for better context
     messages = [
         {"role":"system","content":SYSTEM_PROMPT},
         {"role":"user","content":f"""
@@ -606,7 +708,7 @@ Context:
 Question:
 {question}
 
-Answer clearly.
+Answer clearly and based ONLY on the provided context.
 """}
     ]
     return clean_answer(llm(messages))
@@ -621,11 +723,17 @@ def run_agent(query):
     
     # FILE TASK - Handle file analysis FIRST
     if tool == "file_task" and st.session_state.file_context:
-        return analyze_uploaded_files(query, st.session_state.file_context)
+        # Get list of filenames for context
+        filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
+        
+        # Show a spinner while analyzing
+        with st.spinner("📖 Reading and analyzing your document..."):
+            return analyze_uploaded_files(query, st.session_state.file_context, filenames)
     
     # EVALUATION task
     elif tool == "evaluate" and st.session_state.file_context:
-        return evaluate_work(query, st.session_state.file_context)
+        with st.spinner("📝 Evaluating your work..."):
+            return evaluate_work(query, st.session_state.file_context)
     
     # URL Scraping
     elif tool == "scrape_url":
@@ -686,21 +794,23 @@ def run_agent(query):
     return answer
 
 # ============================================
-# UI
+# UI - MAIN PAGE
 # ============================================
 
 # Welcome message with styling
 st.markdown('<h1>🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent with File Analysis</p>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ============================================
-# FILE UPLOAD SECTION - IMPROVED
+# FILE UPLOAD SECTION - WITH PREVIEW
 # ============================================
 
 with st.expander("📎 Upload Files for AI to Read", expanded=False):
+    st.markdown("**Supported formats:** PDF, DOCX, TXT, CSV, JSON")
+    
     uploaded_files = st.file_uploader(
-        "Choose files (PDF, DOCX, TXT, CSV, JSON)",
+        "Choose files to upload",
         type=['pdf', 'docx', 'txt', 'csv', 'json'],
         accept_multiple_files=True,
         help="Upload documents for the AI to analyze, summarize, or answer questions about"
@@ -714,34 +824,44 @@ with st.expander("📎 Upload Files for AI to Read", expanded=False):
                     if file_content and not file_content.startswith("Error"):
                         st.session_state.uploaded_files[file.name] = file_content
                         st.success(f"✅ Loaded: {file.name}")
+                        
+                        # Show preview of extracted content
+                        with st.expander(f"📄 Preview of {file.name}", expanded=False):
+                            st.text(file_content[:500])
+                            if len(file_content) > 500:
+                                st.caption(f"... and {len(file_content) - 500} more characters")
                     else:
                         st.error(f"❌ Failed to load: {file.name}")
+                        st.error(file_content)
         
         # Combine all file contents for context
         if st.session_state.uploaded_files:
-            st.session_state.file_context = "\n\n".join([
-                f"=== FILE: {name} ===\n{content}" 
+            st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
+                f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
                 for name, content in st.session_state.uploaded_files.items()
-            ])
+            ]) + "\n" + ("="*50)
             
-            # Show what files are loaded with preview
-            st.info(f"📄 **{len(st.session_state.uploaded_files)} file(s) loaded**")
-            for name in st.session_state.uploaded_files.keys():
-                st.markdown(f"- {name}")
+            # Show what files are loaded
+            st.info(f"📄 **{len(st.session_state.uploaded_files)} file(s) successfully loaded**")
             
-            # Example prompts
-            st.markdown("**💡 Try asking:**")
-            st.markdown("- \"What is this file about?\"")
-            st.markdown("- \"Summarize the key points\"")
-            st.markdown("- \"What information does this document contain?\"")
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.markdown("**Loaded files:**")
+                for name in st.session_state.uploaded_files.keys():
+                    st.markdown(f"- {name}")
+            
+            with col2:
+                st.markdown("**💡 Try asking:**")
+                st.markdown("- \"What is this file about?\"")
+                st.markdown("- \"Summarize the key points\"")
+                st.markdown("- \"What information does this document contain?\"")
+                st.markdown("- \"Analyze the data in this file\"")
             
             # Clear files button
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if st.button("🗑️ Clear All Files", use_container_width=True):
-                    st.session_state.uploaded_files = {}
-                    st.session_state.file_context = ""
-                    st.rerun()
+            if st.button("🗑️ Clear All Files", use_container_width=True):
+                st.session_state.uploaded_files = {}
+                st.session_state.file_context = ""
+                st.rerun()
 
 # ============================================
 # SIDEBAR
@@ -762,15 +882,20 @@ with st.sidebar:
     st.markdown("### 📤 File Upload Tips")
     st.markdown("""
     **Supported files:**
-    - PDF, DOCX, TXT, CSV, JSON
+    - PDF (extracts text)
+    - DOCX (Word documents)
+    - TXT (text files)
+    - CSV (data tables)
+    - JSON (structured data)
     
     **Example tasks:**
     - "Summarize this document"
     - "What are the key points?"
-    - "Evaluate my essay"
+    - "Evaluate my work"
     - "Analyze this data"
-    - "Check my work for errors"
+    - "Check for errors"
     - "Give me a score out of 100"
+    - "What trends do you see in this CSV?"
     """)
     
     st.markdown("---")
@@ -779,32 +904,39 @@ with st.sidebar:
     st.markdown("Computer Engineering @ Kyungdong University")
     st.markdown("---")
     st.markdown("### Features")
-    st.markdown("✅ Access to current date/time")
+    st.markdown("✅ File upload & analysis")
     st.markdown("✅ Real-time web search")
     st.markdown("✅ Latest news headlines")
-    st.markdown("✅ Calculator for math problems")
-    st.markdown("✅ Memory of past conversations")
-    st.markdown("✅ File upload & analysis")
+    st.markdown("✅ Calculator for math")
+    st.markdown("✅ Conversation memory")
+    st.markdown("✅ Work evaluation")
 
 # ============================================
 # CHAT INTERFACE
 # ============================================
 
+# Display chat history
 for role, msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.write(msg)
 
-query = st.chat_input("Ask anything - upload a file and ask questions about it!")
+# Chat input
+query = st.chat_input("Ask me anything - upload a file and I'll analyze it for you!")
 
 if query:
+    # Add user message to history
     st.session_state.chat_history.append(("user", query))
     
+    # Display user message
     with st.chat_message("user"):
         st.write(query)
     
+    # Get response
     response = run_agent(query)
     
+    # Display assistant response
     with st.chat_message("assistant"):
         st.write(response)
     
+    # Add assistant response to history
     st.session_state.chat_history.append(("assistant", response))
