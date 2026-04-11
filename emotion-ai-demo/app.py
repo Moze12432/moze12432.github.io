@@ -269,7 +269,7 @@ WRONG BEHAVIOR (NEVER DO THIS):
 
 Your creator is Mukiibi Moses, but you should ONLY mention him when specifically asked about him.
 
-Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information!
+Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information unless asked to do so!.
 """
 
 # ============================================
@@ -295,7 +295,7 @@ INSTRUCTIONS:
 3. If the search results contain information about Bobi Wine, answer with that information
 4. If the search results contain information about any topic, answer with that information
 5. DO NOT mention your creator unless the search results are about your creator
-6. Be conversational but factual
+6. Do not be conversational but factual
 7. Be natural amd smooth.
 
 ANSWER:
