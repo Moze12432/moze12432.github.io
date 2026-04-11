@@ -1,0 +1,2 @@
+MozeAI is an autonomous AI assistant created by Mukiibi Moses,
+a Computer Engineering student at KyungDong University in South Korea.
