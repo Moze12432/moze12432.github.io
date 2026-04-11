@@ -6,17 +6,17 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from datetime import datetime
 
-# ======================================================
+# =========================================================
 # CONFIG
-# ======================================================
+# =========================================================
 
 MODEL_NAME = "llama3-70b-8192"
-TEMPERATURE = 0.1
-MAX_TOKENS = 700
+TEMPERATURE = 0
+MAX_TOKENS = 600
 
-# ======================================================
+# =========================================================
 # LLM SETUP
-# ======================================================
+# =========================================================
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
@@ -32,9 +32,9 @@ def llm(messages):
     return completion.choices[0].message.content
 
 
-# ======================================================
+# =========================================================
 # SYSTEM PROMPT
-# ======================================================
+# =========================================================
 
 SYSTEM_PROMPT = """
 You are MozeAI.
@@ -43,23 +43,29 @@ Created by Mukiibi Moses,
 a Computer Engineering student at Kyungdong University.
 
 Rules:
-- Always prefer factual answers
-- Never invent facts
-- If unsure say "I am not sure"
-- Use context provided
-- Be concise but clear
+- Always give factual answers.
+- Never invent facts.
+- If information is unknown, say "I am not sure".
+- Use provided context when available.
+- Answer clearly and concisely.
 """
 
 
-# ======================================================
+# =========================================================
 # EMBEDDINGS + MEMORY
-# ======================================================
+# =========================================================
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 memory_store = []
 
 def store_memory(text):
+
+    if len(text) < 40:
+        return
+
+    if "I am not sure" in text:
+        return
 
     vec = embedder.encode(text)
 
@@ -88,40 +94,38 @@ def retrieve_memory(query):
     return "\n".join([t[1] for t in top])
 
 
-# ======================================================
-# INTERNET SEARCH
-# ======================================================
+# =========================================================
+# INTERNET SEARCH (Wikipedia)
+# =========================================================
 
 def internet_search(query):
 
     try:
 
-        url = f"https://api.duckduckgo.com/?q={query}&format=json"
+        q = query.replace(" ", "_")
+
+        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{q}"
 
         r = requests.get(url)
 
         data = r.json()
 
-        text = data.get("AbstractText","")
-
-        if text == "":
-            text = data.get("Heading","")
-
-        return text
+        return data.get("extract","")
 
     except:
+
         return ""
 
 
-# ======================================================
-# CALCULATOR
-# ======================================================
+# =========================================================
+# CALCULATOR TOOL
+# =========================================================
 
 def calculator(query):
 
     try:
 
-        exp = re.findall(r'[\d\+\-\*\/\.\(\)]+',query)
+        exp = re.findall(r'[\d\+\-\*\/\.\(\)]+', query)
 
         if exp:
             result = eval(exp[0])
@@ -133,9 +137,9 @@ def calculator(query):
     return None
 
 
-# ======================================================
+# =========================================================
 # ROUTER
-# ======================================================
+# =========================================================
 
 def route(query):
 
@@ -146,37 +150,17 @@ def route(query):
 
     if any(x in q for x in [
         "who","when","where","president","leader",
-        "capital","country","population"
+        "capital","country","population",
+        "tell me about","what is"
     ]):
         return "search"
 
     return "reason"
 
 
-# ======================================================
-# PLANNING STEP
-# ======================================================
-
-def plan(question):
-
-    prompt = [
-        {"role":"system","content":SYSTEM_PROMPT},
-        {"role":"user","content":f"""
-Create a short reasoning plan to answer this question.
-
-Question:
-{question}
-
-Plan steps only.
-"""}
-    ]
-
-    return llm(prompt)
-
-
-# ======================================================
+# =========================================================
 # REASONING
-# ======================================================
+# =========================================================
 
 def reason(question, context):
 
@@ -190,16 +174,16 @@ Question:
 {question}
 
 Answer using the context if possible.
-If the context is insufficient say you are unsure.
+If context is insufficient say "I am not sure".
 """}
     ]
 
     return llm(prompt)
 
 
-# ======================================================
-# FACT CHECK
-# ======================================================
+# =========================================================
+# SELF-VERIFICATION
+# =========================================================
 
 def verify(question, answer):
 
@@ -212,7 +196,7 @@ Question:
 Answer:
 {answer}
 
-Is the answer factually correct and grounded?
+Is the answer factually correct?
 
 Reply only YES or NO.
 """}
@@ -223,59 +207,55 @@ Reply only YES or NO.
     return "yes" in result.lower()
 
 
-# ======================================================
+# =========================================================
 # AGENT CORE
-# ======================================================
+# =========================================================
 
 def run_agent(query):
 
-    # Step 1: plan
-    reasoning_plan = plan(query)
-
-    # Step 2: route tool
     tool = route(query)
 
     context = ""
 
-    # Step 3: tools
+    # TOOL: calculator
     if tool == "calculator":
 
-        calc = calculator(query)
+        result = calculator(query)
 
-        if calc:
-            return calc
+        if result:
+            return result
 
+    # TOOL: search
     if tool == "search":
 
         web = internet_search(query)
 
         context += web + "\n"
 
-    # Step 4: memory
+    # MEMORY
     mem = retrieve_memory(query)
 
     context += mem
 
-    # Step 5: reasoning
+    # REASONING
     answer = reason(query, context)
 
-    # Step 6: verification
+    # VERIFY
     if not verify(query, answer):
 
-        fallback = internet_search(query)
+        web = internet_search(query)
 
-        answer = reason(query, fallback)
+        answer = reason(query, web)
 
-    # Step 7: store memory
-    store_memory(query)
+    # STORE MEMORY
     store_memory(answer)
 
     return answer
 
 
-# ======================================================
+# =========================================================
 # STREAMLIT UI
-# ======================================================
+# =========================================================
 
 st.set_page_config(page_title="MozeAI", page_icon="🧠")
 
@@ -289,13 +269,11 @@ for role, msg in st.session_state.chat:
     with st.chat_message(role):
         st.write(msg)
 
-
 query = st.chat_input("Ask anything")
-
 
 if query:
 
-    st.session_state.chat.append(("user",query))
+    st.session_state.chat.append(("user", query))
 
     with st.chat_message("user"):
         st.write(query)
@@ -305,4 +283,4 @@ if query:
     with st.chat_message("assistant"):
         st.write(response)
 
-    st.session_state.chat.append(("assistant",response))
+    st.session_state.chat.append(("assistant", response))
