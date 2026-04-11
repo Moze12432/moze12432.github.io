@@ -4,5 +4,5 @@ requests
 numpy
 sentence-transformers
 pytz
-beautifulsoup4==4.12.2
-trafilatura==1.8.0
+torchvision>=0.15.0
+beautifulsoup4>=4.12.0
