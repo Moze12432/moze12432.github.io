@@ -666,6 +666,10 @@ Answer clearly based on the context. For normal conversation, ignore any file co
 # UPDATED AGENT FUNCTION WITH RESET CAPABILITY
 # ============================================
 
+# ============================================
+# UPDATED AGENT FUNCTION - NO RERUNS
+# ============================================
+
 def run_agent(query):
     # Check if user wants to reset/ignore files
     reset_phrases = ["leave the document", "back to normal conversation", "ignore the file", "forget the file", "clear context", "start fresh"]
@@ -789,7 +793,7 @@ with st.sidebar:
     st.markdown("Computer Engineering @ Kyungdong University")
 
 # ============================================
-# CHAT INTERFACE WITH FIXED BOTTOM BAR
+# CHAT INTERFACE WITH FIXED BOTTOM BAR - FIXED
 # ============================================
 
 # Display chat history
@@ -815,7 +819,9 @@ with col2:
         help="Upload PDF, DOCX, TXT, CSV, or JSON files"
     )
     
+    # Process files if uploaded - REMOVED st.rerun()
     if uploaded_files:
+        files_processed = False
         for file in uploaded_files:
             if file.name not in st.session_state.uploaded_files:
                 with st.spinner(f"Processing {file.name}..."):
@@ -823,15 +829,17 @@ with col2:
                     if file_content and not file_content.startswith("Error"):
                         st.session_state.uploaded_files[file.name] = file_content
                         st.toast(f"✅ Loaded: {file.name}", icon="📎")
+                        files_processed = True
                     else:
                         st.toast(f"❌ Failed: {file.name}", icon="⚠️")
         
-        if st.session_state.uploaded_files:
+        # Update file context if any files were processed
+        if files_processed and st.session_state.uploaded_files:
             st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
                 f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
                 for name, content in st.session_state.uploaded_files.items()
             ])
-        st.rerun()
+            # Don't call st.rerun() - let Streamlit handle it naturally
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -839,7 +847,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 if len(st.session_state.uploaded_files) > 0:
     file_count = len(st.session_state.uploaded_files)
     st.markdown(f"""
-    <div class="file-count-badge" title="{file_count} file(s) loaded">
+    <div class="file-count-badge" title="{file_count} file(s) loaded - Click sidebar button to clear">
         📎 {file_count}
     </div>
     """, unsafe_allow_html=True)
