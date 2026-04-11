@@ -17,8 +17,82 @@ MAX_TOKENS = 400
 # STREAMLIT SETTINGS
 # ============================================
 
-st.set_page_config(page_title="MozeAI", page_icon="🧠")
+st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠")
 
+# ============================================
+# CUSTOM CSS FOR PERSONAL STYLING
+# ============================================
+
+st.markdown("""
+<style>
+    /* Main container */
+    .main {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    /* Chat messages */
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 10px;
+        margin: 5px 0;
+    }
+    
+    /* User message */
+    .stChatMessage [data-testid="stChatMessageContent"]:has(div:first-child) {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 12px;
+    }
+    
+    /* Assistant message */
+    .stChatMessage [data-testid="stChatMessageContent"]:has(div:last-child) {
+        background: #f0f2f6;
+        color: #1e1e2f;
+        border-radius: 15px;
+        padding: 12px;
+        border-left: 4px solid #764ba2;
+    }
+    
+    /* Title styling */
+    h1 {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5em;
+        font-weight: bold;
+        text-align: center;
+        padding: 20px;
+    }
+    
+    /* New Chat button */
+    .stButton button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 20px;
+        font-weight: bold;
+        transition: transform 0.2s;
+    }
+    
+    .stButton button:hover {
+        transform: scale(1.05);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background: linear-gradient(180deg, #1e1e2f 0%, #2d2d44 100%);
+    }
+    
+    /* Chat input */
+    .stChatInputContainer {
+        border-radius: 20px;
+        border: 2px solid #667eea;
+    }
+</style>
+""", unsafe_allow_html=True)
 # ============================================
 # GROQ CLIENT
 # ============================================
@@ -55,8 +129,9 @@ def llm(messages):
 SYSTEM_PROMPT = """
 You are MozeAI.
 
-Created by Mukiibi Moses,
-a Computer Engineering student at Kyungdong University.
+Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University.
+He is an AI builder focused on designing intelligent autonomous agents, language model applications, and practical AI systems that solve real-world problems such as education, automation, and decision support.
+He is an active researcher on researchGate, Aademia and other research Platforms.
 
 Rules:
 - Answer clearly and factually
@@ -264,7 +339,34 @@ def run_agent(query):
 # UI
 # ============================================
 
-st.title("MozeAI")
+# Welcome message with styling
+st.markdown('<h1>🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent</p>', unsafe_allow_html=True)
+st.markdown("---")
+# ============================================
+# SIDEBAR WITH NEW CHAT BUTTON
+# ============================================
+
+with st.sidebar:
+    st.markdown("### 🧠 MozeAI")
+    st.markdown("---")
+    
+    if st.button("🔄 New Chat", use_container_width=True):
+        # Reset all session states
+        st.session_state.memory_store = []
+        st.session_state.chat_history = []
+        st.rerun()
+    
+    st.markdown("---")
+    st.markdown("### About")
+    st.markdown("Created by **Mukiibi Moses**")
+    st.markdown("Computer Engineering @ Kyungdong University")
+    st.markdown("---")
+    st.markdown("### Features")
+    st.markdown("✅ Calculator")
+    st.markdown("✅ Wikipedia Search")
+    st.markdown("✅ Memory System")
+    st.markdown("✅ Autonomous Reasoning")
 
 for role, msg in st.session_state.chat_history:
 
