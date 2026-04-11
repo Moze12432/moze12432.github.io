@@ -31,14 +31,28 @@ def llm_generate(prompt):
 
     completion = client.chat.completions.create(
         model="llama3-8b-8192",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.6,
-        max_tokens=400
+        temperature=0.2,
+        max_tokens=400,
+        messages=[
+            {
+                "role": "system",
+                "content": """
+You are MozeAI, an intelligent AI assistant created by Mukiibi Moses.
+
+Rules:
+- Always answer factually and clearly.
+- If you are unsure about something, say "I am not certain".
+- Never invent facts about real people.
+- Use reasoning before answering.
+- If the question requires calculation, compute it.
+- If the question requires general knowledge, answer based on known facts.
+"""
+            },
+            {"role": "user", "content": prompt}
+        ]
     )
 
     return completion.choices[0].message.content
-
-
 # -----------------------------
 # SQLITE MEMORY
 # -----------------------------
