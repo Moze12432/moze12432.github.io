@@ -689,39 +689,10 @@ with st.sidebar:
     st.markdown("✅ Memory of past conversations")
 
 # ============================================
-# FILE UPLOAD SECTION (Main area)
-# ============================================
 
-with st.expander("📎 Upload Files for AI to Read", expanded=False):
-    uploaded_files = st.file_uploader(
-        "Choose files (PDF, DOCX, TXT, CSV, JSON)",
-        type=['pdf', 'docx', 'txt', 'csv', 'json'],
-        accept_multiple_files=True,
-        help="Upload documents for the AI to analyze, summarize, or answer questions about"
-    )
-    
-    if uploaded_files:
-        for file in uploaded_files:
-            if file.name not in st.session_state.uploaded_files:
-                with st.spinner(f"Processing {file.name}..."):
-                    file_content = process_uploaded_file(file)
-                    if file_content and not file_content.startswith("Error"):
-                        st.session_state.uploaded_files[file.name] = file_content
-                        st.success(f"✅ Loaded: {file.name}")
-                    else:
-                        st.error(f"❌ Failed to load: {file.name}")
-        
-        if st.session_state.uploaded_files:
-            st.session_state.file_context = "\n\n".join([
-                f"=== FILE: {name} ===\n{content}" 
-                for name, content in st.session_state.uploaded_files.items()
-            ])
-            st.info(f"📄 {len(st.session_state.uploaded_files)} file(s) loaded. Ask me questions about them!")
-            
-            if st.button("🗑️ Clear All Files"):
-                st.session_state.uploaded_files = {}
-                st.session_state.file_context = ""
-                st.rerun()
+# ============================================
+# CHAT HISTORY & INPUT
+# ============================================
 
 # ============================================
 # CHAT HISTORY & INPUT
@@ -731,7 +702,76 @@ for role, msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.write(msg)
 
-query = st.chat_input("Ask anything or upload files above...")
+# Custom CSS for inline file upload
+st.markdown("""
+<style>
+    /* Make file uploader inline with chat input */
+    .stChatInputContainer {
+        position: relative;
+    }
+    
+    div[data-testid="stFileUploader"] {
+        position: absolute;
+        right: 60px;
+        bottom: 12px;
+        z-index: 100;
+    }
+    
+    div[data-testid="stFileUploader"] button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+        padding: 0;
+    }
+    
+    div[data-testid="stFileUploader"] button:hover {
+        transform: scale(1.05);
+    }
+    
+    /* Hide the default file uploader text */
+    div[data-testid="stFileUploader"] > div:first-child {
+        display: none;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Chat input
+query = st.chat_input("Ask anything...")
+
+# Hidden file uploader that appears as icon
+uploaded_file = st.file_uploader(
+    "📎",
+    type=['pdf', 'docx', 'txt', 'csv', 'json'],
+    label_visibility="collapsed",
+    key="inline_uploader"
+)
+
+if uploaded_file:
+    if uploaded_file.name not in st.session_state.uploaded_files:
+        with st.spinner(f"Reading {uploaded_file.name}..."):
+            file_content = process_uploaded_file(uploaded_file)
+            if file_content and not file_content.startswith("Error"):
+                st.session_state.uploaded_files[uploaded_file.name] = file_content
+                st.session_state.file_context = "\n\n".join([
+                    f"=== FILE: {name} ===\n{content}" 
+                    for name, content in st.session_state.uploaded_files.items()
+                ])
+                st.success(f"✅ Loaded: {uploaded_file.name}")
+                st.rerun()
+
+# Show current files
+if st.session_state.uploaded_files:
+    st.caption(f"📄 Active: {', '.join(list(st.session_state.uploaded_files.keys())[:2])}")
+    if len(st.session_state.uploaded_files) > 2:
+        st.caption(f"... and {len(st.session_state.uploaded_files) - 2} more")
+    
+    if st.button("🗑️ Clear all", key="clear_files_simple"):
+        st.session_state.uploaded_files = {}
+        st.session_state.file_context = ""
+        st.rerun()
 
 if query:
     st.session_state.chat_history.append(("user", query))
