@@ -3,24 +3,27 @@ import sqlite3
 import numpy as np
 import re
 import requests
+import os
 from datetime import datetime
 
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.utils import embedding_functions
+
+
 # -------------------------
 # PAGE SETTINGS
 # -------------------------
 
 st.set_page_config(
-    page_title="Autonomous AI Agent",
+    page_title="MozeAI",
     page_icon="🧠",
     layout="wide"
 )
 
 # -------------------------
-# DATABASE MEMORY
+# SQLITE MEMORY
 # -------------------------
 
 conn = sqlite3.connect("memory.db", check_same_thread=False)
@@ -40,12 +43,79 @@ def save_memory(text):
     conn.commit()
 
 def load_memories():
-    cursor.execute("SELECT content FROM memories ORDER BY id DESC LIMIT 30")
+    cursor.execute("SELECT content FROM memories ORDER BY id DESC LIMIT 20")
     rows = cursor.fetchall()
     return [r[0] for r in rows]
 
+
 # -------------------------
-# VECTOR MEMORY
+# CHROMA KNOWLEDGE BASE
+# -------------------------
+
+@st.cache_resource
+def load_chroma():
+
+    client = chromadb.Client(
+        settings=chromadb.Settings(
+            persist_directory="chroma_db"
+        )
+    )
+
+    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-MiniLM-L6-v2"
+    )
+
+    collection = client.get_or_create_collection(
+        name="moze_knowledge",
+        embedding_function=embedding_function
+    )
+
+    return collection
+
+collection = load_chroma()
+
+
+def load_knowledge():
+
+    folder = "knowledge"
+
+    if not os.path.exists(folder):
+        return
+
+    existing = collection.get()["ids"]
+
+    for file in os.listdir(folder):
+
+        if file in existing:
+            continue
+
+        path = os.path.join(folder, file)
+
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        collection.add(
+            documents=[text],
+            ids=[file]
+        )
+
+load_knowledge()
+
+
+def retrieve_knowledge(query):
+
+    results = collection.query(
+        query_texts=[query],
+        n_results=2
+    )
+
+    docs = results["documents"][0]
+
+    return "\n".join(docs)
+
+
+# -------------------------
+# VECTOR CHAT MEMORY
 # -------------------------
 
 @st.cache_resource
@@ -77,8 +147,9 @@ def retrieve_vector(query, k=2):
 
     return [s[1] for s in scores[:k]]
 
+
 # -------------------------
-# LOAD LLM (FLAN-T5)
+# LOAD LLM
 # -------------------------
 
 @st.cache_resource
@@ -94,6 +165,7 @@ def load_llm():
 
 tokenizer, model = load_llm()
 
+
 def llm_generate(prompt):
 
     inputs = tokenizer(prompt, return_tensors="pt")
@@ -106,8 +178,9 @@ def llm_generate(prompt):
 
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
+
 # -------------------------
-# INTERNET SEARCH TOOL
+# TOOLS
 # -------------------------
 
 def internet_search(query):
@@ -128,9 +201,6 @@ def internet_search(query):
 
     return None
 
-# -------------------------
-# CALCULATOR TOOL
-# -------------------------
 
 def calculator(query):
 
@@ -146,27 +216,6 @@ def calculator(query):
 
     return None
 
-# -------------------------
-# PLANNER (TOOL ROUTER)
-# -------------------------
-
-def planner(query):
-
-    q = query.lower()
-
-    if re.search(r"\d+\s*[\+\-\*\/]\s*\d+", q):
-        return "calculator"
-
-    if "who is" in q or "what is" in q or "search" in q:
-        return "search"
-
-    if "time" in q:
-        return "time"
-
-    if "date" in q:
-        return "date"
-
-    return "llm"
 
 # -------------------------
 # AGENT CONTROLLER
@@ -174,44 +223,50 @@ def planner(query):
 
 def agent_controller(query):
 
-    task = planner(query)
+    # calculator
+    result = calculator(query)
 
-    if task == "calculator":
+    if result:
+        return f"🧮 Result: {result}"
 
-        result = calculator(query)
+    # search
+    if "who is" in query.lower() or "what is" in query.lower():
 
-        if result:
-            return f"🧮 Result: {result}"
+        search = internet_search(query)
 
-    if task == "search":
+        if search:
+            return f"🔎 {search}"
 
-        result = internet_search(query)
-
-        if result:
-            return f"🔎 {result}"
-
-    if task == "time":
+    # time
+    if "time" in query.lower():
         return datetime.now().strftime("%H:%M:%S")
 
-    if task == "date":
+    if "date" in query.lower():
         return datetime.now().strftime("%A, %B %d, %Y")
+
+    # retrieve knowledge
+    knowledge = retrieve_knowledge(query)
 
     memories = retrieve_vector(query)
 
     memory_context = "\n".join(memories)
 
     prompt = f"""
-You are a helpful AI assistant.
+You are MozeAI.
 
-Use the context if relevant.
+MozeAI is an autonomous AI assistant created by Mukiibi Moses,
+a Computer Engineering student at KyungDong University.
 
-Context:
+Knowledge:
+{knowledge}
+
+Conversation memory:
 {memory_context}
 
-Question:
+User question:
 {query}
 
-Answer clearly and concisely.
+Answer clearly and factually.
 """
 
     answer = llm_generate(prompt)
@@ -224,6 +279,7 @@ Answer clearly and concisely.
 
     return answer
 
+
 # -------------------------
 # SESSION STATE
 # -------------------------
@@ -231,13 +287,14 @@ Answer clearly and concisely.
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+
 # -------------------------
 # SIDEBAR
 # -------------------------
 
 with st.sidebar:
 
-    st.title("AI Agent")
+    st.title("MozeAI")
 
     st.write("Autonomous AI Assistant")
 
@@ -251,16 +308,18 @@ with st.sidebar:
     for m in mems[:5]:
         st.write("-", m[:60])
 
+
 # -------------------------
 # CHAT UI
 # -------------------------
 
-st.title("🧠 Autonomous AI Agent")
+st.title("🧠 MozeAI")
 
 for m in st.session_state.messages:
 
     with st.chat_message(m["role"]):
         st.write(m["content"])
+
 
 query = st.chat_input("Ask anything...")
 
