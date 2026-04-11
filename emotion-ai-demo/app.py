@@ -8,7 +8,7 @@ from sentence_transformers import SentenceTransformer
 from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
-import trafilatura
+
 
 # ============================================
 # CONFIG
