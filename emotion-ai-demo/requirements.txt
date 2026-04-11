@@ -1,7 +1,8 @@
 streamlit
-torch
+numpy
+requests
 transformers
 sentence-transformers
 chromadb
-numpy
-requests
+sqlite3
+torch
