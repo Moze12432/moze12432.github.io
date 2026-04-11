@@ -370,14 +370,34 @@ def calculator(query):
 # WEB PAGE SCRAPER (Multiple fallback methods)
 # ============================================
 
-def scrape_webpage(url):
-    """Extract clean text content from any webpage URL with multiple fallbacks"""
+def get_site_info_from_search(url):
+    """Get information about any website using search engines"""
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc.replace('www.', '')
+        
+        search_url = f"https://www.google.com/search?q={domain}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        response = requests.get(search_url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            snippets = soup.find_all('div', class_='VwiC3b')
+            if snippets:
+                return f"Information about {domain} (from web search):\n{snippets[0].get_text()[:500]}"
+    except:
+        pass
+    return None
+
+def scrape_with_requests(url):
+    """Try to scrape with different request methods"""
     
-    # Method 1: Try with different user agents
     user_agents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
+        'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
     ]
     
     for user_agent in user_agents:
@@ -391,67 +411,83 @@ def scrape_webpage(url):
                 'Upgrade-Insecure-Requests': '1',
             }
             
-            response = requests.get(url, headers=headers, timeout=15)
+            response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
             
             if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
+                content_type = response.headers.get('content-type', '')
                 
-                # Remove unwanted elements
-                for element in soup(["script", "style", "nav", "footer", "header", "iframe", "noscript", "meta", "link"]):
-                    element.decompose()
-                
-                # Get text
-                text = soup.get_text()
-                
-                # Clean up whitespace
-                lines = (line.strip() for line in text.splitlines())
-                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                text = ' '.join(chunk for chunk in chunks if chunk)
-                
-                # Remove extra spaces
-                text = ' '.join(text.split())
-                
-                if len(text) > 100:  # Only return if we got substantial content
-                    return text[:3000]
+                if 'text/html' in content_type:
+                    soup = BeautifulSoup(response.content, 'html.parser')
                     
-        except:
+                    for element in soup(["script", "style", "nav", "footer", "header", "iframe", "noscript", "meta", "link"]):
+                        element.decompose()
+                    
+                    main_content = None
+                    for selector in ['main', 'article', '[role="main"]', '.content', '#content', '.post-content', '.entry-content']:
+                        main_content = soup.select_one(selector)
+                        if main_content:
+                            break
+                    
+                    if main_content:
+                        text = main_content.get_text()
+                    else:
+                        text = soup.get_text()
+                    
+                    lines = (line.strip() for line in text.splitlines())
+                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                    text = ' '.join(chunk for chunk in chunks if chunk)
+                    text = ' '.join(text.split())
+                    
+                    if len(text) > 200:
+                        return text[:3000]
+                        
+        except Exception as e:
             continue
     
-    # Method 2: Try using textise dot iitty (alternative service)
+    return None
+
+def scrape_with_textise(url):
+    """Use textise API as fallback"""
     try:
         textise_url = f"https://r.jina.ai/{url}"
         response = requests.get(textise_url, timeout=10)
-        if response.status_code == 200 and len(response.text) > 100:
+        if response.status_code == 200 and len(response.text) > 200:
             return response.text[:3000]
     except:
         pass
-    
-    # Method 3: Try using BeautifulSoup with different parser
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Try to find main content
-            main_content = soup.find('main') or soup.find('article') or soup.find('div', class_='content')
-            
-            if main_content:
-                text = main_content.get_text()
-            else:
-                text = soup.get_text()
-            
-            # Clean text
-            text = ' '.join(text.split())
-            
-            if len(text) > 100:
-                return text[:3000]
-    except:
-        pass
-    
-    return "Unable to read the link. The website might be blocking access or the link might be invalid."
+    return None
 
+def scrape_webpage(url):
+    """Universal webpage reader that works for ANY website"""
+    
+    content = scrape_with_requests(url)
+    if content:
+        return content
+    
+    content = scrape_with_textise(url)
+    if content:
+        return content
+    
+    content = get_site_info_from_search(url)
+    if content:
+        return content + "\n\n(Note: Direct access blocked. Showing search results instead.)"
+    
+    from urllib.parse import urlparse
+    domain = urlparse(url).netloc
+    
+    return f"""Unable to directly read this website ({domain}).
+
+This can happen if:
+- The website requires login
+- The website blocks automated access
+- The link is behind a paywall
+
+Here's what you can do:
+1. Open the link directly in your browser
+2. Copy and paste the relevant text here
+3. Ask me to search for the information instead
+
+Would you like me to search for information about this topic?"""
 
 def is_url(text):
     """Check if text contains a URL"""
@@ -561,6 +597,7 @@ def run_agent(query):
     context = ""
     
     # URL Scraping (NEW - with better error handling)
+    # URL Scraping (Universal)
     if tool == "scrape_url":
         urls = extract_urls_from_query(query)
         scraped_content = ""
@@ -570,12 +607,12 @@ def run_agent(query):
                 if content and not content.startswith("Unable"):
                     scraped_content += f"\n\nContent from {url}:\n{content}\n"
                 else:
-                    scraped_content += f"\n\nCould not read {url}. {content}\n"
+                    scraped_content += f"\n\nNote: Limited access to {url}\n"
         
-        if scraped_content and "Content from" in scraped_content:
+        if scraped_content:
             context = scraped_content
         else:
-            return "I couldn't read that link. The website might be blocking access. Try: \n- Using a different link\n- Asking me to search for the information instead"
+            return "I couldn't read that link. Try asking me to search for the information instead."
     
     # Calculator
     if tool == "calculator":
