@@ -229,6 +229,15 @@ CREATOR INFORMATION (ONLY mention when asked directly):
 - If asked "who created you" or "who is your creator", provide this information
 - Do NOT default to talking about the creator for unrelated questions
 
+CRITICAL RULE - READ THIS FIRST:
+1. When a user asks about ANY person, place, event, or topic that is NOT specifically about you or your creator, you MUST answer based on SEARCH RESULTS ONLY.
+2. DO NOT mention your creator unless explicitly asked about "who created you" or "who is Mukiibi Moses".
+3. For questions about PEOPLE, PLACES, EVENTS, or ANY topic not related to your creator, USE SEARCH RESULTS
+4. When users ask "who is [person]" or "tell me about [topic]", search the internet and answer based on search results
+5. ONLY mention your creator (Mukiibi Moses) when users specifically ask about you or your creator
+6. For normal conversation about world topics, politics, celebrities, news, etc., NEVER default to talking about your creator
+7. Use the search results provided in the context to answer questions accurately
+
 YOUR CAPABILITIES:
 - REAL-TIME web search for current information (weather, news, people, events, facts)
 - Latest news headlines and updates
@@ -252,6 +261,12 @@ EXAMPLE BEHAVIOR:
 - User: "tell me about yourself" → Share your capabilities and your creator
 - User: "compare these files" → Use uploaded file content
 
+WRONG BEHAVIOR (NEVER DO THIS):
+- User asks about Bobi Wine → You answer about Mukiibi Moses (NEVER do this)
+- User asks about any topic → You default to talking about your creator (NEVER do this)
+
+Your creator is Mukiibi Moses, but you should ONLY mention him when specifically asked about him.
+
 Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information!
 """
 
@@ -259,26 +274,31 @@ Remember: The world does not revolve around your creator. Answer questions based
 # IMPROVED REASONING FUNCTION
 # ============================================
 
+# ============================================
+# IMPROVED REASONING - FORCES SEARCH RESULT USAGE
+# ============================================
+
 def reason(question, context):
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"""
-CONTEXT (search results, file content, or other information):
-{context[:2000]}
+SEARCH RESULTS (Use these to answer the user's question):
+{context[:2500]}
 
 USER QUESTION: {question}
 
 INSTRUCTIONS:
-- For questions about people, places, events, politics, celebrities → USE SEARCH RESULTS from context
-- For questions about your creator → ONLY answer if explicitly asked
-- Answer naturally, conversationally, and accurately
-- Base your answer on the context provided
+1. Look at the search results above
+2. Answer the user's question based ONLY on these search results
+3. If the search results contain information about Bobi Wine, answer with that information
+4. If the search results contain information about any topic, answer with that information
+5. DO NOT mention your creator unless the search results are about your creator
+6. Be conversational but factual
 
 ANSWER:
 """}
     ]
     return clean_answer(llm(messages))
-
 # ============================================
 # SESSION STATE
 # ============================================
@@ -291,7 +311,10 @@ if "uploaded_files" not in st.session_state:
     st.session_state.uploaded_files = {}
 if "file_context" not in st.session_state:
     st.session_state.file_context = ""
-
+if "last_search_query" not in st.session_state:
+    st.session_state.last_search_query = None
+if "last_search_results" not in st.session_state:
+    st.session_state.last_search_results = None
 # ============================================
 # EMBEDDINGS FOR MEMORY
 # ============================================
@@ -325,77 +348,92 @@ def retrieve_memory(query):
 # IMPROVED SEARCH FUNCTION FOR PEOPLE & EVENTS
 # ============================================
 
+# ============================================
+# IMPROVED SEARCH FOR PEOPLE - WITH BETTER PARSING
+# ============================================
+
 def internet_search(query):
-    """Search the web for current information including people, places, events"""
+    """Search the web and return formatted results"""
     try:
-        # Try DuckDuckGo first
+        # Clean the query
+        clean_query = query.strip()
+        
+        # Use DuckDuckGo
         url = "https://html.duckduckgo.com/html/"
-        params = {"q": query}
+        params = {"q": clean_query}
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         response = requests.post(url, data=params, headers=headers, timeout=10)
         
         if response.status_code == 200:
-            # Extract results
+            # Extract results more carefully
             results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
-            snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
+            snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+(?:<[^>]+>[^<]*</[^>]+>)*)</a>', response.text)
             
             if results:
-                context = f"SEARCH RESULTS for '{query}':\n\n"
-                for i in range(min(4, len(results))):
-                    context += f"• {results[i]}\n"
+                context = f"SEARCH RESULTS for '{clean_query}':\n\n"
+                for i in range(min(5, len(results))):
+                    context += f"**{results[i]}**\n"
                     if i < len(snippets):
-                        # Clean HTML tags from snippets
+                        # Clean the snippet
                         snippet = re.sub(r'<[^>]+>', '', snippets[i])
-                        # Decode HTML entities
-                        snippet = snippet.replace('&#39;', "'").replace('&quot;', '"').replace('&amp;', '&')
-                        context += f"  {snippet[:300]}...\n\n"
-                return context[:2500]
+                        snippet = snippet.replace('&#39;', "'").replace('&quot;', '"').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+                        context += f"{snippet[:400]}\n\n"
+                return context[:3000]
         
-        # Try Wikipedia for people and historical figures
-        return wikipedia_fallback(query)
+        return wikipedia_search(clean_query)
         
     except Exception as e:
-        return wikipedia_fallback(query)
+        return wikipedia_search(query)
 
-def wikipedia_fallback(query):
-    """Wikipedia as backup search - good for people, places, events"""
+# ============================================
+# IMPROVED WIKIPEDIA SEARCH
+# ============================================
+
+def wikipedia_search(query):
+    """Search Wikipedia for comprehensive information"""
     try:
-        # Try exact match first
+        # First try exact match
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
         q = query.strip().replace(" ", "_")
-        r = requests.get(url + q, timeout=10)
+        response = requests.get(url + q, timeout=10)
         
-        if r.status_code == 200:
-            data = r.json()
-            extract = data.get("extract", "")[:1500]
+        if response.status_code == 200:
+            data = response.json()
+            title = data.get("title", "")
+            extract = data.get("extract", "")
             if extract:
-                return f"Wikipedia information about {query}:\n{extract}"
+                return f"Wikipedia - {title}:\n{extract[:2000]}"
         
-        # Try search if exact match fails
+        # Search Wikipedia
         search_url = "https://en.wikipedia.org/w/api.php"
         params = {
             "action": "query",
             "list": "search",
             "srsearch": query,
             "format": "json",
-            "srlimit": 1
+            "srlimit": 3
         }
-        r = requests.get(search_url, params=params, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
+        response = requests.get(search_url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
             search_results = data.get("query", {}).get("search", [])
+            
             if search_results:
-                title = search_results[0]["title"]
-                # Get the summary for the best match
-                r2 = requests.get(url + title.replace(" ", "_"), timeout=10)
-                if r2.status_code == 200:
-                    data2 = r2.json()
-                    extract = data2.get("extract", "")[:1500]
-                    if extract:
-                        return f"Wikipedia information about {query}:\n{extract}"
+                context = f"Wikipedia search results for '{query}':\n\n"
+                for result in search_results[:2]:
+                    title = result.get("title", "")
+                    # Get the summary for each result
+                    r2 = requests.get(url + title.replace(" ", "_"), timeout=10)
+                    if r2.status_code == 200:
+                        data2 = r2.json()
+                        extract = data2.get("extract", "")[:800]
+                        if extract:
+                            context += f"**{title}**\n{extract}\n\n"
+                return context[:2500]
     except:
         pass
-    return ""
+    return f"No search results found for '{query}'. Please try a different query."
     
 def get_weather_from_api(query):
     """Get weather information from free weather API"""
@@ -644,36 +682,51 @@ Provide:
 # MAIN AGENT FUNCTION
 # ============================================
 
+# ============================================
+# UPDATED AGENT TO HANDLE "YES" CONTINUATIONS
+# ============================================
+
 def run_agent(query):
     # Check for reset commands
     reset_phrases = ["leave the document", "clear context", "forget the file", "start fresh", "clear files"]
     if any(phrase in query.lower() for phrase in reset_phrases):
         st.session_state.file_context = ""
         st.session_state.uploaded_files = {}
-        return "✅ Context cleared! All uploaded files have been removed. I'm now ready for a fresh conversation. How can I help you today?"
+        st.session_state.last_search_query = None
+        st.session_state.last_search_results = None
+        return "✅ Context cleared! How can I help you today?"
     
     tool = route(query)
     context = ""
     
+    # Handle "yes" or "continue" responses - maintain context
+    if query.lower() in ["yes", "yeah", "sure", "ok", "continue", "tell me more"]:
+        if hasattr(st.session_state, 'last_search_results') and st.session_state.last_search_results:
+            context = st.session_state.last_search_results
+            # Add instruction to continue with more details
+            context += "\n\n The user said 'yes' to learn more. Provide MORE DETAILS from the search results above."
+        else:
+            context = get_current_datetime()
+    
     # Handle FILE COMPARISON
-    if tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
+    elif tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
         with st.spinner("📊 Comparing files..."):
             return compare_files(query, st.session_state.file_context, filenames)
     
     # Handle single file task
-    if tool == "file_task" and st.session_state.file_context:
+    elif tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
         with st.spinner("📖 Reading your document..."):
             return analyze_uploaded_files(query, st.session_state.file_context, filenames)
     
     # Handle evaluation
-    if tool == "evaluate" and st.session_state.file_context:
+    elif tool == "evaluate" and st.session_state.file_context:
         with st.spinner("📝 Evaluating your work..."):
             return evaluate_work(query, st.session_state.file_context)
     
     # Handle URL scraping
-    if tool == "scrape_url":
+    elif tool == "scrape_url":
         urls = extract_urls_from_query(query)
         scraped = ""
         for url in urls:
@@ -684,44 +737,36 @@ def run_agent(query):
         if scraped:
             context = scraped
         else:
-            return "I couldn't read that link. It might be blocked or require login."
+            return "I couldn't read that link."
     
     # Handle calculator
-    if tool == "calculator":
+    elif tool == "calculator":
         result = calculator(query)
         if result:
             return f"Result: {result}"
     
     # Handle datetime
-    if tool == "datetime":
+    elif tool == "datetime":
         context += get_current_datetime()
     
-    # Handle news
-    if tool == "news":
-        news = get_current_news()
-        if news:
-            context += "\n" + news
-    
-    # Handle search (for weather and other real-time info)
-    if tool == "search":
+    # Handle search for everything else (people, news, weather, etc.)
+    else:
         search_result = internet_search(query)
         if search_result:
             context += "\n" + search_result
+            # Store for follow-up questions
+            st.session_state.last_search_query = query
+            st.session_state.last_search_results = search_result
         else:
-            context += f"\nSearched for: {query}\nNo specific results found."
-    
-    # Add memory context
-    memory = retrieve_memory(query)
-    if memory:
-        context += "\n\nPrevious conversation:\n" + memory
-    
-    # Add default context if empty
-    if not context:
-        context = get_current_datetime()
+            context += get_current_datetime()
     
     # Generate response
     answer = reason(query, context)
-    store_memory(answer)
+    
+    # Don't store generic "yes" responses in memory
+    if query.lower() not in ["yes", "yeah", "sure", "ok", "continue", "tell me more"]:
+        store_memory(answer)
+    
     return answer
 
 # ============================================
