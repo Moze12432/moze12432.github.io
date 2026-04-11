@@ -4,12 +4,10 @@ import numpy as np
 import re
 import requests
 import os
-from datetime import datetime
 
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sentence_transformers import SentenceTransformer
-import chromadb
-from chromadb.utils import embedding_functions
+
 
 # ----------------------------------
 # PAGE CONFIG
@@ -87,23 +85,10 @@ def retrieve_vector(query, k=3):
 
 
 # ----------------------------------
-# CHROMA KNOWLEDGE BASE
+# KNOWLEDGE BASE
 # ----------------------------------
 
-client = chromadb.Client(
-    settings=chromadb.Settings(
-        persist_directory="chroma_db"
-    )
-)
-
-embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
-)
-
-collection = client.get_or_create_collection(
-    name="moze_knowledge",
-    embedding_function=embedding_function
-)
+knowledge_base = []
 
 
 def load_knowledge():
@@ -117,14 +102,10 @@ def load_knowledge():
 
         path = os.path.join(folder, file)
 
-        with open(path, "r", encoding="utf-8") as f:
-            text = f.read()
-
         try:
-            collection.add(
-                documents=[text],
-                ids=[file]
-            )
+            with open(path, "r", encoding="utf-8") as f:
+                text = f.read()
+                knowledge_base.append(text)
         except:
             pass
 
@@ -134,27 +115,30 @@ load_knowledge()
 
 def retrieve_knowledge(query):
 
-    results = collection.query(
-        query_texts=[query],
-        n_results=2
-    )
+    if not knowledge_base:
+        return ""
 
-    docs = results["documents"][0]
+    qvec = embed_model.encode(query)
 
-    return "\n".join(docs)
+    scores = []
+
+    for text in knowledge_base:
+
+        vec = embed_model.encode(text)
+
+        sim = np.dot(qvec, vec)
+
+        scores.append((sim, text))
+
+    scores.sort(reverse=True)
+
+    return scores[0][1]
 
 
 def learn_new_fact(query, answer):
 
-    text = f"{query} -> {answer}"
-
-    try:
-        collection.add(
-            documents=[text],
-            ids=[str(datetime.now().timestamp())]
-        )
-    except:
-        pass
+    if len(answer) > 10:
+        knowledge_base.append(f"{query} -> {answer}")
 
 
 # ----------------------------------
@@ -182,8 +166,9 @@ def llm_generate(prompt):
 
     outputs = model.generate(
         **inputs,
-        max_length=150,
-        temperature=0.7
+        max_length=200,
+        temperature=0.6,
+        do_sample=True
     )
 
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -302,46 +287,29 @@ def agent_controller(query):
         if result:
             return f"🔎 {result}"
 
-    if tool == "knowledge":
+    memories = retrieve_vector(query)
 
-        knowledge = retrieve_knowledge(query)
+    memory_context = "\n".join(memories)
 
-        prompt = f"""
-You are MozeAI.
+    knowledge_context = retrieve_knowledge(query)
 
-Use the knowledge below.
-
-Knowledge:
-{knowledge}
-
-Question:
-{query}
-
-Answer clearly.
-"""
-
-        answer = llm_generate(prompt)
-
-    else:
-
-        memories = retrieve_vector(query)
-
-        memory_context = "\n".join(memories)
-
-        prompt = f"""
-You are MozeAI created by Mukiibi Moses,
+    prompt = f"""
+You are MozeAI, created by Mukiibi Moses,
 a Computer Engineering student at KyungDong University.
 
-Memory:
+Relevant knowledge:
+{knowledge_context}
+
+Conversation memory:
 {memory_context}
 
-Question:
+User question:
 {query}
 
-Answer clearly.
+Answer clearly and accurately.
 """
 
-        answer = llm_generate(prompt)
+    answer = llm_generate(prompt)
 
     store_vector(query)
     store_vector(answer)
