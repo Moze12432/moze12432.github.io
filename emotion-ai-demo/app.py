@@ -28,15 +28,19 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 def llm(messages):
 
-    completion = client.chat.completions.create(
-        model=MODEL_NAME,
-        temperature=TEMPERATURE,
-        max_tokens=MAX_TOKENS,
-        messages=messages
-    )
+    try:
 
-    return completion.choices[0].message.content.strip()
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+            messages=messages
+        )
 
+        return completion.choices[0].message.content.strip()
+
+    except Exception:
+        return "I encountered a temporary AI service error. Please try again."
 
 # =========================================================
 # SYSTEM PROMPT
@@ -55,9 +59,8 @@ Rules:
 - Be concise and clear.
 """
 
-
 # =========================================================
-# SESSION MEMORY (PER USER)
+# SESSION STATE (PER USER)
 # =========================================================
 
 if "memory_store" not in st.session_state:
@@ -71,7 +74,6 @@ if "chat_history" not in st.session_state:
 # =========================================================
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
-
 
 # =========================================================
 # MEMORY FUNCTIONS
@@ -109,10 +111,9 @@ def retrieve_memory(query):
 
     scores.sort(reverse=True)
 
-    top = scores[:3]
+    top = scores[:2]
 
-    return "\n".join([t[1] for t in top])
-
+    return "\n".join([t[1][:400] for t in top])
 
 # =========================================================
 # INTERNET SEARCH (WIKIPEDIA)
@@ -123,22 +124,20 @@ def internet_search(query):
     try:
 
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
-
         q = query.strip().replace(" ", "_")
 
         r = requests.get(url + q)
-
         data = r.json()
 
-        return data.get("extract","")
+        text = data.get("extract","")
+
+        return text[:1200]
 
     except:
-
         return ""
 
-
 # =========================================================
-# CALCULATOR TOOL
+# CALCULATOR
 # =========================================================
 
 def calculator(query):
@@ -161,7 +160,6 @@ def calculator(query):
 
     return None
 
-
 # =========================================================
 # ROUTER
 # =========================================================
@@ -182,7 +180,6 @@ def route(query):
 
     return "reason"
 
-
 # =========================================================
 # CLEAN RESPONSE
 # =========================================================
@@ -197,12 +194,13 @@ def clean_answer(text):
 
     return text.strip()
 
-
 # =========================================================
 # REASONING
 # =========================================================
 
 def reason(question, context):
+
+    context = context[:2000]
 
     prompt = [
         {"role":"system","content":SYSTEM_PROMPT},
@@ -219,7 +217,6 @@ If context is insufficient say "I am not sure".
     ]
 
     return clean_answer(llm(prompt))
-
 
 # =========================================================
 # SELF VERIFICATION
@@ -245,7 +242,6 @@ Reply only YES or NO.
     result = llm(prompt)
 
     return "yes" in result.lower()
-
 
 # =========================================================
 # AGENT PIPELINE
@@ -287,11 +283,9 @@ def run_agent(query):
 
         answer = reason(query, web)
 
-    # store useful memory
     store_memory(answer)
 
     return answer
-
 
 # =========================================================
 # STREAMLIT UI
@@ -302,15 +296,12 @@ st.title("MozeAI")
 for role, msg in st.session_state.chat_history:
 
     if role == "user":
-
         with st.chat_message("user"):
             st.write(msg)
 
     elif role == "assistant":
-
         with st.chat_message("assistant"):
             st.write(msg)
-
 
 query = st.chat_input("Ask anything")
 
