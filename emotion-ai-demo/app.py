@@ -22,7 +22,7 @@ import json
 def extract_text_from_pdf(file):
     """Extract text from PDF file"""
     try:
-        file.seek(0)  # Reset file pointer
+        file.seek(0)
         pdf_reader = PyPDF2.PdfReader(file)
         text = ""
         for page_num, page in enumerate(pdf_reader.pages):
@@ -34,23 +34,21 @@ def extract_text_from_pdf(file):
         if not text.strip():
             return "The PDF appears to be empty or contains only scanned images (no extractable text)."
         
-        return text[:5000]  # Limit to 5000 chars
+        return text[:5000]
     except Exception as e:
         return f"Error reading PDF: {str(e)}"
 
 def extract_text_from_docx(file):
-    """Extract text from Word document with better extraction"""
+    """Extract text from Word document"""
     try:
-        file.seek(0)  # Reset file pointer
+        file.seek(0)
         doc = docx.Document(file)
         text = ""
         
-        # Extract from paragraphs
         for para in doc.paragraphs:
             if para.text and para.text.strip():
                 text += para.text.strip() + "\n\n"
         
-        # Extract from tables
         for table in doc.tables:
             for row in table.rows:
                 row_text = []
@@ -60,18 +58,6 @@ def extract_text_from_docx(file):
                 if row_text:
                     text += " | ".join(row_text) + "\n"
             text += "\n"
-        
-        # Extract from headers and footers
-        for section in doc.sections:
-            header = section.header
-            for para in header.paragraphs:
-                if para.text and para.text.strip():
-                    text += f"[HEADER] {para.text.strip()}\n"
-            
-            footer = section.footer
-            for para in footer.paragraphs:
-                if para.text and para.text.strip():
-                    text += f"[FOOTER] {para.text.strip()}\n"
         
         if not text.strip():
             return "The Word document appears to be empty or contains only images/tables that couldn't be extracted."
@@ -83,7 +69,7 @@ def extract_text_from_docx(file):
 def extract_text_from_txt(file):
     """Extract text from text file"""
     try:
-        file.seek(0)  # Reset file pointer
+        file.seek(0)
         content = file.read().decode('utf-8')
         if not content.strip():
             return "The text file is empty."
@@ -99,22 +85,19 @@ def extract_text_from_txt(file):
         return f"Error reading text file: {str(e)}"
 
 def extract_text_from_csv(file):
-    """Extract text from CSV file with better formatting"""
+    """Extract text from CSV file"""
     try:
-        file.seek(0)  # Reset file pointer
+        file.seek(0)
         content = file.read().decode('utf-8')
         csv_reader = csv.reader(StringIO(content))
         text = "CSV Data:\n\n"
         
-        # Get headers if they exist
         rows = list(csv_reader)
         if rows:
-            # First row as headers
             headers = rows[0]
             text += "Headers: " + " | ".join(headers) + "\n\n"
             text += "Data rows:\n"
             
-            # Show first 10 rows of data
             for i, row in enumerate(rows[1:11], 1):
                 text += f"Row {i}: " + " | ".join(row) + "\n"
             
@@ -129,16 +112,14 @@ def extract_text_from_csv(file):
         return f"Error reading CSV file: {str(e)}"
 
 def extract_text_from_json(file):
-    """Extract text from JSON file with better formatting"""
+    """Extract text from JSON file"""
     try:
-        file.seek(0)  # Reset file pointer
+        file.seek(0)
         content = file.read().decode('utf-8')
         data = json.loads(content)
         
-        # Format JSON nicely
         formatted_json = json.dumps(data, indent=2)
         
-        # If JSON is too large, summarize it
         if len(formatted_json) > 3000:
             text = "JSON Data Summary:\n\n"
             text += f"Type: {type(data).__name__}\n"
@@ -171,26 +152,16 @@ def process_uploaded_file(uploaded_file):
     file_type = uploaded_file.type
     file_name = uploaded_file.name.lower()
     
-    # PDF files
     if file_type == "application/pdf" or file_name.endswith('.pdf'):
         return extract_text_from_pdf(uploaded_file)
-    
-    # Word documents
     elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_name.endswith('.docx'):
         return extract_text_from_docx(uploaded_file)
-    
-    # Text files
     elif file_type == "text/plain" or file_name.endswith('.txt'):
         return extract_text_from_txt(uploaded_file)
-    
-    # CSV files
     elif file_type == "text/csv" or file_name.endswith('.csv'):
         return extract_text_from_csv(uploaded_file)
-    
-    # JSON files
     elif file_type == "application/json" or file_name.endswith('.json'):
         return extract_text_from_json(uploaded_file)
-    
     else:
         return f"Unsupported file type: {file_type}. Supported: PDF, DOCX, TXT, CSV, JSON"
 
@@ -200,7 +171,7 @@ def process_uploaded_file(uploaded_file):
 
 MODEL_NAME = "llama-3.1-8b-instant"
 TEMPERATURE = 0
-MAX_TOKENS = 800  # Increased for better file analysis
+MAX_TOKENS = 800
 
 # ============================================
 # STREAMLIT SETTINGS
@@ -209,24 +180,21 @@ MAX_TOKENS = 800  # Increased for better file analysis
 st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠", layout="wide")
 
 # ============================================
-# CUSTOM CSS FOR PERSONAL STYLING
+# CUSTOM CSS
 # ============================================
 
 st.markdown("""
 <style>
-    /* Main container */
     .main {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
     
-    /* Chat messages */
     .stChatMessage {
         border-radius: 15px;
         padding: 10px;
         margin: 5px 0;
     }
     
-    /* User message */
     .stChatMessage [data-testid="stChatMessageContent"]:has(div:first-child) {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -234,7 +202,6 @@ st.markdown("""
         padding: 12px;
     }
     
-    /* Assistant message */
     .stChatMessage [data-testid="stChatMessageContent"]:has(div:last-child) {
         background: #f0f2f6;
         color: #1e1e2f;
@@ -243,7 +210,6 @@ st.markdown("""
         border-left: 4px solid #764ba2;
     }
     
-    /* Title styling */
     h1 {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         -webkit-background-clip: text;
@@ -254,7 +220,6 @@ st.markdown("""
         padding: 20px;
     }
     
-    /* Button styling */
     .stButton button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -270,15 +235,61 @@ st.markdown("""
         background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
     }
     
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
-        border-radius: 10px;
+    /* Fixed bottom chat bar */
+    .fixed-chat-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 1rem;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        z-index: 999;
     }
     
-    /* Success message */
-    .stAlert {
+    .stFileUploader > div:first-child {
+        display: none;
+    }
+    
+    .stFileUploader button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
         border-radius: 10px;
+        padding: 8px 16px;
+        font-size: 20px;
+        font-weight: bold;
+        transition: transform 0.2s;
+        width: 100%;
+        min-width: 60px;
+        height: 46px;
+    }
+    
+    .stFileUploader button:hover {
+        transform: scale(1.05);
+    }
+    
+    .file-count-badge {
+        position: fixed;
+        bottom: 90px;
+        right: 30px;
+        background: #ff4444;
+        color: white;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        cursor: pointer;
+        z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    .main .block-container {
+        padding-bottom: 100px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -319,17 +330,14 @@ def llm(messages):
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
-        return f"AI service temporarily unavailable. Error: {str(e)}"
+        return f"AI service temporarily unavailable."
 
 # ============================================
-# SYSTEM PROMPT
+# UPDATED SYSTEM PROMPT - Clear file usage rules
 # ============================================
 
 SYSTEM_PROMPT = """
-You are MozeAI, an AI with REAL-TIME information access and FILE ANALYSIS capabilities.
-
-Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University.
-He is an AI builder focused on designing intelligent autonomous agents, language model applications, and practical AI systems that solve real-world problems such as education, automation, and decision support.
+You are MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University.
 
 CAPABILITIES:
 - Access to current date/time
@@ -337,18 +345,21 @@ CAPABILITIES:
 - Latest news headlines
 - Calculator for math problems
 - Memory of past conversations
-- File analysis and document understanding (PDF, DOCX, TXT, CSV, JSON)
+- File analysis (when user explicitly asks about uploaded files)
 
-INSTRUCTIONS:
-- When analyzing files, BASE YOUR ANSWER SOLELY ON THE ACTUAL FILE CONTENT PROVIDED
-- DO NOT guess or make up information not present in the files
-- Quote specific sections from the files when answering
-- For CSV/JSON data, provide specific insights about the data structure and content
-- For time/date questions, use the current information provided
-- For news/events, rely on the search results given
-- Answer clearly, factually, and with specific references to the source material
-- If information isn't in the provided context, say "I don't have that information in the uploaded files"
-- Do not hallucinate or make up information
+CRITICAL RULES:
+1. ONLY use uploaded file content if the user SPECIFICALLY asks about "the file", "the document", "my upload", or similar explicit references
+2. For normal conversation (greetings, "who are you", "what is your purpose", general questions), IGNORE any uploaded files completely
+3. Treat each conversation as starting fresh - do not assume the user wants to discuss their files
+4. When the user asks general questions like "what is your purpose", answer based on YOUR capabilities as an AI, not based on uploaded files
+5. If the user says "leave the document" or "back to normal conversation", completely ignore file context for all subsequent responses
+
+EXAMPLE BEHAVIOR:
+- User: "who are you?" → Answer: "I am MozeAI, an AI assistant created by Mukiibi Moses..."
+- User: "what is your purpose?" → Answer: "My purpose is to assist you with information, answer questions, and help with tasks..."
+- User: "what does my file say?" → Answer: Use file content
+
+Remember: Normal conversation = ignore files. Explicit file questions = use files only when asked.
 """
 
 # ============================================
@@ -397,7 +408,7 @@ def retrieve_memory(query):
     return "\n".join([t[1][:300] for t in top])
 
 # ============================================
-# IMPROVED FILE ANALYSIS FUNCTION
+# FILE ANALYSIS FUNCTION
 # ============================================
 
 def analyze_uploaded_files(query, file_context, filenames):
@@ -409,30 +420,22 @@ You are analyzing uploaded files. Answer the user's question based ONLY on the a
 **Uploaded Files:**
 {filenames}
 
-**ACTUAL FILE CONTENT (This is what you MUST base your answer on):**
+**ACTUAL FILE CONTENT:**
 {file_context}
 
 **User Question:** {query}
 
-**CRITICAL INSTRUCTIONS:**
-1. You MUST base your answer on the ACTUAL file content above, NOT on the filenames alone
-2. Read the content carefully and provide specific information from it
-3. If the user asks for a summary, summarize what is ACTUALLY written in the files
-4. Quote specific sentences, paragraphs, or data points from the content
-5. For CSV files, describe the data structure, headers, and provide insights
-6. For JSON files, explain the data structure and key information
-7. If the content shows an error message (like "empty" or "no extractable text"), inform the user
-8. Be specific and detailed - reference exact text from the files
+**INSTRUCTIONS:**
+1. Base your answer on the ACTUAL file content above
+2. Quote specific sentences or data from the content
+3. If the content shows an error message, inform the user
+4. Be specific and detailed
 
-Example good response: "Based on the document, it states: '[actual quote from file]'. This shows that [analysis of that content]."
-
-Example bad response: "This document is about [topic not actually in the file]" - NEVER do this!
-
-Now analyze the content and answer the user's question.
+Now analyze and answer.
 """
     
     messages = [
-        {"role": "system", "content": "You are a document analysis assistant. You MUST answer based ONLY on the actual file content provided. Never guess or rely on filenames alone. Always quote or reference specific content from the files."},
+        {"role": "system", "content": "You are a document analysis assistant. Answer based ONLY on the actual file content provided."},
         {"role": "user", "content": analysis_prompt}
     ]
     
@@ -456,12 +459,10 @@ You are an expert evaluator. Analyze the following file content and answer the u
 
 Please provide:
 1. Overall assessment based on actual content
-2. Strengths (2-3 points with specific examples from the content)
-3. Areas for improvement (2-3 points with specific suggestions)
+2. Strengths (2-3 points with specific examples)
+3. Areas for improvement (2-3 points)
 4. Score out of 100 (if applicable)
-5. Specific, actionable recommendations
-
-Be constructive, specific, and base everything on the actual file content.
+5. Specific recommendations
 """
     
     messages = [
@@ -480,9 +481,7 @@ def internet_search(query):
     try:
         url = "https://html.duckduckgo.com/html/"
         params = {"q": query}
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         
         response = requests.post(url, data=params, headers=headers, timeout=10)
         
@@ -499,7 +498,6 @@ def internet_search(query):
                 return context[:1500]
         
         return wikipedia_fallback(query)
-        
     except Exception as e:
         return wikipedia_fallback(query)
 
@@ -560,55 +558,27 @@ def calculator(query):
 
 def scrape_with_requests(url):
     """Try to scrape with different request methods"""
-    
     user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
     ]
     
     for user_agent in user_agents:
         try:
-            headers = {
-                'User-Agent': user_agent,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Connection': 'keep-alive',
-            }
-            
-            response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+            headers = {'User-Agent': user_agent, 'Accept': 'text/html'}
+            response = requests.get(url, headers=headers, timeout=15)
             
             if response.status_code == 200:
-                content_type = response.headers.get('content-type', '')
-                
-                if 'text/html' in content_type:
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    
-                    for element in soup(["script", "style", "nav", "footer", "header", "iframe"]):
-                        element.decompose()
-                    
-                    main_content = None
-                    for selector in ['main', 'article', '[role="main"]', '.content', '#content']:
-                        main_content = soup.select_one(selector)
-                        if main_content:
-                            break
-                    
-                    if main_content:
-                        text = main_content.get_text()
-                    else:
-                        text = soup.get_text()
-                    
-                    lines = (line.strip() for line in text.splitlines())
-                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                    text = ' '.join(chunk for chunk in chunks if chunk)
-                    text = ' '.join(text.split())
-                    
-                    if len(text) > 200:
-                        return text[:3000]
-                        
-        except Exception as e:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                for element in soup(["script", "style", "nav", "footer"]):
+                    element.decompose()
+                text = soup.get_text()
+                lines = (line.strip() for line in text.splitlines())
+                text = ' '.join(line for line in lines if line)
+                if len(text) > 200:
+                    return text[:3000]
+        except:
             continue
-    
     return None
 
 def scrape_webpage(url):
@@ -616,15 +586,7 @@ def scrape_webpage(url):
     content = scrape_with_requests(url)
     if content:
         return content
-    
-    from urllib.parse import urlparse
-    domain = urlparse(url).netloc
-    
-    return f"""Unable to directly read this website ({domain}).
-
-The website may block automated access or require login.
-
-Would you like me to search for information about this topic instead?"""
+    return "Unable to read this website. It may block automated access."
 
 def extract_urls_from_query(query):
     """Extract URLs from user query"""
@@ -632,52 +594,39 @@ def extract_urls_from_query(query):
     return re.findall(url_pattern, query)
 
 # ============================================
-# UPDATED ROUTER FUNCTION
+# ROUTER FUNCTION
 # ============================================
 
 def route(query):
     q = query.lower()
     
-    # Check for URLs in query
     urls = extract_urls_from_query(query)
     if urls:
         return "scrape_url"
     
-    # Check for file-related tasks - EXPANDED DETECTION
     file_keywords = [
         "summarize", "analyze this file", "what does the file say", "from the file", 
         "in the document", "based on the file", "tell me about this file", "what is this file",
-        "what's in this file", "describe the file", "what does this document", "read the file",
-        "file content", "document says", "this file about", "uploaded file", "my file",
-        "explain this file", "what's in the document", "show me the file", "file contains",
-        "what is this document about", "tell me about the file", "analyze this document",
-        "what does the file contain", "give me information from the file", "extract from file"
+        "what's in this file", "describe the file", "file content", "document says", 
+        "uploaded file", "my file", "what does my file", "in my file"
     ]
     
     if any(x in q for x in file_keywords):
         return "file_task"
     
-    # Check for evaluation/assessment tasks
     if any(x in q for x in ["evaluate", "assess", "grade", "review my", "check my", "score"]):
         return "evaluate"
     
-    # Check for calculator
     if any(x in q for x in ["+","-","*","/","×","calculate"]):
         return "calculator"
     
-    # Check for current time/date requests
     if any(x in q for x in ["time", "date", "today", "current time", "what day"]):
         return "datetime"
     
-    # Check for news requests
     if any(x in q for x in ["news", "headlines", "current events", "breaking"]):
         return "news"
     
-    # Check for general web search
-    if any(x in q for x in [
-        "capital", "population", "leader", "history", "tell me about",
-        "who is", "what is", "when did", "where is", "current", "search"
-    ]):
+    if any(x in q for x in ["who is", "what is", "when did", "where is", "search"]):
         return "search"
     
     return "reason"
@@ -698,7 +647,7 @@ def clean_answer(text):
 # ============================================
 
 def reason(question, context):
-    context = context[:2000]  # Increased for better context
+    context = context[:2000]
     messages = [
         {"role":"system","content":SYSTEM_PROMPT},
         {"role":"user","content":f"""
@@ -708,26 +657,30 @@ Context:
 Question:
 {question}
 
-Answer clearly and based ONLY on the provided context.
+Answer clearly based on the context. For normal conversation, ignore any file content.
 """}
     ]
     return clean_answer(llm(messages))
 
 # ============================================
-# UPDATED AGENT FUNCTION
+# UPDATED AGENT FUNCTION WITH RESET CAPABILITY
 # ============================================
 
 def run_agent(query):
+    # Check if user wants to reset/ignore files
+    reset_phrases = ["leave the document", "back to normal conversation", "ignore the file", "forget the file", "clear context", "start fresh"]
+    if any(phrase in query.lower() for phrase in reset_phrases):
+        st.session_state.file_context = ""
+        st.session_state.uploaded_files = {}
+        return "✅ Context cleared! I'll now have a normal conversation with you without referencing any files. How can I help you today?"
+    
     tool = route(query)
     context = ""
     
-    # FILE TASK - Handle file analysis FIRST
+    # FILE TASK - Only if user explicitly asks about files AND files exist
     if tool == "file_task" and st.session_state.file_context:
-        # Get list of filenames for context
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
-        
-        # Show a spinner while analyzing
-        with st.spinner("📖 Reading and analyzing your document..."):
+        with st.spinner("📖 Reading your document..."):
             return analyze_uploaded_files(query, st.session_state.file_context, filenames)
     
     # EVALUATION task
@@ -742,15 +695,12 @@ def run_agent(query):
         for url in urls:
             with st.spinner(f"Reading {url}..."):
                 content = scrape_webpage(url)
-                if content and not content.startswith("Unable"):
+                if content:
                     scraped_content += f"\n\nContent from {url}:\n{content}\n"
-                else:
-                    scraped_content += f"\n\nNote: Limited access to {url}\n"
-        
         if scraped_content:
             context = scraped_content
         else:
-            return "I couldn't read that link. Try asking me to search for the information instead."
+            return "I couldn't read that link."
     
     # Calculator
     if tool == "calculator":
@@ -779,14 +729,9 @@ def run_agent(query):
     if mem:
         context += "\n\n" + mem
     
-    # If no context found and no files, add current date at least
-    if not context and not st.session_state.file_context:
+    # If no context found, add current date
+    if not context:
         context = get_current_datetime()
-    
-    # If there are files but the query wasn't specifically about them,
-    # still include file context as reference
-    if st.session_state.file_context and not context:
-        context = f"\n\nUploaded Files Content (for reference):\n{st.session_state.file_context}\n"
     
     answer = reason(query, context)
     store_memory(answer)
@@ -797,71 +742,9 @@ def run_agent(query):
 # UI - MAIN PAGE
 # ============================================
 
-# Welcome message with styling
 st.markdown('<h1>🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent with File Analysis</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent</p>', unsafe_allow_html=True)
 st.markdown("---")
-
-# ============================================
-# FILE UPLOAD SECTION - WITH PREVIEW
-# ============================================
-
-with st.expander("📎 Upload Files for AI to Read", expanded=False):
-    st.markdown("**Supported formats:** PDF, DOCX, TXT, CSV, JSON")
-    
-    uploaded_files = st.file_uploader(
-        "Choose files to upload",
-        type=['pdf', 'docx', 'txt', 'csv', 'json'],
-        accept_multiple_files=True,
-        help="Upload documents for the AI to analyze, summarize, or answer questions about"
-    )
-    
-    if uploaded_files:
-        for file in uploaded_files:
-            if file.name not in st.session_state.uploaded_files:
-                with st.spinner(f"Processing {file.name}..."):
-                    file_content = process_uploaded_file(file)
-                    if file_content and not file_content.startswith("Error"):
-                        st.session_state.uploaded_files[file.name] = file_content
-                        st.success(f"✅ Loaded: {file.name}")
-                        
-                        # Show preview of extracted content
-                        with st.expander(f"📄 Preview of {file.name}", expanded=False):
-                            st.text(file_content[:500])
-                            if len(file_content) > 500:
-                                st.caption(f"... and {len(file_content) - 500} more characters")
-                    else:
-                        st.error(f"❌ Failed to load: {file.name}")
-                        st.error(file_content)
-        
-        # Combine all file contents for context
-        if st.session_state.uploaded_files:
-            st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
-                f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
-                for name, content in st.session_state.uploaded_files.items()
-            ]) + "\n" + ("="*50)
-            
-            # Show what files are loaded
-            st.info(f"📄 **{len(st.session_state.uploaded_files)} file(s) successfully loaded**")
-            
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.markdown("**Loaded files:**")
-                for name in st.session_state.uploaded_files.keys():
-                    st.markdown(f"- {name}")
-            
-            with col2:
-                st.markdown("**💡 Try asking:**")
-                st.markdown("- \"What is this file about?\"")
-                st.markdown("- \"Summarize the key points\"")
-                st.markdown("- \"What information does this document contain?\"")
-                st.markdown("- \"Analyze the data in this file\"")
-            
-            # Clear files button
-            if st.button("🗑️ Clear All Files", use_container_width=True):
-                st.session_state.uploaded_files = {}
-                st.session_state.file_context = ""
-                st.rerun()
 
 # ============================================
 # SIDEBAR
@@ -878,131 +761,51 @@ with st.sidebar:
         st.session_state.file_context = ""
         st.rerun()
     
+    # Clear file context button
+    if st.button("🗑️ Clear File Context", use_container_width=True):
+        st.session_state.uploaded_files = {}
+        st.session_state.file_context = ""
+        st.toast("✅ File context cleared! Now having normal conversation.", icon="🧹")
+        st.rerun()
+    
     st.markdown("---")
-    st.markdown("### 📤 File Upload Tips")
+    st.markdown("### 📤 File Upload")
     st.markdown("""
     **Supported files:**
-    - PDF (extracts text)
-    - DOCX (Word documents)
-    - TXT (text files)
-    - CSV (data tables)
-    - JSON (structured data)
+    - PDF, DOCX, TXT, CSV, JSON
     
-    **Example tasks:**
-    - "Summarize this document"
-    - "What are the key points?"
-    - "Evaluate my work"
+    **Ask about files:**
+    - "What does this file say?"
+    - "Summarize my document"
     - "Analyze this data"
-    - "Check for errors"
-    - "Give me a score out of 100"
-    - "What trends do you see in this CSV?"
+    
+    **To clear files:**
+    - Say "clear context" or click the button above
     """)
     
     st.markdown("---")
     st.markdown("### About")
     st.markdown("Created by **Mukiibi Moses**")
     st.markdown("Computer Engineering @ Kyungdong University")
-    st.markdown("---")
-    st.markdown("### Features")
-    st.markdown("✅ File upload & analysis")
-    st.markdown("✅ Real-time web search")
-    st.markdown("✅ Latest news headlines")
-    st.markdown("✅ Calculator for math")
-    st.markdown("✅ Conversation memory")
-    st.markdown("✅ Work evaluation")
 
 # ============================================
-# CHAT INTERFACE WITH FIXED BOTTOM BAR (CORRECTED)
+# CHAT INTERFACE WITH FIXED BOTTOM BAR
 # ============================================
 
-# Add custom CSS for fixed bottom bar
-st.markdown("""
-<style>
-    /* Fixed bottom chat bar */
-    .fixed-chat-bar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: white;
-        padding: 1rem;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        z-index: 999;
-    }
-    
-    /* Style the file uploader to look like a button */
-    .stFileUploader > div:first-child {
-        display: none;
-    }
-    
-    /* Style the upload button */
-    .stFileUploader button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 8px 16px;
-        font-size: 20px;
-        font-weight: bold;
-        transition: transform 0.2s;
-        width: 100%;
-        min-width: 60px;
-        height: 46px;
-    }
-    
-    .stFileUploader button:hover {
-        transform: scale(1.05);
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-    
-    /* File count badge */
-    .file-count-badge {
-        position: fixed;
-        bottom: 90px;
-        right: 30px;
-        background: #ff4444;
-        color: white;
-        border-radius: 50%;
-        width: 32px;
-        height: 32px;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        cursor: pointer;
-        z-index: 1000;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-    
-    .file-count-badge:hover {
-        transform: scale(1.1);
-    }
-    
-    /* Add padding to bottom of main content to prevent overlap */
-    .main .block-container {
-        padding-bottom: 100px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Display chat history (this will scroll normally)
+# Display chat history
 for role, msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.write(msg)
 
-# Create the fixed bottom bar using HTML
+# Fixed bottom bar
 st.markdown('<div class="fixed-chat-bar">', unsafe_allow_html=True)
 
-# Create columns for chat input and upload button inside the fixed bar
 col1, col2 = st.columns([6, 1])
 
 with col1:
-    # REMOVED label_visibility parameter - it doesn't exist for chat_input
     query = st.chat_input("Ask me anything...", key="chat_input")
 
 with col2:
-    # Upload button right next to chat input
     uploaded_files = st.file_uploader(
         "📎",
         type=['pdf', 'docx', 'txt', 'csv', 'json'],
@@ -1012,7 +815,6 @@ with col2:
         help="Upload PDF, DOCX, TXT, CSV, or JSON files"
     )
     
-    # Process files if uploaded
     if uploaded_files:
         for file in uploaded_files:
             if file.name not in st.session_state.uploaded_files:
@@ -1024,7 +826,6 @@ with col2:
                     else:
                         st.toast(f"❌ Failed: {file.name}", icon="⚠️")
         
-        # Update file context
         if st.session_state.uploaded_files:
             st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
                 f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
@@ -1034,33 +835,25 @@ with col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Show file count badge if files are loaded
+# File count badge
 if len(st.session_state.uploaded_files) > 0:
     file_count = len(st.session_state.uploaded_files)
     st.markdown(f"""
-    <div class="file-count-badge" title="{file_count} file(s) loaded - Click to view in sidebar">
+    <div class="file-count-badge" title="{file_count} file(s) loaded">
         📎 {file_count}
     </div>
     """, unsafe_allow_html=True)
 
 # Process chat input
 if query:
-    # Add user message to history
     st.session_state.chat_history.append(("user", query))
-    
-    # Display user message
     with st.chat_message("user"):
         st.write(query)
     
-    # Get response
     response = run_agent(query)
     
-    # Display assistant response
     with st.chat_message("assistant"):
         st.write(response)
     
-    # Add assistant response to history
     st.session_state.chat_history.append(("assistant", response))
-    
-    # Rerun to update chat display
     st.rerun()
