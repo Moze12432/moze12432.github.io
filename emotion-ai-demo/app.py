@@ -856,10 +856,27 @@ with st.sidebar:
     st.markdown("---")
     
     if st.button("🔄 New Chat", use_container_width=True):
-        # Reset all session states
         st.session_state.memory_store = []
         st.session_state.chat_history = []
+        st.session_state.uploaded_files = {}
+        st.session_state.file_context = ""
         st.rerun()
+    
+    # 👇 ADD THIS TIPS SECTION HERE 👇
+    st.markdown("---")
+    st.markdown("### 📤 File Upload Tips")
+    st.markdown("""
+    **Supported files:**
+    - PDF, DOCX, TXT, CSV, JSON
+    
+    **Example tasks:**
+    - "Summarize this document"
+    - "What are the key points?"
+    - "Evaluate my essay"
+    - "Analyze this data"
+    - "Check my work for errors"
+    - "Give me a score out of 100"
+    """)
     
     st.markdown("---")
     st.markdown("### About")
