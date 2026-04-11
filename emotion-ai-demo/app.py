@@ -187,6 +187,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 # ============================================
 # GROQ CLIENT
 # ============================================
@@ -196,24 +197,15 @@ client = Groq(
 )
 
 # ============================================
-# LLM CALL
-# ============================================
-
-# ============================================
-# SESSION MEMORY & FILES
-# ============================================
-
-
-# ============================================
 # CURRENT DATE & TIME
 # ============================================
 
 from datetime import datetime
-import pytz  # You'll need to install: pip install pytz
+import pytz
 
 def get_current_datetime():
     """Get current date and time"""
-    tz = pytz.timezone('Asia/Seoul')  # Change to your timezone
+    tz = pytz.timezone('Asia/Seoul')
     now = datetime.now(tz)
     
     return f"""Current Information:
@@ -223,20 +215,15 @@ def get_current_datetime():
 • Timezone: Asia/Seoul"""
     
 def llm(messages):
-
     try:
-
         completion = client.chat.completions.create(
             model=MODEL_NAME,
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
             messages=messages
         )
-
         return completion.choices[0].message.content.strip()
-
     except Exception as e:
-
         return "AI service temporarily unavailable."
 
 # ============================================
@@ -250,13 +237,13 @@ Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University
 He is an AI builder focused on designing intelligent autonomous agents, language model applications, and practical AI systems that solve real-world problems such as education, automation, and decision support.
 He is an active researcher on researchGate, Aademia and other research Platforms.
 
-
 CAPABILITIES:
 - Access to current date/time
 - Real-time web search
 - Latest news headlines
 - Calculator for math problems
 - Memory of past conversations
+- File analysis and document understanding
 
 INSTRUCTIONS:
 - When a user provides a URL, focus on answering based on that webpage's content
@@ -264,17 +251,12 @@ INSTRUCTIONS:
 - Use the provided context which includes scraped webpage content
 - For time/date questions, use the current information provided
 - For news/events, rely on the search results given
+- For file-related questions, answer based on the uploaded file content
 - Answer clearly and factually
 - If information isn't in context, say "I don't have that information"
 - Do not hallucinate or make up dates/events
 - Do not show internal reasoning
 """
-
-
-
-# ============================================
-# SESSION MEMORY
-# ============================================
 
 # ============================================
 # SESSION MEMORY & FILES
@@ -287,10 +269,10 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = {}  # Store file contents
+    st.session_state.uploaded_files = {}
 
 if "file_context" not in st.session_state:
-    st.session_state.file_context = ""  # Combined text from all uploaded files
+    st.session_state.file_context = ""
 
 # ============================================
 # EMBEDDINGS
@@ -301,6 +283,55 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # ============================================
 # MEMORY FUNCTIONS
 # ============================================
+
+def store_memory(text):
+    if len(text) < 30:
+        return
+    vec = embedder.encode(text)
+    st.session_state.memory_store.append((text, vec))
+
+def retrieve_memory(query):
+    memory_store = st.session_state.memory_store
+    if not memory_store:
+        return ""
+    qvec = embedder.encode(query)
+    scores = []
+    for text, vec in memory_store:
+        sim = np.dot(qvec, vec)
+        scores.append((sim, text))
+    scores.sort(reverse=True)
+    top = scores[:2]
+    return "\n".join([t[1][:300] for t in top])
+
+# ============================================
+# FILE ANALYSIS FUNCTION
+# ============================================
+
+def analyze_uploaded_files(query, file_context):
+    """Analyze uploaded files and answer questions about them"""
+    
+    analysis_prompt = f"""
+You are analyzing uploaded files. Answer the user's question based ONLY on the file contents provided.
+
+Uploaded Files Content:
+{file_context}
+
+User Question: {query}
+
+Instructions:
+- If the user asks for a summary, provide a clear summary of what the files contain
+- If asking what the file is about, describe the main topics and purpose
+- Answer specific questions based on file content
+- If the question cannot be answered from the files, say "I cannot find that information in the uploaded files"
+- Be specific and reference which file contains the information when possible
+"""
+    
+    messages = [
+        {"role": "system", "content": "You are a document analysis assistant. Answer questions based only on the provided file contents."},
+        {"role": "user", "content": analysis_prompt}
+    ]
+    
+    return clean_answer(llm(messages))
 
 # ============================================
 # EVALUATION FUNCTION
@@ -334,51 +365,13 @@ Be constructive, specific, and actionable.
     
     return clean_answer(llm(messages))
 
-def store_memory(text):
-
-    if len(text) < 30:
-        return
-
-    vec = embedder.encode(text)
-
-    st.session_state.memory_store.append((text, vec))
-
-
-def retrieve_memory(query):
-
-    memory_store = st.session_state.memory_store
-
-    if not memory_store:
-        return ""
-
-    qvec = embedder.encode(query)
-
-    scores = []
-
-    for text, vec in memory_store:
-
-        sim = np.dot(qvec, vec)
-
-        scores.append((sim, text))
-
-    scores.sort(reverse=True)
-
-    top = scores[:2]
-
-    return "\n".join([t[1][:300] for t in top])
-
 # ============================================
-# WIKIPEDIA SEARCH
-# ============================================
-
-# ============================================
-# REAL-TIME WEB SEARCH (using DuckDuckGo - free, no API key)
+# WEB SEARCH FUNCTIONS
 # ============================================
 
 def internet_search(query):
     """Search the web for current information"""
     try:
-        # Using DuckDuckGo HTML API (free, no key needed)
         url = "https://html.duckduckgo.com/html/"
         params = {"q": query}
         headers = {
@@ -388,7 +381,6 @@ def internet_search(query):
         response = requests.post(url, data=params, headers=headers)
         
         if response.status_code == 200:
-            # Extract search results
             import re
             results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
             snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
@@ -401,12 +393,10 @@ def internet_search(query):
                         context += f"  {snippets[i]}\n\n"
                 return context[:1500]
         
-        # Fallback to Wikipedia
         return wikipedia_fallback(query)
         
     except Exception as e:
         return wikipedia_fallback(query)
-
 
 def wikipedia_fallback(query):
     """Wikipedia as backup search"""
@@ -424,47 +414,21 @@ def wikipedia_fallback(query):
         pass
     return ""
 
-
-# ============================================
-# NEWS SEARCH for current events
-# ============================================
-
 def get_current_news(topic="latest"):
-    """Get current news (using NewsAPI - free tier)"""
+    """Get current news"""
     try:
-        # You'll need a free API key from https://newsapi.org/
-        api_key = st.secrets.get("NEWS_API_KEY", "")
+        url = f"https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
+        response = requests.get(url)
         
-        if not api_key:
-            # Fallback to simple RSS feed
-            url = f"https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
-            response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            items = data.get("items", [])[:3]
             
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("items", [])[:3]
-                
-                news_text = "Latest news headlines:\n\n"
-                for item in items:
-                    news_text += f"• {item.get('title', '')}\n"
-                    news_text += f"  {item.get('description', '')[:150]}...\n\n"
-                return news_text[:1000]
-        
-        else:
-            # Use NewsAPI if you have key
-            url = f"https://newsapi.org/v2/everything?q={topic}&sortBy=publishedAt&apiKey={api_key}&pageSize=3"
-            response = requests.get(url)
-            
-            if response.status_code == 200:
-                data = response.json()
-                articles = data.get("articles", [])
-                
-                news_text = f"Current news about '{topic}':\n\n"
-                for article in articles[:3]:
-                    news_text += f"• {article.get('title', '')}\n"
-                    news_text += f"  {article.get('description', '')[:150]}...\n\n"
-                return news_text[:1000]
-                
+            news_text = "Latest news headlines:\n\n"
+            for item in items:
+                news_text += f"• {item.get('title', '')}\n"
+                news_text += f"  {item.get('description', '')[:150]}...\n\n"
+            return news_text[:1000]
     except Exception as e:
         pass
     return ""
@@ -474,57 +438,20 @@ def get_current_news(topic="latest"):
 # ============================================
 
 def calculator(query):
-
     try:
-
         expression = query.lower()
-
         expression = expression.replace("×","*")
         expression = expression.replace("x","*")
-
         expression = re.findall(r"[0-9\+\-\*\/\.\(\) ]+", expression)
-
         if expression:
             result = eval(expression[0])
             return str(result)
-
     except:
         return None
 
 # ============================================
-# ROUTER
+# WEB PAGE SCRAPER
 # ============================================
-
-# ============================================
-# ROUTER with current info triggers
-# ============================================
-
-# ============================================
-# WEB PAGE SCRAPER (Read link content)
-# ============================================
-
-# ============================================
-# WEB PAGE SCRAPER (Multiple fallback methods)
-# ============================================
-
-def get_site_info_from_search(url):
-    """Get information about any website using search engines"""
-    try:
-        from urllib.parse import urlparse
-        domain = urlparse(url).netloc.replace('www.', '')
-        
-        search_url = f"https://www.google.com/search?q={domain}"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        response = requests.get(search_url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            snippets = soup.find_all('div', class_='VwiC3b')
-            if snippets:
-                return f"Information about {domain} (from web search):\n{snippets[0].get_text()[:500]}"
-    except:
-        pass
-    return None
 
 def scrape_with_requests(url):
     """Try to scrape with different request methods"""
@@ -533,8 +460,6 @@ def scrape_with_requests(url):
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-        'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
     ]
     
     for user_agent in user_agents:
@@ -543,9 +468,7 @@ def scrape_with_requests(url):
                 'User-Agent': user_agent,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
                 'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
             }
             
             response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
@@ -556,11 +479,11 @@ def scrape_with_requests(url):
                 if 'text/html' in content_type:
                     soup = BeautifulSoup(response.content, 'html.parser')
                     
-                    for element in soup(["script", "style", "nav", "footer", "header", "iframe", "noscript", "meta", "link"]):
+                    for element in soup(["script", "style", "nav", "footer", "header", "iframe"]):
                         element.decompose()
                     
                     main_content = None
-                    for selector in ['main', 'article', '[role="main"]', '.content', '#content', '.post-content', '.entry-content']:
+                    for selector in ['main', 'article', '[role="main"]', '.content', '#content']:
                         main_content = soup.select_one(selector)
                         if main_content:
                             break
@@ -583,31 +506,11 @@ def scrape_with_requests(url):
     
     return None
 
-def scrape_with_textise(url):
-    """Use textise API as fallback"""
-    try:
-        textise_url = f"https://r.jina.ai/{url}"
-        response = requests.get(textise_url, timeout=10)
-        if response.status_code == 200 and len(response.text) > 200:
-            return response.text[:3000]
-    except:
-        pass
-    return None
-
 def scrape_webpage(url):
-    """Universal webpage reader that works for ANY website"""
-    
+    """Universal webpage reader"""
     content = scrape_with_requests(url)
     if content:
         return content
-    
-    content = scrape_with_textise(url)
-    if content:
-        return content
-    
-    content = get_site_info_from_search(url)
-    if content:
-        return content + "\n\n(Note: Direct access blocked. Showing search results instead.)"
     
     from urllib.parse import urlparse
     domain = urlparse(url).netloc
@@ -619,19 +522,7 @@ This can happen if:
 - The website blocks automated access
 - The link is behind a paywall
 
-Here's what you can do:
-1. Open the link directly in your browser
-2. Copy and paste the relevant text here
-3. Ask me to search for the information instead
-
-Would you like me to search for information about this topic?"""
-
-def is_url(text):
-    """Check if text contains a URL"""
-    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
-    import re
-    return re.match(url_pattern, text.strip()) is not None
-
+Would you like me to search for information about this topic instead?"""
 
 def extract_urls_from_query(query):
     """Extract URLs from user query"""
@@ -639,10 +530,8 @@ def extract_urls_from_query(query):
     url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
     return re.findall(url_pattern, query)
 
-
-
 # ============================================
-# ROUTER with URL detection
+# UPDATED ROUTER FUNCTION
 # ============================================
 
 def route(query):
@@ -653,9 +542,22 @@ def route(query):
     if urls:
         return "scrape_url"
     
-    # Check for file-related tasks
-    if any(x in q for x in ["summarize", "analyze this file", "what does the file say", "from the file", "in the document", "based on the file"]):
+    # Check for file-related tasks - EXPANDED DETECTION
+    file_keywords = [
+        "summarize", "analyze this file", "what does the file say", "from the file", 
+        "in the document", "based on the file", "tell me about this file", "what is this file",
+        "what's in this file", "describe the file", "what does this document", "read the file",
+        "file content", "document says", "this file about", "uploaded file", "my file",
+        "explain this file", "what's in the document", "show me the file", "file contains",
+        "what is this document about", "tell me about the file", "analyze this document"
+    ]
+    
+    if any(x in q for x in file_keywords):
         return "file_task"
+    
+    # Check for evaluation/assessment tasks
+    if any(x in q for x in ["evaluate", "assess", "grade", "review my", "check my", "score"]):
+        return "evaluate"
     
     # Check for calculator
     if any(x in q for x in ["+","-","*","/","×","calculate"]):
@@ -669,30 +571,24 @@ def route(query):
     if any(x in q for x in ["news", "headlines", "current events", "breaking"]):
         return "news"
     
-    # Check for evaluation/assessment tasks
-    if any(x in q for x in ["evaluate", "assess", "grade", "review my", "check my", "score"]):
-        return "evaluate"
-    
     # Check for general web search
     if any(x in q for x in [
         "capital", "population", "leader", "history", "tell me about",
-        "who is", "what is", "when did", "where is", "current"
+        "who is", "what is", "when did", "where is", "current", "search"
     ]):
         return "search"
     
     return "reason"
+
 # ============================================
 # CLEAN OUTPUT
 # ============================================
 
 def clean_answer(text):
-
     if "🧠" in text:
         text = text.split("🧠")[0]
-
     if "Plan:" in text:
         text = text.split("Plan:")[0]
-
     return text.strip()
 
 # ============================================
@@ -700,13 +596,9 @@ def clean_answer(text):
 # ============================================
 
 def reason(question, context):
-
     context = context[:1500]
-
     messages = [
-
         {"role":"system","content":SYSTEM_PROMPT},
-
         {"role":"user","content":f"""
 Context:
 {context}
@@ -717,35 +609,21 @@ Question:
 Answer clearly.
 """}
     ]
-
     return clean_answer(llm(messages))
 
 # ============================================
-# AGENT
-# ============================================
-
-# ============================================
-# AGENT with current information
-# ============================================
-
-# ============================================
-# AGENT with URL scraping
-# ============================================
-
-# ============================================
-# AGENT with improved URL scraping
+# UPDATED AGENT FUNCTION
 # ============================================
 
 def run_agent(query):
     tool = route(query)
     context = ""
     
-    # File task (NEW)
+    # FILE TASK - Handle file analysis FIRST
     if tool == "file_task" and st.session_state.file_context:
-        context = f"\n\nUploaded Files Content:\n{st.session_state.file_context}\n"
-        context += "\nAnswer the user's question based ONLY on these files if possible.\n"
+        return analyze_uploaded_files(query, st.session_state.file_context)
     
-    # Evaluation task (NEW)
+    # EVALUATION task
     elif tool == "evaluate" and st.session_state.file_context:
         return evaluate_work(query, st.session_state.file_context)
     
@@ -797,6 +675,11 @@ def run_agent(query):
     if not context and not st.session_state.file_context:
         context = get_current_datetime()
     
+    # If there are files but the query wasn't specifically about them,
+    # still include file context as reference
+    if st.session_state.file_context and not context:
+        context = f"\n\nUploaded Files Content (for reference):\n{st.session_state.file_context}\n"
+    
     answer = reason(query, context)
     store_memory(answer)
     
@@ -810,11 +693,9 @@ def run_agent(query):
 st.markdown('<h1>🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent Autonomous Agent</p>', unsafe_allow_html=True)
 st.markdown("---")
+
 # ============================================
-# SIDEBAR WITH NEW CHAT BUTTON
-# ============================================
-# ============================================
-# FILE UPLOAD SECTION
+# FILE UPLOAD SECTION - IMPROVED
 # ============================================
 
 with st.expander("📎 Upload Files for AI to Read", expanded=False):
@@ -843,14 +724,29 @@ with st.expander("📎 Upload Files for AI to Read", expanded=False):
                 for name, content in st.session_state.uploaded_files.items()
             ])
             
-            st.info(f"📄 {len(st.session_state.uploaded_files)} file(s) loaded. Ask me questions about them!")
+            # Show what files are loaded with preview
+            st.info(f"📄 **{len(st.session_state.uploaded_files)} file(s) loaded**")
+            for name in st.session_state.uploaded_files.keys():
+                st.markdown(f"- {name}")
+            
+            # Example prompts
+            st.markdown("**💡 Try asking:**")
+            st.markdown("- \"What is this file about?\"")
+            st.markdown("- \"Summarize the key points\"")
+            st.markdown("- \"What information does this document contain?\"")
             
             # Clear files button
-            if st.button("🗑️ Clear All Files"):
-                st.session_state.uploaded_files = {}
-                st.session_state.file_context = ""
-                st.rerun()
-                
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if st.button("🗑️ Clear All Files", use_container_width=True):
+                    st.session_state.uploaded_files = {}
+                    st.session_state.file_context = ""
+                    st.rerun()
+
+# ============================================
+# SIDEBAR
+# ============================================
+
 with st.sidebar:
     st.markdown("### 🧠 MozeAI")
     st.markdown("---")
@@ -862,7 +758,6 @@ with st.sidebar:
         st.session_state.file_context = ""
         st.rerun()
     
-    # 👇 ADD THIS TIPS SECTION HERE 👇
     st.markdown("---")
     st.markdown("### 📤 File Upload Tips")
     st.markdown("""
@@ -888,25 +783,28 @@ with st.sidebar:
     st.markdown("✅ Real-time web search")
     st.markdown("✅ Latest news headlines")
     st.markdown("✅ Calculator for math problems")
-    st.markdown("✅ Memory of past Conversations")
+    st.markdown("✅ Memory of past conversations")
+    st.markdown("✅ File upload & analysis")
+
+# ============================================
+# CHAT INTERFACE
+# ============================================
 
 for role, msg in st.session_state.chat_history:
-
     with st.chat_message(role):
         st.write(msg)
 
-query = st.chat_input("Ask anything")
+query = st.chat_input("Ask anything - upload a file and ask questions about it!")
 
 if query:
-
     st.session_state.chat_history.append(("user", query))
-
+    
     with st.chat_message("user"):
         st.write(query)
-
+    
     response = run_agent(query)
-
+    
     with st.chat_message("assistant"):
         st.write(response)
-
+    
     st.session_state.chat_history.append(("assistant", response))
