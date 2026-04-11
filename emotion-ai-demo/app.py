@@ -868,116 +868,47 @@ def run_agent(query):
     
     return answer
 # ============================================
-# CHAT INTERFACE WITH TRULY FIXED BOTTOM BAR
+# SIMPLE WORKING FIXED CHAT INTERFACE
 # ============================================
 
-# Add custom CSS for truly fixed bottom bar
+# Add CSS to fix the chat input
 st.markdown("""
 <style>
-    /* Make the main container scrollable */
-    .main .block-container {
-        padding-bottom: 120px !important;
-        max-height: 100vh;
-        overflow-y: auto;
-    }
-    
-    /* Fixed bottom chat bar - ALWAYS visible */
-    .fixed-chat-bar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: white;
-        padding: 1rem 2rem;
-        box-shadow: 0 -2px 15px rgba(0,0,0,0.1);
-        z-index: 9999;
-        border-top: 1px solid #e0e0e0;
-    }
-    
-    /* Style the file uploader to look like a button */
-    .stFileUploader > div:first-child {
-        display: none;
-    }
-    
-    .stFileUploader button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 8px 16px;
-        font-size: 20px;
-        font-weight: bold;
-        transition: transform 0.2s;
-        width: 100%;
-        min-width: 60px;
-        height: 46px;
-        cursor: pointer;
-    }
-    
-    .stFileUploader button:hover {
-        transform: scale(1.05);
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-    
-    /* Style the chat input */
+    /* Fix the chat input at bottom */
     .stChatInputContainer {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        background: white !important;
+        padding: 10px 20px !important;
+        z-index: 99999 !important;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
         margin-bottom: 0 !important;
     }
     
-    .stChatInputContainer > div {
-        border-radius: 25px !important;
-        border: 2px solid #667eea !important;
+    /* Add padding to main content to prevent overlap */
+    .main .block-container {
+        padding-bottom: 100px !important;
     }
     
-    /* File count badge */
-    .file-count-badge {
-        position: fixed;
-        bottom: 90px;
-        right: 30px;
-        background: #ff4444;
-        color: white;
-        border-radius: 50%;
-        width: 36px;
-        height: 36px;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        cursor: pointer;
-        z-index: 10000;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        transition: transform 0.2s;
-    }
-    
-    .file-count-badge:hover {
-        transform: scale(1.1);
-    }
-    
-    /* Ensure sidebar doesn't overlap */
-    .css-1d391kg {
-        z-index: 999;
+    /* Style the file uploader button */
+    .stFileUploader button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 10px;
+        padding: 8px 16px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Create a container for chat history that will scroll
-chat_container = st.container()
+# Display chat history
+for role, msg in st.session_state.chat_history:
+    with st.chat_message(role):
+        st.write(msg)
 
-# Display chat history in the scrollable container
-with chat_container:
-    for role, msg in st.session_state.chat_history:
-        with st.chat_message(role):
-            st.write(msg)
-
-# Add some empty space at the bottom so content doesn't hide behind the fixed bar
-st.markdown('<div style="height: 80px;"></div>', unsafe_allow_html=True)
-
-# Fixed bottom bar with chat input and upload button
-st.markdown('<div class="fixed-chat-bar">', unsafe_allow_html=True)
-
-# Create columns for chat input and upload button
-col1, col2 = st.columns([6, 1])
+# Create columns for input and upload
+col1, col2 = st.columns([5, 1])
 
 with col1:
     query = st.chat_input("Ask me anything...", key="chat_input")
@@ -988,43 +919,24 @@ with col2:
         type=['pdf', 'docx', 'txt', 'csv', 'json'],
         accept_multiple_files=True,
         key="inline_uploader",
-        label_visibility="collapsed",
-        help="Upload PDF, DOCX, TXT, CSV, or JSON files"
+        label_visibility="collapsed"
     )
     
-    # Process files if uploaded
     if uploaded_files:
-        files_processed = False
         for file in uploaded_files:
             if file.name not in st.session_state.uploaded_files:
-                with st.spinner(f"Processing {file.name}..."):
-                    file_content = process_uploaded_file(file)
-                    if file_content and not file_content.startswith("Error"):
-                        st.session_state.uploaded_files[file.name] = file_content
-                        st.toast(f"✅ Loaded: {file.name}", icon="📎")
-                        files_processed = True
-                    else:
-                        st.toast(f"❌ Failed: {file.name}", icon="⚠️")
+                file_content = process_uploaded_file(file)
+                if file_content and not file_content.startswith("Error"):
+                    st.session_state.uploaded_files[file.name] = file_content
+                    st.toast(f"✅ Loaded: {file.name}", icon="📎")
         
-        # Update file context if any files were processed
-        if files_processed and st.session_state.uploaded_files:
+        if st.session_state.uploaded_files:
             st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
                 f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
                 for name, content in st.session_state.uploaded_files.items()
             ])
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# File count badge
-if len(st.session_state.uploaded_files) > 0:
-    file_count = len(st.session_state.uploaded_files)
-    st.markdown(f"""
-    <div class="file-count-badge" title="{file_count} file(s) loaded - Click 'Clear File Context' in sidebar">
-        📎 {file_count}
-    </div>
-    """, unsafe_allow_html=True)
-
-# Process chat input
+# Process query
 if query:
     st.session_state.chat_history.append(("user", query))
     with st.chat_message("user"):
