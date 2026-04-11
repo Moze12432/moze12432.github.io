@@ -12,7 +12,13 @@ from datetime import datetime
 
 MODEL_NAME = "llama3-70b-8192"
 TEMPERATURE = 0
-MAX_TOKENS = 600
+MAX_TOKENS = 500
+
+# =========================================================
+# STREAMLIT SETTINGS
+# =========================================================
+
+st.set_page_config(page_title="MozeAI", page_icon="🧠")
 
 # =========================================================
 # LLM SETUP
@@ -29,7 +35,7 @@ def llm(messages):
         messages=messages
     )
 
-    return completion.choices[0].message.content
+    return completion.choices[0].message.content.strip()
 
 
 # =========================================================
@@ -43,21 +49,33 @@ Created by Mukiibi Moses,
 a Computer Engineering student at Kyungdong University.
 
 Rules:
-- Always give factual answers.
+- Provide factual answers.
 - Never invent facts.
-- If information is unknown, say "I am not sure".
-- Use provided context when available.
-- Answer clearly and concisely.
+- If unsure say "I am not sure".
+- Be concise and clear.
 """
 
 
 # =========================================================
-# EMBEDDINGS + MEMORY
+# SESSION MEMORY (PER USER)
+# =========================================================
+
+if "memory_store" not in st.session_state:
+    st.session_state.memory_store = []
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# =========================================================
+# EMBEDDINGS
 # =========================================================
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-memory_store = []
+
+# =========================================================
+# MEMORY FUNCTIONS
+# =========================================================
 
 def store_memory(text):
 
@@ -69,10 +87,12 @@ def store_memory(text):
 
     vec = embedder.encode(text)
 
-    memory_store.append((text, vec))
+    st.session_state.memory_store.append((text, vec))
 
 
 def retrieve_memory(query):
+
+    memory_store = st.session_state.memory_store
 
     if len(memory_store) == 0:
         return ""
@@ -95,18 +115,18 @@ def retrieve_memory(query):
 
 
 # =========================================================
-# INTERNET SEARCH (Wikipedia)
+# INTERNET SEARCH (WIKIPEDIA)
 # =========================================================
 
 def internet_search(query):
 
     try:
 
-        q = query.replace(" ", "_")
+        url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
 
-        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{q}"
+        q = query.strip().replace(" ", "_")
 
-        r = requests.get(url)
+        r = requests.get(url + q)
 
         data = r.json()
 
@@ -125,10 +145,15 @@ def calculator(query):
 
     try:
 
-        exp = re.findall(r'[\d\+\-\*\/\.\(\)]+', query)
+        expression = query.lower()
 
-        if exp:
-            result = eval(exp[0])
+        expression = expression.replace("×","*")
+        expression = expression.replace("x","*")
+
+        numbers = re.findall(r'[0-9\+\-\*\/\.\(\) ]+', expression)
+
+        if numbers:
+            result = eval(numbers[0])
             return str(result)
 
     except:
@@ -145,17 +170,32 @@ def route(query):
 
     q = query.lower()
 
-    if any(x in q for x in ["+","-","*","/","calculate"]):
+    if any(x in q for x in ["+","-","*","/","calculate","×"]):
         return "calculator"
 
     if any(x in q for x in [
-        "who","when","where","president","leader",
-        "capital","country","population",
+        "who","when","where","president",
+        "capital","leader","population",
         "tell me about","what is"
     ]):
         return "search"
 
     return "reason"
+
+
+# =========================================================
+# CLEAN RESPONSE
+# =========================================================
+
+def clean_answer(text):
+
+    if "💡 Answer:" in text:
+        text = text.split("💡 Answer:")[-1]
+
+    if "🧠 Plan:" in text:
+        text = text.split("🧠 Plan:")[0]
+
+    return text.strip()
 
 
 # =========================================================
@@ -173,16 +213,16 @@ Context:
 Question:
 {question}
 
-Answer using the context if possible.
+Answer clearly using the context if possible.
 If context is insufficient say "I am not sure".
 """}
     ]
 
-    return llm(prompt)
+    return clean_answer(llm(prompt))
 
 
 # =========================================================
-# SELF-VERIFICATION
+# SELF VERIFICATION
 # =========================================================
 
 def verify(question, answer):
@@ -196,7 +236,7 @@ Question:
 Answer:
 {answer}
 
-Is the answer factually correct?
+Is this answer factually correct?
 
 Reply only YES or NO.
 """}
@@ -208,7 +248,7 @@ Reply only YES or NO.
 
 
 # =========================================================
-# AGENT CORE
+# AGENT PIPELINE
 # =========================================================
 
 def run_agent(query):
@@ -217,7 +257,7 @@ def run_agent(query):
 
     context = ""
 
-    # TOOL: calculator
+    # calculator
     if tool == "calculator":
 
         result = calculator(query)
@@ -225,29 +265,29 @@ def run_agent(query):
         if result:
             return result
 
-    # TOOL: search
+    # search
     if tool == "search":
 
         web = internet_search(query)
 
         context += web + "\n"
 
-    # MEMORY
+    # memory
     mem = retrieve_memory(query)
 
     context += mem
 
-    # REASONING
+    # reasoning
     answer = reason(query, context)
 
-    # VERIFY
+    # verification
     if not verify(query, answer):
 
         web = internet_search(query)
 
         answer = reason(query, web)
 
-    # STORE MEMORY
+    # store useful memory
     store_memory(answer)
 
     return answer
@@ -257,23 +297,26 @@ def run_agent(query):
 # STREAMLIT UI
 # =========================================================
 
-st.set_page_config(page_title="MozeAI", page_icon="🧠")
-
 st.title("MozeAI")
 
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+for role, msg in st.session_state.chat_history:
 
-for role, msg in st.session_state.chat:
+    if role == "user":
 
-    with st.chat_message(role):
-        st.write(msg)
+        with st.chat_message("user"):
+            st.write(msg)
+
+    elif role == "assistant":
+
+        with st.chat_message("assistant"):
+            st.write(msg)
+
 
 query = st.chat_input("Ask anything")
 
 if query:
 
-    st.session_state.chat.append(("user", query))
+    st.session_state.chat_history.append(("user", query))
 
     with st.chat_message("user"):
         st.write(query)
@@ -283,4 +326,4 @@ if query:
     with st.chat_message("assistant"):
         st.write(response)
 
-    st.session_state.chat.append(("assistant", response))
+    st.session_state.chat_history.append(("assistant", response))
