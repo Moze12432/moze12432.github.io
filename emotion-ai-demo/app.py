@@ -4,27 +4,32 @@ import requests
 import re
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from datetime import datetime
 
-# =========================================================
+# ============================================
 # CONFIG
-# =========================================================
+# ============================================
 
-MODEL_NAME = "llama3-70b-8192"
+MODEL_NAME = "llama-3.1-8b-instant"
 TEMPERATURE = 0
-MAX_TOKENS = 500
+MAX_TOKENS = 400
 
-# =========================================================
+# ============================================
 # STREAMLIT SETTINGS
-# =========================================================
+# ============================================
 
 st.set_page_config(page_title="MozeAI", page_icon="🧠")
 
-# =========================================================
-# LLM SETUP
-# =========================================================
+# ============================================
+# GROQ CLIENT
+# ============================================
 
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+client = Groq(
+    api_key=st.secrets.get("GROQ_API_KEY")
+)
+
+# ============================================
+# LLM CALL
+# ============================================
 
 def llm(messages):
 
@@ -39,12 +44,13 @@ def llm(messages):
 
         return completion.choices[0].message.content.strip()
 
-    except Exception:
-        return "I encountered a temporary AI service error. Please try again."
+    except Exception as e:
 
-# =========================================================
+        return "AI service temporarily unavailable."
+
+# ============================================
 # SYSTEM PROMPT
-# =========================================================
+# ============================================
 
 SYSTEM_PROMPT = """
 You are MozeAI.
@@ -53,15 +59,15 @@ Created by Mukiibi Moses,
 a Computer Engineering student at Kyungdong University.
 
 Rules:
-- Provide factual answers.
-- Never invent facts.
-- If unsure say "I am not sure".
-- Be concise and clear.
+- Answer clearly and factually
+- Do not hallucinate
+- If unsure say "I am not sure"
+- Do not show internal reasoning
 """
 
-# =========================================================
-# SESSION STATE (PER USER)
-# =========================================================
+# ============================================
+# SESSION MEMORY
+# ============================================
 
 if "memory_store" not in st.session_state:
     st.session_state.memory_store = []
@@ -69,22 +75,19 @@ if "memory_store" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# =========================================================
+# ============================================
 # EMBEDDINGS
-# =========================================================
+# ============================================
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# =========================================================
+# ============================================
 # MEMORY FUNCTIONS
-# =========================================================
+# ============================================
 
 def store_memory(text):
 
-    if len(text) < 40:
-        return
-
-    if "I am not sure" in text:
+    if len(text) < 30:
         return
 
     vec = embedder.encode(text)
@@ -96,7 +99,7 @@ def retrieve_memory(query):
 
     memory_store = st.session_state.memory_store
 
-    if len(memory_store) == 0:
+    if not memory_store:
         return ""
 
     qvec = embedder.encode(query)
@@ -113,11 +116,11 @@ def retrieve_memory(query):
 
     top = scores[:2]
 
-    return "\n".join([t[1][:400] for t in top])
+    return "\n".join([t[1][:300] for t in top])
 
-# =========================================================
-# INTERNET SEARCH (WIKIPEDIA)
-# =========================================================
+# ============================================
+# WIKIPEDIA SEARCH
+# ============================================
 
 def internet_search(query):
 
@@ -127,18 +130,20 @@ def internet_search(query):
         q = query.strip().replace(" ", "_")
 
         r = requests.get(url + q)
+
+        if r.status_code != 200:
+            return ""
+
         data = r.json()
 
-        text = data.get("extract","")
-
-        return text[:1200]
+        return data.get("extract", "")[:1000]
 
     except:
         return ""
 
-# =========================================================
+# ============================================
 # CALCULATOR
-# =========================================================
+# ============================================
 
 def calculator(query):
 
@@ -149,61 +154,63 @@ def calculator(query):
         expression = expression.replace("×","*")
         expression = expression.replace("x","*")
 
-        numbers = re.findall(r'[0-9\+\-\*\/\.\(\) ]+', expression)
+        expression = re.findall(r"[0-9\+\-\*\/\.\(\) ]+", expression)
 
-        if numbers:
-            result = eval(numbers[0])
+        if expression:
+            result = eval(expression[0])
             return str(result)
 
     except:
-        pass
+        return None
 
-    return None
-
-# =========================================================
+# ============================================
 # ROUTER
-# =========================================================
+# ============================================
 
 def route(query):
 
     q = query.lower()
 
-    if any(x in q for x in ["+","-","*","/","calculate","×"]):
+    if any(x in q for x in ["+","-","*","/","×","calculate"]):
         return "calculator"
 
     if any(x in q for x in [
-        "who","when","where","president",
-        "capital","leader","population",
-        "tell me about","what is"
+        "capital",
+        "population",
+        "leader",
+        "history",
+        "tell me about"
     ]):
         return "search"
 
     return "reason"
 
-# =========================================================
-# CLEAN RESPONSE
-# =========================================================
+# ============================================
+# CLEAN OUTPUT
+# ============================================
 
 def clean_answer(text):
 
-    if "💡 Answer:" in text:
-        text = text.split("💡 Answer:")[-1]
+    if "🧠" in text:
+        text = text.split("🧠")[0]
 
-    if "🧠 Plan:" in text:
-        text = text.split("🧠 Plan:")[0]
+    if "Plan:" in text:
+        text = text.split("Plan:")[0]
 
     return text.strip()
 
-# =========================================================
+# ============================================
 # REASONING
-# =========================================================
+# ============================================
 
 def reason(question, context):
 
-    context = context[:2000]
+    context = context[:1500]
 
-    prompt = [
+    messages = [
+
         {"role":"system","content":SYSTEM_PROMPT},
+
         {"role":"user","content":f"""
 Context:
 {context}
@@ -211,41 +218,15 @@ Context:
 Question:
 {question}
 
-Answer clearly using the context if possible.
-If context is insufficient say "I am not sure".
+Answer clearly.
 """}
     ]
 
-    return clean_answer(llm(prompt))
+    return clean_answer(llm(messages))
 
-# =========================================================
-# SELF VERIFICATION
-# =========================================================
-
-def verify(question, answer):
-
-    prompt = [
-        {"role":"system","content":SYSTEM_PROMPT},
-        {"role":"user","content":f"""
-Question:
-{question}
-
-Answer:
-{answer}
-
-Is this answer factually correct?
-
-Reply only YES or NO.
-"""}
-    ]
-
-    result = llm(prompt)
-
-    return "yes" in result.lower()
-
-# =========================================================
-# AGENT PIPELINE
-# =========================================================
+# ============================================
+# AGENT
+# ============================================
 
 def run_agent(query):
 
@@ -266,42 +247,29 @@ def run_agent(query):
 
         web = internet_search(query)
 
-        context += web + "\n"
+        context += web
 
     # memory
     mem = retrieve_memory(query)
 
-    context += mem
+    context += "\n" + mem
 
-    # reasoning
     answer = reason(query, context)
-
-    # verification
-    if not verify(query, answer):
-
-        web = internet_search(query)
-
-        answer = reason(query, web)
 
     store_memory(answer)
 
     return answer
 
-# =========================================================
-# STREAMLIT UI
-# =========================================================
+# ============================================
+# UI
+# ============================================
 
 st.title("MozeAI")
 
 for role, msg in st.session_state.chat_history:
 
-    if role == "user":
-        with st.chat_message("user"):
-            st.write(msg)
-
-    elif role == "assistant":
-        with st.chat_message("assistant"):
-            st.write(msg)
+    with st.chat_message(role):
+        st.write(msg)
 
 query = st.chat_input("Ask anything")
 
