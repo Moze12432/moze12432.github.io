@@ -1,20 +1,19 @@
 import streamlit as st
-import torch
-import random
-import re
-import requests
 import sqlite3
 import numpy as np
+import re
+import requests
 from datetime import datetime
-from transformers import AutoTokenizer, AutoModelForCausalLM
+
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sentence_transformers import SentenceTransformer
 
 # -------------------------
-# PAGE CONFIG
+# PAGE SETTINGS
 # -------------------------
 
 st.set_page_config(
-    page_title="Autonomous AI Companion",
+    page_title="Autonomous AI Agent",
     page_icon="🧠",
     layout="wide"
 )
@@ -45,7 +44,7 @@ def load_memories():
     return [r[0] for r in rows]
 
 # -------------------------
-# VECTOR MEMORY (LIGHTWEIGHT)
+# VECTOR MEMORY
 # -------------------------
 
 @st.cache_resource
@@ -78,17 +77,17 @@ def retrieve_vector(query, k=2):
     return [s[1] for s in scores[:k]]
 
 # -------------------------
-# LOAD FAST LLM
+# LOAD LLM (FLAN-T5)
 # -------------------------
 
 @st.cache_resource
 def load_llm():
 
-    model_name = "distilgpt2"
+    model_name = "google/flan-t5-small"
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
     return tokenizer, model
 
@@ -96,20 +95,15 @@ tokenizer, model = load_llm()
 
 def llm_generate(prompt):
 
-    inputs = tokenizer.encode(prompt + tokenizer.eos_token, return_tensors="pt")
+    inputs = tokenizer(prompt, return_tensors="pt")
 
-    output = model.generate(
-        inputs,
-        max_length=120,
-        pad_token_id=tokenizer.eos_token_id,
-        do_sample=True,
-        temperature=0.7,
-        top_p=0.9
+    outputs = model.generate(
+        **inputs,
+        max_length=150,
+        temperature=0.7
     )
 
-    response = tokenizer.decode(output[:, inputs.shape[-1]:][0], skip_special_tokens=True)
-
-    return response
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
 # -------------------------
 # INTERNET SEARCH TOOL
@@ -140,6 +134,7 @@ def internet_search(query):
 def calculator(query):
 
     try:
+
         expression = re.findall(r'[\d\.\+\-\*\/\(\)]+', query)
 
         if expression:
@@ -151,7 +146,7 @@ def calculator(query):
     return None
 
 # -------------------------
-# PLANNER
+# PLANNER (TOOL ROUTER)
 # -------------------------
 
 def planner(query):
@@ -205,14 +200,17 @@ def agent_controller(query):
     memory_context = "\n".join(memories)
 
     prompt = f"""
-You are an intelligent AI assistant.
+You are a helpful AI assistant.
 
-Context from memory:
+Use the context if relevant.
+
+Context:
 {memory_context}
 
-User: {query}
+Question:
+{query}
 
-Answer:
+Answer clearly and concisely.
 """
 
     answer = llm_generate(prompt)
@@ -238,9 +236,9 @@ if "messages" not in st.session_state:
 
 with st.sidebar:
 
-    st.title("AI System")
+    st.title("AI Agent")
 
-    st.write("Autonomous AI Companion")
+    st.write("Autonomous AI Assistant")
 
     if st.button("Clear Chat"):
         st.session_state.messages = []
@@ -256,7 +254,7 @@ with st.sidebar:
 # CHAT UI
 # -------------------------
 
-st.title("🧠 Autonomous AI Companion")
+st.title("🧠 Autonomous AI Agent")
 
 for m in st.session_state.messages:
 
