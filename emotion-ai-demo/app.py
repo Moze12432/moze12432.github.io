@@ -7,7 +7,8 @@ from datetime import datetime
 
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from sentence_transformers import SentenceTransformer
-
+import chromadb
+from chromadb.utils import embedding_functions
 # -------------------------
 # PAGE SETTINGS
 # -------------------------
