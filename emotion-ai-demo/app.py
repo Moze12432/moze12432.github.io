@@ -867,265 +867,29 @@ def run_agent(query):
     store_memory(answer)
     
     return answer
-# ============================================
-# TRULY FIXED CHAT INTERFACE - WORKING SOLUTION
-# ============================================
-
-# Add custom CSS for fixed bottom bar
-st.markdown("""
-<style>
-    /* Hide Streamlit's default chat input */
-    .stChatInputContainer {
-        display: none !important;
-    }
+def process_uploaded_file(uploaded_file):
+    """Route file to appropriate processor based on type"""
+    file_type = uploaded_file.type
+    file_name = uploaded_file.name.lower()
     
-    /* Make main content scrollable with padding */
-    .main .block-container {
-        padding-bottom: 100px !important;
-        overflow-y: auto !important;
-        max-height: calc(100vh - 100px) !important;
-    }
-    
-    /* Fixed bottom bar */
-    .fixed-chat-bar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: white;
-        padding: 15px 20px;
-        box-shadow: 0 -2px 20px rgba(0,0,0,0.15);
-        z-index: 99999;
-        border-top: 1px solid #e0e0e0;
-    }
-    
-    /* Custom input wrapper */
-    .custom-input-wrapper {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-    
-    /* Custom text input */
-    .custom-text-input {
-        flex: 1;
-        padding: 12px 20px;
-        border: 2px solid #667eea;
-        border-radius: 25px;
-        font-size: 16px;
-        outline: none;
-        transition: all 0.3s;
-        font-family: inherit;
-    }
-    
-    .custom-text-input:focus {
-        border-color: #764ba2;
-        box-shadow: 0 0 10px rgba(118, 75, 162, 0.3);
-    }
-    
-    /* Custom upload button */
-    .custom-upload-btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 48px;
-        height: 48px;
-        font-size: 24px;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .custom-upload-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* Custom send button */
-    .custom-send-btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 48px;
-        height: 48px;
-        font-size: 20px;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .custom-send-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* File count badge */
-    .file-count-badge {
-        position: fixed;
-        bottom: 80px;
-        right: 20px;
-        background: #ff4444;
-        color: white;
-        border-radius: 50%;
-        width: 36px;
-        height: 36px;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        cursor: pointer;
-        z-index: 100000;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-    
-    /* Hide default file uploader */
-    .stFileUploader {
-        display: none;
-    }
-    
-    /* Hidden file input */
-    #hidden-file-input {
-        display: none;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Display chat history (this will scroll normally)
-for role, msg in st.session_state.chat_history:
-    with st.chat_message(role):
-        st.write(msg)
-
-# Add spacer at bottom
-st.markdown('<div style="height: 80px;"></div>', unsafe_allow_html=True)
-
-# Create fixed bottom bar with HTML/JavaScript
-st.markdown("""
-<div class="fixed-chat-bar">
-    <div class="custom-input-wrapper">
-        <input type="text" id="user-input" class="custom-text-input" placeholder="Ask me anything..." autocomplete="off">
-        <button id="upload-btn" class="custom-upload-btn" title="Upload file">📎</button>
-        <button id="send-btn" class="custom-send-btn" title="Send message">➤</button>
-    </div>
-</div>
-
-<script>
-    const userInput = document.getElementById('user-input');
-    const sendBtn = document.getElementById('send-btn');
-    const uploadBtn = document.getElementById('upload-btn');
-    
-    // Create hidden file input
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.id = 'hidden-file-input';
-    fileInput.multiple = true;
-    fileInput.accept = '.pdf,.docx,.txt,.csv,.json';
-    fileInput.style.display = 'none';
-    document.body.appendChild(fileInput);
-    
-    // Handle send button click
-    sendBtn.addEventListener('click', function() {
-        const message = userInput.value.trim();
-        if (message) {
-            // Send to Streamlit
-            const event = new CustomEvent('streamlit:setComponentValue', {
-                detail: {type: 'chat', value: message}
-            });
-            window.dispatchEvent(event);
-            userInput.value = '';
-        }
-    });
-    
-    // Handle Enter key
-    userInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            sendBtn.click();
-        }
-    });
-    
-    // Handle upload button click
-    uploadBtn.addEventListener('click', function() {
-        fileInput.click();
-    });
-    
-    // Handle file selection
-    fileInput.addEventListener('change', function(e) {
-        const files = Array.from(e.target.files);
-        const fileNames = files.map(f => f.name).join(', ');
+    try:
+        if file_type == "application/pdf" or file_name.endswith('.pdf'):
+            content = extract_text_from_pdf(uploaded_file)
+        elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_name.endswith('.docx'):
+            content = extract_text_from_docx(uploaded_file)
+        elif file_type == "text/plain" or file_name.endswith('.txt'):
+            content = extract_text_from_txt(uploaded_file)
+        elif file_type == "text/csv" or file_name.endswith('.csv'):
+            content = extract_text_from_csv(uploaded_file)
+        elif file_type == "application/json" or file_name.endswith('.json'):
+            content = extract_text_from_json(uploaded_file)
+        else:
+            return f"Unsupported file type: {file_type}"
         
-        // Send file info to Streamlit
-        const event = new CustomEvent('streamlit:setComponentValue', {
-            detail: {type: 'files', value: files, names: fileNames}
-        });
-        window.dispatchEvent(event);
+        # Check if extraction was successful
+        if content.startswith("Error") or "empty" in content.lower():
+            return None
         
-        // Reset file input
-        fileInput.value = '';
-    });
-    
-    // Focus on input on page load
-    userInput.focus();
-</script>
-""", unsafe_allow_html=True)
-
-# Hidden file uploader for Streamlit to capture
-with st.expander("", expanded=False):
-    hidden_files = st.file_uploader(
-        "Hidden uploader",
-        type=['pdf', 'docx', 'txt', 'csv', 'json'],
-        accept_multiple_files=True,
-        key="hidden_uploader",
-        label_visibility="collapsed"
-    )
-    
-    if hidden_files:
-        for file in hidden_files:
-            if file.name not in st.session_state.uploaded_files:
-                with st.spinner(f"Processing {file.name}..."):
-                    file_content = process_uploaded_file(file)
-                    if file_content and not file_content.startswith("Error"):
-                        st.session_state.uploaded_files[file.name] = file_content
-                        st.toast(f"✅ Loaded: {file.name}", icon="📎")
-        
-        if st.session_state.uploaded_files:
-            st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
-                f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
-                for name, content in st.session_state.uploaded_files.items()
-            ])
-
-# File count badge
-if len(st.session_state.uploaded_files) > 0:
-    file_count = len(st.session_state.uploaded_files)
-    st.markdown(f"""
-    <div class="file-count-badge" title="{file_count} file(s) loaded">
-        📎 {file_count}
-    </div>
-    """, unsafe_allow_html=True)
-
-# Process chat input using query parameters
-import streamlit.components.v1 as components
-
-# Use a text input in the sidebar as fallback
-query = st.text_input("", key="hidden_input", label_visibility="collapsed", placeholder="Type your message...")
-
-if query:
-    st.session_state.chat_history.append(("user", query))
-    with st.chat_message("user"):
-        st.write(query)
-    
-    response = run_agent(query)
-    
-    with st.chat_message("assistant"):
-        st.write(response)
-    
-    st.session_state.chat_history.append(("assistant", response))
-    st.rerun()
+        return content
+    except Exception as e:
+        return None
