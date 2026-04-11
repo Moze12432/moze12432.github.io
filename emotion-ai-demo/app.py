@@ -167,6 +167,147 @@ st.markdown("""
         border-radius: 20px;
         border: 2px solid #667eea;
     }
+    st.markdown("""
+
+    /* Main container */
+    .main {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    /* Chat messages */
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 10px;
+        margin: 5px 0;
+    }
+    
+    /* User message */
+    .stChatMessage [data-testid="stChatMessageContent"]:has(div:first-child) {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 12px;
+    }
+    
+    /* Assistant message */
+    .stChatMessage [data-testid="stChatMessageContent"]:has(div:last-child) {
+        background: #f0f2f6;
+        color: #1e1e2f;
+        border-radius: 15px;
+        padding: 12px;
+        border-left: 4px solid #764ba2;
+    }
+    
+    /* Title styling */
+    h1 {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5em;
+        font-weight: bold;
+        text-align: center;
+        padding: 20px;
+    }
+    
+    /* New Chat button */
+    .stButton button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 20px;
+        font-weight: bold;
+        transition: transform 0.2s;
+    }
+    
+    .stButton button:hover {
+        transform: scale(1.05);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background: linear-gradient(180deg, #1e1e2f 0%, #2d2d44 100%);
+    }
+    
+    /* Chat input */
+    .stChatInputContainer {
+        border-radius: 20px;
+        border: 2px solid #667eea;
+    }
+    
+    /* ===== TOOLTIP STYLES FOR UPLOAD BUTTON ===== */
+    .upload-tooltip {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .upload-tooltip .tooltip-text {
+        visibility: hidden;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-align: center;
+        padding: 8px 15px;
+        border-radius: 20px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 13px;
+        font-weight: 500;
+        opacity: 0;
+        transition: opacity 0.3s;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        pointer-events: none;
+    }
+    
+    .upload-tooltip .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #667eea transparent transparent transparent;
+    }
+    
+    .upload-tooltip:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+    
+    /* Style for the upload button container */
+    div[data-testid="stFileUploader"] {
+        position: relative;
+    }
+    
+    /* Hide default text */
+    div[data-testid="stFileUploader"] > div:first-child {
+        display: none;
+    }
+    
+    /* Style the button */
+    div[data-testid="stFileUploader"] button {
+        background: transparent;
+        border: none;
+        font-size: 22px;
+        padding: 0;
+        margin: 0;
+        width: 36px;
+        height: 36px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: #667eea;
+    }
+    
+    div[data-testid="stFileUploader"] button:hover {
+        transform: scale(1.1);
+        color: #764ba2;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -734,35 +875,6 @@ st.markdown("""
         width: auto !important;
     }
     
-    /* Hide all file uploader text */
-    div[data-testid="stFileUploader"] > div:first-child {
-        display: none;
-    }
-    
-    div[data-testid="stFileUploader"] > div:first-child + div {
-        display: none;
-    }
-    
-    /* Style the upload button */
-    div[data-testid="stFileUploader"] button {
-        background: transparent;
-        border: none;
-        font-size: 22px;
-        padding: 0;
-        margin: 0;
-        width: 36px;
-        height: 36px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        color: #667eea;
-    }
-    
-    div[data-testid="stFileUploader"] button:hover {
-        transform: scale(1.1);
-        color: #764ba2;
-        background: transparent;
-    }
-    
     /* Add padding to chat input to make room for the button */
     .stChatInputContainer textarea {
         padding-right: 50px !important;
@@ -799,10 +911,17 @@ with st.container():
     # Create the chat input wrapper
     st.markdown('<div class="chat-input-wrapper">', unsafe_allow_html=True)
     
-    # Chat input (will be styled with padding for the button)
+    # Chat input
     query = st.chat_input("Ask anything...", key="main_chat_input")
     
-    # Upload button (appears INSIDE the chat input)
+    # Upload button with TOOLTIP
+    st.markdown("""
+    <div class="upload-tooltip">
+        <div id="upload-button-placeholder"></div>
+        <div class="tooltip-text">📎 Upload files (PDF, DOCX, TXT, CSV, JSON)</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     uploaded_file = st.file_uploader(
         "📎",
         type=['pdf', 'docx', 'txt', 'csv', 'json'],
