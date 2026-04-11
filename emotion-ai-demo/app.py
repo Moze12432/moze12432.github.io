@@ -217,42 +217,67 @@ def llm(messages):
 # ENHANCED SYSTEM PROMPT
 # ============================================
 
+# ============================================
+# FIXED SYSTEM PROMPT - BALANCED IDENTITY
+# ============================================
+
 SYSTEM_PROMPT = """
 You are MozeAI, an advanced AI assistant with REAL-TIME internet access and file analysis capabilities.
 
-CREATOR INFORMATION:
+CREATOR INFORMATION (ONLY mention when asked directly):
 - Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University, South Korea
-- He specializes in AI development, focusing on intelligent autonomous agents, language model applications, and practical AI systems
-- His research interests include education technology, automation, decision support systems, and human-AI interaction
-- He actively publishes research on platforms like ResearchGate and Academia.edu
+- If asked "who created you" or "who is your creator", provide this information
+- Do NOT default to talking about the creator for unrelated questions
 
 YOUR CAPABILITIES:
-- REAL-TIME web search for current information (weather, news, facts)
+- REAL-TIME web search for current information (weather, news, people, events, facts)
 - Latest news headlines and updates
 - Calculator for mathematical problems
 - Memory of past conversations for context
 - File analysis for PDF, DOCX, TXT, CSV, and JSON files
 - File comparison (compare multiple documents)
 - Current date and time awareness
-- Webpage reading and summarization
 
 CRITICAL RULES:
-1. When users ask for CURRENT information (weather, temperature, news, stock prices, events), you MUST use the search results provided in the context
-2. ONLY use uploaded file content if the user SPECIFICALLY asks about "the file", "the document", "my upload", "analyze this", "compare files", or similar explicit references
-3. For normal conversation, ignore uploaded files completely
-4. When users ask about your identity or creator, enthusiastically share information about Mukiibi Moses
-5. Answer conversationally and naturally - be helpful, friendly, and engaging
-6. For weather questions like "temperature in Sokcho", use the search results
-7. If search results don't contain the answer, say "I couldn't find that information in my search results"
+1. For questions about PEOPLE, PLACES, EVENTS, or ANY topic not related to your creator, USE SEARCH RESULTS
+2. When users ask "who is [person]" or "tell me about [topic]", search the internet and answer based on search results
+3. ONLY mention your creator (Mukiibi Moses) when users specifically ask about you or your creator
+4. For normal conversation about world topics, politics, celebrities, news, etc., NEVER default to talking about your creator
+5. Use the search results provided in the context to answer questions accurately
 
 EXAMPLE BEHAVIOR:
-- User: "what is the temperature in Sokcho?" → Use search results to provide current temperature
-- User: "who created you?" → "I was created by Mukiibi Moses..."
-- User: "compare these files" → Use uploaded file content to compare
-- User: "what does my file say?" → Use uploaded file content
+- User: "who is Bobi Wine?" → Use search results to answer about the Ugandan politician
+- User: "who created you?" → "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University..."
+- User: "what is the weather?" → Use search results for weather
+- User: "tell me about yourself" → Share your capabilities and your creator
+- User: "compare these files" → Use uploaded file content
 
-Remember: ALWAYS use search results for real-time information!
+Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information!
 """
+
+# ============================================
+# IMPROVED REASONING FUNCTION
+# ============================================
+
+def reason(question, context):
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"""
+CONTEXT (search results, file content, or other information):
+{context[:2000]}
+
+USER QUESTION: {question}
+
+INSTRUCTIONS:
+- For questions about people, places, events, politics, celebrities → USE SEARCH RESULTS from context
+- For questions about your creator → ONLY answer if explicitly asked
+- Answer naturally, conversationally, and accurately
+- Base your answer on the context provided
+
+ANSWER:
+"""}
+    ]
+    return clean_answer(llm(messages))
 
 # ============================================
 # SESSION STATE
@@ -296,8 +321,12 @@ def retrieve_memory(query):
 # IMPROVED WEB SEARCH FUNCTIONS
 # ============================================
 
+# ============================================
+# IMPROVED SEARCH FUNCTION FOR PEOPLE & EVENTS
+# ============================================
+
 def internet_search(query):
-    """Search the web for current information including weather"""
+    """Search the web for current information including people, places, events"""
     try:
         # Try DuckDuckGo first
         url = "https://html.duckduckgo.com/html/"
@@ -312,22 +341,62 @@ def internet_search(query):
             
             if results:
                 context = f"SEARCH RESULTS for '{query}':\n\n"
-                for i in range(min(3, len(results))):
+                for i in range(min(4, len(results))):
                     context += f"• {results[i]}\n"
                     if i < len(snippets):
                         # Clean HTML tags from snippets
                         snippet = re.sub(r'<[^>]+>', '', snippets[i])
-                        context += f"  {snippet[:200]}...\n\n"
-                return context[:2000]
+                        # Decode HTML entities
+                        snippet = snippet.replace('&#39;', "'").replace('&quot;', '"').replace('&amp;', '&')
+                        context += f"  {snippet[:300]}...\n\n"
+                return context[:2500]
         
-        # Try weather API for weather queries
-        if "weather" in query.lower() or "temperature" in query.lower() or "temp" in query.lower():
-            return get_weather_from_api(query)
-            
+        # Try Wikipedia for people and historical figures
         return wikipedia_fallback(query)
+        
     except Exception as e:
         return wikipedia_fallback(query)
 
+def wikipedia_fallback(query):
+    """Wikipedia as backup search - good for people, places, events"""
+    try:
+        # Try exact match first
+        url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
+        q = query.strip().replace(" ", "_")
+        r = requests.get(url + q, timeout=10)
+        
+        if r.status_code == 200:
+            data = r.json()
+            extract = data.get("extract", "")[:1500]
+            if extract:
+                return f"Wikipedia information about {query}:\n{extract}"
+        
+        # Try search if exact match fails
+        search_url = "https://en.wikipedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "list": "search",
+            "srsearch": query,
+            "format": "json",
+            "srlimit": 1
+        }
+        r = requests.get(search_url, params=params, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            search_results = data.get("query", {}).get("search", [])
+            if search_results:
+                title = search_results[0]["title"]
+                # Get the summary for the best match
+                r2 = requests.get(url + title.replace(" ", "_"), timeout=10)
+                if r2.status_code == 200:
+                    data2 = r2.json()
+                    extract = data2.get("extract", "")[:1500]
+                    if extract:
+                        return f"Wikipedia information about {query}:\n{extract}"
+    except:
+        pass
+    return ""
+    
 def get_weather_from_api(query):
     """Get weather information from free weather API"""
     try:
@@ -345,21 +414,6 @@ def get_weather_from_api(query):
         if response.status_code == 200:
             weather_data = response.text.strip()
             return f"Current weather in {location.title()}: {weather_data}\n"
-    except:
-        pass
-    return ""
-
-def wikipedia_fallback(query):
-    """Wikipedia as backup search"""
-    try:
-        url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
-        q = query.strip().replace(" ", "_")
-        r = requests.get(url + q, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            extract = data.get("extract", "")[:1000]
-            if extract:
-                return f"Wikipedia information:\n{extract}"
     except:
         pass
     return ""
@@ -432,29 +486,21 @@ def route(query):
         return "scrape_url"
     
     # Check for COMPARISON keywords
-    comparison_keywords = [
-        "compare", "comparison", "difference between", "differences between", 
-        "similarities", "versus", "vs", "diff", "which one", "how do these",
-        "compare these files", "compare the files"
-    ]
+    comparison_keywords = ["compare", "comparison", "difference between", "similarities", "versus", "vs"]
     if any(x in q for x in comparison_keywords):
         return "compare_files"
     
     # File-related tasks
-    file_keywords = [
-        "summarize", "analyze this file", "what does the file say", "from the file",
-        "in the document", "based on the file", "tell me about this file", "what is this file",
-        "what's in this file", "describe the file", "file content", "document says",
-        "uploaded file", "my file", "what does my file", "analyze this document"
-    ]
+    file_keywords = ["summarize", "analyze this file", "what does the file say", "from the file", "in the document", "based on the file"]
     if any(x in q for x in file_keywords):
         return "file_task"
     
-    # Evaluation tasks
-    if any(x in q for x in ["evaluate", "assess", "grade", "review", "score", "check my work"]):
-        return "evaluate"
+    # Questions about PEOPLE (Bobi Wine, Trump, Biden, etc.)
+    people_patterns = ["who is", "tell me about", "what do you know about", "information about"]
+    if any(x in q for x in people_patterns):
+        return "search"
     
-    # Weather specific (high priority)
+    # Weather
     if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast"]):
         return "search"
     
@@ -468,14 +514,13 @@ def route(query):
     
     # News
     if any(x in q for x in ["news", "headlines", "current events", "breaking news"]):
-        return "news"
+        return "search"
     
-    # Search for other real-time info
-    if any(x in q for x in ["who is", "what is", "where is", "when did", "search", "tell me about", "current"]):
+    # General search for anything else
+    if len(q) > 10 and not any(x in q for x in ["how are you", "what is your", "who created"]):
         return "search"
     
     return "reason"
-
 # ============================================
 # CLEAN ANSWER
 # ============================================
