@@ -9,6 +9,95 @@ from bs4 import BeautifulSoup
 import requests
 from urllib.parse import urlparse
 
+import PyPDF2
+import docx
+from io import StringIO
+import csv
+import json
+
+# ============================================
+# FILE PROCESSING FUNCTIONS
+# ============================================
+
+def extract_text_from_pdf(file):
+    """Extract text from PDF file"""
+    try:
+        pdf_reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        return text[:5000]  # Limit to 5000 chars
+    except Exception as e:
+        return f"Error reading PDF: {str(e)}"
+
+def extract_text_from_docx(file):
+    """Extract text from Word document"""
+    try:
+        doc = docx.Document(file)
+        text = ""
+        for paragraph in doc.paragraphs:
+            text += paragraph.text + "\n"
+        return text[:5000]
+    except Exception as e:
+        return f"Error reading Word document: {str(e)}"
+
+def extract_text_from_txt(file):
+    """Extract text from text file"""
+    try:
+        content = file.read().decode('utf-8')
+        return content[:5000]
+    except Exception as e:
+        return f"Error reading text file: {str(e)}"
+
+def extract_text_from_csv(file):
+    """Extract text from CSV file"""
+    try:
+        content = file.read().decode('utf-8')
+        csv_reader = csv.reader(StringIO(content))
+        text = ""
+        for row in csv_reader:
+            text += " | ".join(row) + "\n"
+        return f"CSV Data:\n{text[:5000]}"
+    except Exception as e:
+        return f"Error reading CSV file: {str(e)}"
+
+def extract_text_from_json(file):
+    """Extract text from JSON file"""
+    try:
+        content = file.read().decode('utf-8')
+        data = json.loads(content)
+        return f"JSON Data:\n{json.dumps(data, indent=2)[:5000]}"
+    except Exception as e:
+        return f"Error reading JSON file: {str(e)}"
+
+def process_uploaded_file(uploaded_file):
+    """Route file to appropriate processor based on type"""
+    file_type = uploaded_file.type
+    file_name = uploaded_file.name.lower()
+    
+    # PDF files
+    if file_type == "application/pdf" or file_name.endswith('.pdf'):
+        return extract_text_from_pdf(uploaded_file)
+    
+    # Word documents
+    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_name.endswith('.docx'):
+        return extract_text_from_docx(uploaded_file)
+    
+    # Text files
+    elif file_type == "text/plain" or file_name.endswith('.txt'):
+        return extract_text_from_txt(uploaded_file)
+    
+    # CSV files
+    elif file_type == "text/csv" or file_name.endswith('.csv'):
+        return extract_text_from_csv(uploaded_file)
+    
+    # JSON files
+    elif file_type == "application/json" or file_name.endswith('.json'):
+        return extract_text_from_json(uploaded_file)
+    
+    else:
+        return f"Unsupported file type: {file_type}. Supported: PDF, DOCX, TXT, CSV, JSON"
+
 
 # ============================================
 # CONFIG
@@ -109,6 +198,12 @@ client = Groq(
 # ============================================
 # LLM CALL
 # ============================================
+
+# ============================================
+# SESSION MEMORY & FILES
+# ============================================
+
+
 # ============================================
 # CURRENT DATE & TIME
 # ============================================
@@ -181,11 +276,21 @@ INSTRUCTIONS:
 # SESSION MEMORY
 # ============================================
 
+# ============================================
+# SESSION MEMORY & FILES
+# ============================================
+
 if "memory_store" not in st.session_state:
     st.session_state.memory_store = []
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = {}  # Store file contents
+
+if "file_context" not in st.session_state:
+    st.session_state.file_context = ""  # Combined text from all uploaded files
 
 # ============================================
 # EMBEDDINGS
@@ -196,6 +301,38 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 # ============================================
 # MEMORY FUNCTIONS
 # ============================================
+
+# ============================================
+# EVALUATION FUNCTION
+# ============================================
+
+def evaluate_work(question, file_content):
+    """Evaluate user's work from uploaded files"""
+    evaluation_prompt = f"""
+You are an expert evaluator. Analyze the following file content and answer the user's evaluation request.
+
+File Content:
+{file_content[:3000]}
+
+User Request:
+{question}
+
+Please provide:
+1. Overall assessment
+2. Strengths (2-3 points)
+3. Areas for improvement (2-3 points)
+4. Score out of 100 (if applicable)
+5. Specific recommendations
+
+Be constructive, specific, and actionable.
+"""
+    
+    messages = [
+        {"role": "system", "content": "You are an expert evaluator providing constructive feedback."},
+        {"role": "user", "content": evaluation_prompt}
+    ]
+    
+    return clean_answer(llm(messages))
 
 def store_memory(text):
 
@@ -516,6 +653,10 @@ def route(query):
     if urls:
         return "scrape_url"
     
+    # Check for file-related tasks
+    if any(x in q for x in ["summarize", "analyze this file", "what does the file say", "from the file", "in the document", "based on the file"]):
+        return "file_task"
+    
     # Check for calculator
     if any(x in q for x in ["+","-","*","/","×","calculate"]):
         return "calculator"
@@ -528,6 +669,10 @@ def route(query):
     if any(x in q for x in ["news", "headlines", "current events", "breaking"]):
         return "news"
     
+    # Check for evaluation/assessment tasks
+    if any(x in q for x in ["evaluate", "assess", "grade", "review my", "check my", "score"]):
+        return "evaluate"
+    
     # Check for general web search
     if any(x in q for x in [
         "capital", "population", "leader", "history", "tell me about",
@@ -536,7 +681,6 @@ def route(query):
         return "search"
     
     return "reason"
-
 # ============================================
 # CLEAN OUTPUT
 # ============================================
@@ -596,9 +740,17 @@ def run_agent(query):
     tool = route(query)
     context = ""
     
-    # URL Scraping (NEW - with better error handling)
-    # URL Scraping (Universal)
-    if tool == "scrape_url":
+    # File task (NEW)
+    if tool == "file_task" and st.session_state.file_context:
+        context = f"\n\nUploaded Files Content:\n{st.session_state.file_context}\n"
+        context += "\nAnswer the user's question based ONLY on these files if possible.\n"
+    
+    # Evaluation task (NEW)
+    elif tool == "evaluate" and st.session_state.file_context:
+        return evaluate_work(query, st.session_state.file_context)
+    
+    # URL Scraping
+    elif tool == "scrape_url":
         urls = extract_urls_from_query(query)
         scraped_content = ""
         for url in urls:
@@ -641,13 +793,9 @@ def run_agent(query):
     if mem:
         context += "\n\n" + mem
     
-    # If no context found, add current date at least
-    if not context and tool != "scrape_url":
+    # If no context found and no files, add current date at least
+    if not context and not st.session_state.file_context:
         context = get_current_datetime()
-    
-    # If we scraped a URL, add instruction to answer based on it
-    if tool == "scrape_url" and context:
-        context += "\n\nBased on the webpage content above, answer the user's question. If the user asked to summarize, provide a clear summary."
     
     answer = reason(query, context)
     store_memory(answer)
@@ -665,7 +813,44 @@ st.markdown("---")
 # ============================================
 # SIDEBAR WITH NEW CHAT BUTTON
 # ============================================
+# ============================================
+# FILE UPLOAD SECTION
+# ============================================
 
+with st.expander("📎 Upload Files for AI to Read", expanded=False):
+    uploaded_files = st.file_uploader(
+        "Choose files (PDF, DOCX, TXT, CSV, JSON)",
+        type=['pdf', 'docx', 'txt', 'csv', 'json'],
+        accept_multiple_files=True,
+        help="Upload documents for the AI to analyze, summarize, or answer questions about"
+    )
+    
+    if uploaded_files:
+        for file in uploaded_files:
+            if file.name not in st.session_state.uploaded_files:
+                with st.spinner(f"Processing {file.name}..."):
+                    file_content = process_uploaded_file(file)
+                    if file_content and not file_content.startswith("Error"):
+                        st.session_state.uploaded_files[file.name] = file_content
+                        st.success(f"✅ Loaded: {file.name}")
+                    else:
+                        st.error(f"❌ Failed to load: {file.name}")
+        
+        # Combine all file contents for context
+        if st.session_state.uploaded_files:
+            st.session_state.file_context = "\n\n".join([
+                f"=== FILE: {name} ===\n{content}" 
+                for name, content in st.session_state.uploaded_files.items()
+            ])
+            
+            st.info(f"📄 {len(st.session_state.uploaded_files)} file(s) loaded. Ask me questions about them!")
+            
+            # Clear files button
+            if st.button("🗑️ Clear All Files"):
+                st.session_state.uploaded_files = {}
+                st.session_state.file_context = ""
+                st.rerun()
+                
 with st.sidebar:
     st.markdown("### 🧠 MozeAI")
     st.markdown("---")
