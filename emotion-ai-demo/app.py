@@ -517,6 +517,11 @@ def route(query):
     people_patterns = ["who is", "tell me about", "what do you know about", "information about"]
     if any(x in q for x in people_patterns):
         return "search"
+
+    # Add after calculator check
+    # Image generation
+    if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
+        return "generate_image"
     
     # Weather
     if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast"]):
@@ -689,6 +694,31 @@ Provide:
     ]
     return clean_answer(llm(messages))
 
+# ============================================
+# IMAGE GENERATION FUNCTION
+# ============================================
+
+def generate_image(prompt):
+    """Generate an image from text prompt using Pollinations.ai (free, no API key)"""
+    try:
+        # Encode the prompt for URL
+        encoded_prompt = requests.utils.quote(prompt)
+        
+        # Pollinations.ai endpoint (free, no API key)
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+        
+        return image_url
+    except Exception as e:
+        return None
+
+def generate_and_display_image(prompt):
+    """Generate and return markdown to display image"""
+    image_url = generate_image(prompt)
+    if image_url:
+        return f"🎨 **Generated Image for:** '{prompt}'\n\n![Generated Image]({image_url})"
+    else:
+        return "❌ Sorry, I couldn't generate an image right now. Please try again."
+
 def run_agent(query):
     q = query.lower().strip()
     
@@ -702,10 +732,9 @@ def run_agent(query):
         st.session_state.last_topic = None
         return "✅ Context cleared! How can I help you today?"
     
-    # DIRECT RESPONSES for common questions
-    if q in ["who are you", "who is this", "what are you"]:
+    # DIRECT RESPONSES for common questions - using 'in' for better matching
+    if any(phrase in q for phrase in ["who are you", "who is this", "what are you", "tell me about yourself"]):
         return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, and answer questions. How can I help you today?"
-    
     # DIRECT RESPONSE for questions about Mukiibi Moses
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "tell me about your maker", "tell me about your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
@@ -795,6 +824,17 @@ He built me with real-time web search, file analysis, document comparison, and c
     # Handle datetime
     elif tool == "datetime":
         context += get_current_datetime()
+
+    # Handle image generation
+    elif tool == "generate_image":
+        with st.spinner("🎨 Generating image..."):
+            # Extract the prompt (remove command words)
+            image_prompt = query
+            for word in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]:
+                image_prompt = image_prompt.lower().replace(word, "").strip()
+            if not image_prompt:
+                image_prompt = query
+            return generate_and_display_image(image_prompt)
     
     # Handle search
     else:
