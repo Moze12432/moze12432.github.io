@@ -286,6 +286,35 @@ Before coding any algorithm:
 4. Choose appropriate data structures
 5. Write clean, readable code
 
+## CRITICAL SPATIAL RULE FOR TKINTER CANVAS
+
+**REMEMBER THIS ALWAYS:**
+- Y=0 is the TOP of the screen
+- Y=400 is the BOTTOM of the screen
+- Smaller Y = HIGHER on screen
+- Larger Y = LOWER on screen
+
+**FOR A CANDLE:**
+- Wax body: y=200 to 350 (middle to bottom)
+- Wick: y=180 to 200 (above wax)
+- Flame: y=120 to 180 (above wick)
+
+**VERIFICATION CHECK BEFORE OUTPUTTING:**
+Is flame_y (120-180) < wick_y (180-200) < wax_y (200-350)?
+If YES → Correct
+If NO → You have it backwards! Fix it!
+
+**WRONG EXAMPLE (NEVER DO THIS):**
+- Wax at y=50-150 (top of screen)
+- Flame at y=250 (bottom of screen)
+This puts the flame BELOW the candle! ALWAYS put flame ABOVE the wax.
+
+**SELF-CORRECTION:**
+After generating tkinter canvas code, mentally check:
+1. Is the flame ABOVE the candle body? (flame Y should be smaller than body Y)
+2. Is the wick connecting them? (wick Y between flame and body)
+3. If not, SWAP the coordinates immediately before outputting.
+
 ### 6. RESPONSE FORMAT
 ```language
 // Your complete code here
