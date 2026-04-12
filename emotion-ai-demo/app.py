@@ -516,19 +516,22 @@ def run_agent(query):
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
     
-# Greetings - respond warmly
-if q in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "hi there", "hello there"]:
-    return "Hey there! 👋 Great to see you! How can I help you today?"
-
-if q in ["how are you", "how are you doing", "how's it going"]:
-    return "I'm doing great, thanks for asking! 😊 Ready and excited to help you with whatever you need. What's on your mind?"
-
-if q in ["what's up", "sup", "whats up"]:
-    return "Not much, just here waiting to help you! 🌟 What's going on with you?"
-
-# DIRECT RESPONSES
-if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-    return "I'm MozeAI, your friendly AI assistant! 🤖 I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, and lots more! What would you like to do today?"
+    # Greetings - respond warmly
+    if q in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "hi there", "hello there"]:
+        return "Hey there! 👋 Great to see you! How can I help you today?"
+    
+    if q in ["how are you", "how are you doing", "how's it going"]:
+        return "I'm doing great, thanks for asking! 😊 Ready and excited to help you with whatever you need. What's on your mind?"
+    
+    if q in ["what's up", "sup", "whats up"]:
+        return "Not much, just here waiting to help you! 🌟 What's going on with you?"
+    
+    # DIRECT RESPONSES
+    if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
+        return "I'm MozeAI, your friendly AI assistant! 🤖 I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, and lots more! What would you like to do today?"
+    
+    if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
+        return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
 
 **About Him:**
 - Specializes in artificial intelligence and machine learning
@@ -563,7 +566,7 @@ He built me with web search, file analysis, and image generation capabilities. �
     # FILE TASK
     elif tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join(st.session_state.uploaded_files.keys())
-        with st.spinner(f"Reading files..."):
+        with st.spinner("Reading files..."):
             response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
             return response
