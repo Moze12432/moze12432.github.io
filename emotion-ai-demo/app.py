@@ -335,6 +335,8 @@ if "last_topic" not in st.session_state:
     st.session_state.last_topic = None
 if "last_image_prompt" not in st.session_state:
     st.session_state.last_image_prompt = None
+if "code_search_cache" not in st.session_state:
+    st.session_state.code_search_cache = {}
 
 # ============================================
 # EMBEDDINGS
@@ -388,6 +390,49 @@ def internet_search(query):
         return ""
     except:
         return ""
+
+# ============================================
+# CODING SEARCH FUNCTIONS
+# ============================================
+
+def search_coding_solution(query):
+    """Search the internet for the best coding solution"""
+    
+    # Construct search query for coding resources
+    search_queries = [
+        f"{query} stack overflow",
+        f"{query} example code",
+        f"{query} best practice",
+        f"{query} github"
+    ]
+    
+    all_results = ""
+    
+    for search_q in search_queries[:2]:  # Limit to 2 searches for speed
+        result = internet_search(search_q)
+        if result:
+            all_results += result + "\n\n"
+    
+    return all_results
+
+def search_coding_solution_cached(query):
+    """Cached version to avoid repeated searches"""
+    
+    # Create a cache key
+    cache_key = query.lower().strip()
+    
+    if cache_key in st.session_state.code_search_cache:
+        return st.session_state.code_search_cache[cache_key]
+    
+    # Perform search
+    result = search_coding_solution(query)
+    
+    # Store in cache
+    st.session_state.code_search_cache[cache_key] = result
+    
+    return result
+
+
 
 def get_current_news():
     try:
@@ -445,6 +490,52 @@ def extract_urls_from_query(query):
     return re.findall(url_pattern, query)
 
 # ============================================
+# CODING ASSISTANT WITH INTERNET SEARCH
+# ============================================
+
+def coding_assistant_with_search(query, context=""):
+    """Coding assistant that searches the internet first"""
+    
+    with st.spinner("🔍 Searching the internet for the best solution..."):
+        # Search for relevant code examples
+        search_results = search_coding_solution_cached(query)
+    
+    coding_prompt = f"""
+You are an expert programmer. Generate the best possible code based on the user's request.
+
+USER REQUEST: {query}
+
+## INTERNET SEARCH RESULTS (Use these as reference):
+{search_results[:3000]}
+
+## YOUR TASK:
+1. Analyze the search results above
+2. Extract the best practices and patterns
+3. Generate complete, working code based on the best solution found
+4. Cite your sources if you use specific code from search results
+5. Explain why this solution is optimal
+
+## REQUIREMENTS:
+- Code must be complete and runnable
+- Include all imports
+- Add comments
+- Handle edge cases
+- Follow language best practices
+
+## OUTPUT FORMAT:
+First provide the code in a code block, then provide explanation.
+
+Generate the best possible code now:
+"""
+    
+    messages = [
+        {"role": "system", "content": "You are an expert programming assistant. Use the search results to find the best solution, then generate production-ready code."},
+        {"role": "user", "content": coding_prompt}
+    ]
+    
+    return clean_answer(llm(messages))
+
+# ============================================
 # ROUTER FUNCTION
 # ============================================
 
@@ -466,22 +557,39 @@ def route(query):
     if any(x in q for x in ["generate image", "create image", "draw", "make an image", "picture of", "image of"]):
         return "generate_image"
     
-    # IMAGE EDITING - KEYWORDS FOR EDITING EXISTING IMAGES
+    # IMAGE EDITING
     if any(x in q for x in ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]):
         return "edit_image"
     
+    # CODING DETECTION
+    coding_keywords = [
+        "code", "python", "javascript", "js", "html", "css", "react", "vue", "angular",
+        "function", "class", "import", "def ", "return", "loop", "array", "list",
+        "dictionary", "tkinter", "pyqt", "flask", "django", "streamlit", "pandas", "numpy",
+        "algorithm", "sort", "search", "recursion", "debug", "fix", "error", "bug",
+        "write a program", "create a script", "implement", "build a", "make a",
+        "how to", "example", "tutorial", "best way to"
+    ]
+    if any(x in q for x in coding_keywords):
+        return "coding_with_search"
+    
+    # SEARCH
     if any(x in q for x in ["who is", "tell me about", "what is"]):
         return "search"
     
+    # WEATHER
     if any(x in q for x in ["weather", "temperature", "rain", "snow"]):
         return "search"
     
+    # CALCULATOR
     if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
         return "calculator"
     
+    # DATETIME
     if any(x in q for x in ["time", "date", "today"]):
         return "datetime"
     
+    # NEWS
     if any(x in q for x in ["news", "headlines"]):
         return "search"
     
@@ -547,6 +655,8 @@ def evaluate_work(question, file_context):
     messages = [{"role": "system", "content": "You evaluate work."}, {"role": "user", "content": prompt}]
     return clean_answer(llm(messages))
 
+
+
 # ============================================
 # IMAGE GENERATION FUNCTIONS
 # ============================================
@@ -590,7 +700,7 @@ def run_agent(query):
     
     # Greetings - respond warmly
     if q in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "hi there", "hello there"]:
-        return "Hey there! 👋 Great to see you! How can I help you today?"
+        return "Hey there! Great to see you! How can I help you today?"
     
     if q in ["how are you", "how are you doing", "how's it going"]:
         return "I'm doing great, thanks for asking! Ready and excited to help you with whatever you need. What's on your mind?"
@@ -600,7 +710,7 @@ def run_agent(query):
     
     # DIRECT RESPONSES
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        return "I'm MozeAI, your friendly AI assistant! 🤖 I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, and lots more! What would you like to do today?"
+        return "I'm MozeAI, your friendly AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, coding, and lots more! What would you like to do today?"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
@@ -609,7 +719,7 @@ def run_agent(query):
 - Specializes in artificial intelligence and machine learning
 - His portfolio: https://moze12432.github.io/
 
-He built me with web search, file analysis, and image generation capabilities. """
+He built me with web search, file analysis, image generation and editing, and coding assistance capabilities."""
     
     tool = route(query)
     context = ""
@@ -666,7 +776,7 @@ He built me with web search, file analysis, and image generation capabilities. "
     elif tool == "datetime":
         context += get_current_datetime()
     
-    # IMAGE GENERATION - FRESH IMAGE EVERY TIME
+    # IMAGE GENERATION
     elif tool == "generate_image":
         with st.spinner("🎨 Generating image..."):
             image_prompt = query
@@ -686,11 +796,10 @@ He built me with web search, file analysis, and image generation capabilities. "
             if not image_prompt or len(image_prompt) < 3:
                 image_prompt = query
             
-            # Store for possible future edits
             st.session_state.last_image_prompt = image_prompt
             return generate_and_display_image(image_prompt, is_edit=False)
     
-    # IMAGE EDITING - MODIFY LAST GENERATED IMAGE
+    # IMAGE EDITING
     elif tool == "edit_image":
         with st.spinner("🎨 Editing image..."):
             last_prompt = st.session_state.get("last_image_prompt", "")
@@ -698,7 +807,6 @@ He built me with web search, file analysis, and image generation capabilities. "
             if not last_prompt:
                 return "❌ No previous image found. Please generate an image first using 'generate image of...'"
             
-            # Extract what to change
             edit_text = query
             command_words = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]
             for word in command_words:
@@ -707,14 +815,15 @@ He built me with web search, file analysis, and image generation capabilities. "
                     break
             
             edit_text = ' '.join(edit_text.split())
-            
-            # Combine original prompt with edit instruction
             new_prompt = f"{last_prompt}, {edit_text}"
-            
-            # Store for future edits
             st.session_state.last_image_prompt = new_prompt
-            
             return generate_and_display_image(new_prompt, is_edit=True)
+    
+    # CODING WITH INTERNET SEARCH
+    elif tool == "coding_with_search":
+        response = coding_assistant_with_search(query)
+        st.session_state.last_response = response
+        return response
     
     # SEARCH
     else:
