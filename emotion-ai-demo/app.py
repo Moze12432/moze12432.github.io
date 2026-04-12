@@ -703,15 +703,31 @@ def run_agent(query):
     if q in ["who are you", "who is this", "what are you"]:
         return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, and answer questions. How can I help you today?"
     
+    # DIRECT RESPONSE for questions about Mukiibi Moses (YOUR CREATOR)
+    if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "tell me about your maker", "tell me about your creator", "who created you"]):
+        return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
+
+**About Him:**
+- Specializes in artificial intelligence, machine learning, and data science
+- Develops emotion-aware AI models, conversational bots, and data-driven applications
+- His portfolio: https://moze12432.github.io/
+- Passionate about using AI to solve real-world problems in education and decision support
+- Active researcher on platforms like ResearchGate and Academia.edu
+
+He built me with real-time web search, file analysis, document comparison, and conversation memory capabilities. I'm proud to be his creation! 😊
+
+Is there anything specific about him you'd like to know?"""
+    
     if q in ["is your maker a genius", "is your creator a genius"]:
         return "Yes! Mukiibi Moses is a brilliant Computer Engineering student at Kyungdong University. He built me with real-time search, file analysis, and comparison capabilities - that takes serious intelligence and skill!"
     
     if q in ["tell me about your maker", "tell me about your creator"]:
-        return "My maker is Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. He specializes in AI development, building intelligent autonomous agents, and researching language model applications for education and decision support."
+        return "My maker is Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. He specializes in AI development, building intelligent autonomous agents, and researching language model applications for education and decision support. Check out his portfolio: https://moze12432.github.io/"
     
     if q in ["who is your maker", "who created you"]:
         return "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
     
+    # CONTINUE with the rest of your function...
     tool = route(query)
     context = ""
     
