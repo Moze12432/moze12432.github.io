@@ -755,11 +755,14 @@ def run_agent(query):
         st.session_state.last_search_query = None
         st.session_state.last_search_results = None
         st.session_state.last_topic = None
+        st.session_state.last_image_prompt = None
+        st.session_state.last_image_url = None
         return "✅ Context cleared! How can I help you today?"
     
     # DIRECT RESPONSES for common questions - using 'in' for better matching
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you", "tell me about yourself"]):
-        return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, and answer questions. How can I help you today?"
+        return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, generate images, and answer questions. How can I help you today?"
+    
     # DIRECT RESPONSE for questions about Mukiibi Moses
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "tell me about your maker", "tell me about your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
@@ -770,7 +773,7 @@ def run_agent(query):
 - His portfolio: https://moze12432.github.io/
 - Passionate about using AI to solve real-world problems in education and decision support
 
-He built me with real-time web search, file analysis, document comparison, and conversation memory capabilities. I'm proud to be his creation! 😊"""
+He built me with real-time web search, file analysis, document comparison, image generation, and conversation memory capabilities. I'm proud to be his creation! 😊"""
     
     if q in ["is your maker a genius", "is your creator a genius"]:
         return "Yes! Mukiibi Moses is a brilliant Computer Engineering student at Kyungdong University. He built me with real-time search, file analysis, and comparison capabilities - that takes serious intelligence and skill!"
@@ -780,6 +783,27 @@ He built me with real-time web search, file analysis, document comparison, and c
     
     if q in ["who is your maker", "who created you"]:
         return "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
+    
+    # DIRECT CHECK for image editing (bypass router) - THIS IS KEY FOR UNLIMITED EDITS
+    edit_indicators = ["make it", "make the", "turn it", "change it to", "change the", "add a", "add to", "remove", "make the cat", "make the image", "edit the", "modify the"]
+    if any(phrase in q for phrase in edit_indicators) and st.session_state.get("last_image_prompt"):
+        # This is likely an edit command
+        last_prompt = st.session_state.get("last_image_prompt", "")
+        if last_prompt:
+            # Extract what they want to change
+            edit_text = query
+            # Remove common edit command words
+            for word in ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the", "turn it", "change it to"]:
+                if word in edit_text.lower():
+                    edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
+                    break
+            # Clean up
+            edit_text = ' '.join(edit_text.split())
+            # Create new prompt by combining original with edit
+            new_prompt = f"{last_prompt}, {edit_text}"
+            st.session_state.last_image_prompt = new_prompt
+            with st.spinner("🎨 Editing image..."):
+                return generate_and_display_image(new_prompt)
     
     tool = route(query)
     context = ""
@@ -811,7 +835,7 @@ He built me with real-time web search, file analysis, document comparison, and c
             st.session_state.last_response = response
             return response
     
-    # Handle FILE TASK (SINGLE OR MULTIPLE) - ONLY ONE OF THESE!
+    # Handle FILE TASK (SINGLE OR MULTIPLE)
     elif tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
         with st.spinner(f"📖 Reading {len(st.session_state.uploaded_files)} file(s)..."):
@@ -849,8 +873,8 @@ He built me with real-time web search, file analysis, document comparison, and c
     # Handle datetime
     elif tool == "datetime":
         context += get_current_datetime()
-
-       # Handle image generation
+    
+    # Handle image generation
     elif tool == "generate_image":
         with st.spinner("🎨 Generating image..."):
             # Better prompt extraction
@@ -880,8 +904,8 @@ He built me with real-time web search, file analysis, document comparison, and c
             st.session_state.last_image_url = None
             
             return generate_and_display_image(image_prompt)
-
-          # Handle image editing/iteration
+    
+    # Handle image editing/iteration (via router)
     elif tool == "edit_image":
         with st.spinner("🎨 Editing image..."):
             # Get the last generated image prompt
@@ -892,7 +916,7 @@ He built me with real-time web search, file analysis, document comparison, and c
             
             # Extract the edit instruction
             edit_instruction = query
-            command_words = ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the"]
+            command_words = ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the", "turn it", "change it to"]
             for word in command_words:
                 if word in edit_instruction.lower():
                     edit_instruction = re.sub(re.escape(word), "", edit_instruction.lower(), flags=re.IGNORECASE).strip()
@@ -909,6 +933,7 @@ He built me with real-time web search, file analysis, document comparison, and c
             st.session_state.last_image_url = None
             
             return generate_and_display_image(new_prompt)
+    
     # Handle search
     else:
         search_result = internet_search(query)
@@ -926,7 +951,6 @@ He built me with real-time web search, file analysis, document comparison, and c
         store_memory(answer)
     
     return answer
-
 # ============================================
 # UI - MAIN DISPLAY
 # ============================================
