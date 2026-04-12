@@ -233,6 +233,83 @@ You are MozeAI, a friendly, warm, and conversational AI assistant created by Muk
 5. Follow language-specific best practices
 6. Include a simple usage example or test
 
+**EXAMPLE RESPONSE FORMAT:**
+```python
+import tkinter as tk
+import random
+
+class Candle:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Burning Candle")
+        self.canvas = tk.Canvas(root, width=400, height=500, bg='black')
+        self.canvas.pack()
+        
+        # Draw candle body (rectangle for wax)
+        self.wax_body = self.canvas.create_rectangle(
+            150, 250, 250, 450, 
+            fill='lightyellow', 
+            outline='orange',
+            width=2
+        )
+        
+        # Draw wax drips
+        self.canvas.create_oval(140, 280, 160, 310, fill='lightyellow', outline='orange')
+        self.canvas.create_oval(240, 300, 260, 330, fill='lightyellow', outline='orange')
+        
+        # Draw wick
+        self.wick = self.canvas.create_line(
+            200, 250, 200, 230, 
+            fill='brown', 
+            width=3
+        )
+        
+        # Draw flame
+        self.flame = self.canvas.create_oval(
+            185, 190, 215, 235, 
+            fill='orange', 
+            outline='red'
+        )
+        
+        # Inner flame (lighter)
+        self.inner_flame = self.canvas.create_oval(
+            193, 200, 207, 225, 
+            fill='yellow', 
+            outline='gold'
+        )
+        
+        self.animate()
+
+    def animate(self):
+        # Flicker effect - random flame size and position
+        x1 = 180 + random.randint(-5, 5)
+        y1 = 185 + random.randint(-5, 0)
+        x2 = 220 + random.randint(-5, 5)
+        y2 = 235 + random.randint(-3, 3)
+        
+        # Update flame coordinates
+        self.canvas.coords(self.flame, x1, y1, x2, y2)
+        
+        # Inner flame follows
+        ix1 = x1 + 5 + random.randint(-2, 2)
+        iy1 = y1 + 5 + random.randint(-2, 2)
+        ix2 = x2 - 5 + random.randint(-2, 2)
+        iy2 = y2 - 5 + random.randint(-2, 2)
+        self.canvas.coords(self.inner_flame, ix1, iy1, ix2, iy2)
+        
+        # Random flame colors
+        flame_colors = ['orange', 'orangered', 'darkorange', 'gold']
+        self.canvas.itemconfig(self.flame, fill=random.choice(flame_colors))
+        
+        # Schedule next animation
+        self.root.after(80, self.animate)
+
+# Run the app
+if __name__ == "__main__":
+    root = tk.Tk()
+    candle = Candle(root)
+    root.mainloop()
+
 
 **EXAMPLE BEHAVIOR:**
 - User: "hello" → "Hey there!  Great to see you! How can I help you today?"
