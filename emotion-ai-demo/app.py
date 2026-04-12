@@ -295,6 +295,9 @@ if "last_response" not in st.session_state:
 # Add to your session state initialization section
 if "last_topic" not in st.session_state:
     st.session_state.last_topic = None
+# Add to your session state section
+if "last_image_prompt" not in st.session_state:
+    st.session_state.last_image_prompt = None
 # ============================================
 # EMBEDDINGS FOR MEMORY
 # ============================================
@@ -519,9 +522,13 @@ def route(query):
         return "search"
 
     # Add after calculator check
-    # Image generation
+       # Image generation
     if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
         return "generate_image"
+    
+    # Image editing keywords
+    if any(x in q for x in ["edit image", "change the image", "modify image", "redraw", "make it", "add to the image", "remove from image", "brighter", "darker", "different"]):
+        return "edit_image"
     
     # Weather
     if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast"]):
@@ -834,7 +841,32 @@ He built me with real-time web search, file analysis, document comparison, and c
                 image_prompt = image_prompt.lower().replace(word, "").strip()
             if not image_prompt:
                 image_prompt = query
+            # Store the prompt for future edits
+            st.session_state.last_image_prompt = image_prompt
             return generate_and_display_image(image_prompt)
+
+        # Handle image editing/iteration
+    elif tool == "edit_image":
+        with st.spinner("🎨 Editing image based on your request..."):
+            # Get the last generated image prompt from session state
+            last_prompt = st.session_state.get("last_image_prompt", "")
+            
+            if not last_prompt:
+                return "❌ I don't see a previous image to edit. Please generate an image first using 'generate image of...'"
+            
+            # Create modified prompt based on user feedback
+            edit_instruction = query
+            command_words = ["edit image", "change the image", "modify image", "redraw", "make it"]
+            for word in command_words:
+                edit_instruction = edit_instruction.lower().replace(word, "").strip()
+            
+            # Combine original prompt with edit instruction
+            new_prompt = f"{last_prompt}, {edit_instruction}"
+            
+            # Store for future edits
+            st.session_state.last_image_prompt = new_prompt
+            
+            return generate_and_display_image(new_prompt)
     
     # Handle search
     else:
