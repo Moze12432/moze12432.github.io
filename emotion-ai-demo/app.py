@@ -528,10 +528,9 @@ def route(query):
     if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
         return "generate_image"
     
-    # Image editing keywords
-    if any(x in q for x in ["edit image", "change the image", "modify image", "redraw", "make it", "add to the image", "remove from image", "brighter", "darker", "different"]):
+    # Image editing keywords - EXPANDED
+    if any(x in q for x in ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "add to the image", "remove from image", "brighter", "darker", "different", "make the cat", "turn it", "change it to"]):
         return "edit_image"
-    
     # Weather
     if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast"]):
         return "search"
