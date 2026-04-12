@@ -586,19 +586,38 @@ def clean_answer(text):
 # ============================================
 
 def reason(question, context):
+    """Generate response with full conversation context from session state"""
+    
+    # Build conversation history string from session state
+    history_text = ""
+    if st.session_state.chat_history:
+        history_text = "PREVIOUS CONVERSATION:\n"
+        # Get last 8 exchanges for context (not including current question)
+        last_exchanges = st.session_state.chat_history[-8:] if len(st.session_state.chat_history) > 8 else st.session_state.chat_history
+        for role, msg in last_exchanges:
+            if role == "user":
+                history_text += f"User: {msg}\n"
+            else:
+                history_text += f"Assistant: {msg}\n"
+        history_text += "\n"
+    
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"""
-CONTEXT (use this for real-time information like weather, news, etc.):
+{history_text}
+
+CURRENT SEARCH RESULTS / FILE CONTEXT:
 {context[:2000]}
 
-USER QUESTION: {question}
+USER'S CURRENT QUESTION: {question}
 
 INSTRUCTIONS:
-- If the user asks for weather, temperature, or current conditions, USE THE SEARCH RESULTS ABOVE
-- If the user asks about your creator, enthusiastically share about Mukiibi Moses
-- Answer naturally and conversationally
-- Be specific and factual
+- Use the conversation history above to maintain context and flow
+- If the user says "yes", "tell me more", "continue", "go on" - refer to the previous topic
+- If the user asks a follow-up question, connect it to what was just discussed
+- Answer naturally as a continuing conversation
+- Don't treat every message as a brand new chat
+- Be conversational and reference previous exchanges when relevant
 
 ANSWER:
 """}
