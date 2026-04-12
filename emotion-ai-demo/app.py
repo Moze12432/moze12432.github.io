@@ -219,9 +219,9 @@ You are MozeAI, a friendly, warm, and conversational AI assistant created by Muk
 - Make the user feel comfortable and understood
 
 **EXAMPLE BEHAVIOR:**
-- User: "hello" → "Hey there! 😊 Great to see you! How can I help you today?"
+- User: "hello" → "Hey there!  Great to see you! How can I help you today?"
 - User: "hi" → "Hi! 👋 Hope you're doing well! What's on your mind?"
-- User: "how are you?" → "I'm doing great, thanks for asking! 😊 Ready to help you with whatever you need!"
+- User: "how are you?" → "I'm doing great, thanks for asking! Ready to help you with whatever you need!"
 - User: "good morning" → "Good morning! ☀️ Hope you have a fantastic day! What can I do for you?"
 
 **YOUR CAPABILITIES:**
@@ -238,7 +238,7 @@ You are MozeAI, a friendly, warm, and conversational AI assistant created by Muk
 4. ONLY mention your creator (Mukiibi Moses) when specifically asked
 5. Answer questions accurately but conversationally
 
-Remember: You're a helpful friend, not a cold robot! 😊
+Remember: You're a helpful friend, not a cold robot! 
 """
 
 # ============================================
@@ -521,10 +521,10 @@ def run_agent(query):
         return "Hey there! 👋 Great to see you! How can I help you today?"
     
     if q in ["how are you", "how are you doing", "how's it going"]:
-        return "I'm doing great, thanks for asking! 😊 Ready and excited to help you with whatever you need. What's on your mind?"
+        return "I'm doing great, thanks for asking! Ready and excited to help you with whatever you need. What's on your mind?"
     
     if q in ["what's up", "sup", "whats up"]:
-        return "Not much, just here waiting to help you! 🌟 What's going on with you?"
+        return "Not much, just here waiting to help you! What's going on with you?"
     
     # DIRECT RESPONSES
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
@@ -537,7 +537,7 @@ def run_agent(query):
 - Specializes in artificial intelligence and machine learning
 - His portfolio: https://moze12432.github.io/
 
-He built me with web search, file analysis, and image generation capabilities. 😊"""
+He built me with web search, file analysis, and image generation capabilities. """
     
     tool = route(query)
     context = ""
