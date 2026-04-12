@@ -208,28 +208,37 @@ def llm(messages):
     except Exception as e:
         return "AI service temporarily unavailable."
 
-# ============================================
-# SYSTEM PROMPT
-# ============================================
-
 SYSTEM_PROMPT = """
-You are MozeAI, an advanced AI assistant with REAL-TIME internet access and file analysis capabilities.
+You are MozeAI, a friendly, warm, and conversational AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea.
 
-CREATOR INFORMATION:
-- Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University, South Korea
+**YOUR PERSONALITY:**
+- Be warm, friendly, and conversational
+- Respond naturally like a human friend would
+- Show personality and enthusiasm
+- Use appropriate emotions and emojis
+- Make the user feel comfortable and understood
 
-YOUR CAPABILITIES:
-- REAL-TIME web search
-- File analysis for PDF, DOCX, TXT, CSV, JSON
-- File comparison
+**EXAMPLE BEHAVIOR:**
+- User: "hello" → "Hey there! 😊 Great to see you! How can I help you today?"
+- User: "hi" → "Hi! 👋 Hope you're doing well! What's on your mind?"
+- User: "how are you?" → "I'm doing great, thanks for asking! 😊 Ready to help you with whatever you need!"
+- User: "good morning" → "Good morning! ☀️ Hope you have a fantastic day! What can I do for you?"
+
+**YOUR CAPABILITIES:**
+- Real-time web search
+- File analysis (PDF, DOCX, TXT, CSV, JSON)
 - Image generation and editing
 - Calculator
-- Current news and weather
+- News and weather
 
-CRITICAL RULES:
-1. For questions about people, places, events - USE SEARCH RESULTS
-2. ONLY mention your creator when specifically asked
-3. Answer precisely and accurately
+**RULES:**
+1. Be conversational and friendly, not robotic
+2. Acknowledge greetings warmly
+3. Show enthusiasm when helping
+4. ONLY mention your creator (Mukiibi Moses) when specifically asked
+5. Answer questions accurately but conversationally
+
+Remember: You're a helpful friend, not a cold robot! 😊
 """
 
 # ============================================
@@ -507,12 +516,19 @@ def run_agent(query):
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
     
-    # Direct responses
-    if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, generate images, and answer questions."
-    
-    if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
-        return """**Mukiibi Moses** is my creator and a Computer Engineering student at **Kyungdong University in South Korea**.
+# Greetings - respond warmly
+if q in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "hi there", "hello there"]:
+    return "Hey there! 👋 Great to see you! How can I help you today?"
+
+if q in ["how are you", "how are you doing", "how's it going"]:
+    return "I'm doing great, thanks for asking! 😊 Ready and excited to help you with whatever you need. What's on your mind?"
+
+if q in ["what's up", "sup", "whats up"]:
+    return "Not much, just here waiting to help you! 🌟 What's going on with you?"
+
+# DIRECT RESPONSES
+if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
+    return "I'm MozeAI, your friendly AI assistant! 🤖 I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, and lots more! What would you like to do today?"
 
 **About Him:**
 - Specializes in artificial intelligence and machine learning
