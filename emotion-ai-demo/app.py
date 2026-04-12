@@ -272,48 +272,6 @@ Your creator is Mukiibi Moses, but you should ONLY mention him when specifically
 Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information unless asked to do so!.
 """
 
-
-
-# ============================================
-# FIXED REASONING FUNCTION WITH CONVERSATION MEMORY
-# ============================================
-
-def reason(question, context, conversation_history):
-    """Generate response with full conversation context"""
-    
-    # Build conversation history string
-    history_text = ""
-    if conversation_history:
-        history_text = "PREVIOUS CONVERSATION:\n"
-        # Get last 5 exchanges for context (not including current question)
-        last_exchanges = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
-        for role, msg in last_exchanges:
-            if role == "user":
-                history_text += f"User: {msg}\n"
-            else:
-                history_text += f"Assistant: {msg}\n"
-        history_text += "\n"
-    
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"""
-{history_text}
-
-CURRENT SEARCH RESULTS / FILE CONTEXT:
-{context[:2000]}
-
-USER'S CURRENT QUESTION: {question}
-
-INSTRUCTIONS:
-- Use the conversation history above to maintain context
-- If the user says "yes", "tell me more", "continue", refer to the previous topic
-- Answer naturally as a continuing conversation
-- Don't treat every message as a brand new chat
-
-ANSWER:
-"""}
-    ]
-    return clean_answer(llm(messages))
     
 # ============================================
 # SESSION STATE
@@ -821,7 +779,7 @@ def run_agent(query):
             context += get_current_datetime()
     
     # Generate response with conversation history
-    answer = reason(query, context, st.session_state.chat_history)
+    answer = reason(query, context)
     
     # Store last response for continuation context
     st.session_state.last_response = answer
