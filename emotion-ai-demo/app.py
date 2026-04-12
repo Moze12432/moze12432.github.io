@@ -292,6 +292,9 @@ if "last_search_results" not in st.session_state:
 # Add this to your session state initialization section
 if "last_response" not in st.session_state:
     st.session_state.last_response = None
+# Add to your session state initialization section
+if "last_topic" not in st.session_state:
+    st.session_state.last_topic = None
 # ============================================
 # EMBEDDINGS FOR MEMORY
 # ============================================
@@ -679,6 +682,10 @@ Provide:
 # UPDATED run_agent WITH CONVERSATION MEMORY
 # ============================================
 
+# ============================================
+# COMPLETELY FIXED run_agent WITH PROPER CONTEXT
+# ============================================
+
 def run_agent(query):
     q = query.lower().strip()
     
@@ -689,7 +696,7 @@ def run_agent(query):
         st.session_state.uploaded_files = {}
         st.session_state.last_search_query = None
         st.session_state.last_search_results = None
-        # Don't clear chat history here - that's for "New Chat" button
+        st.session_state.last_topic = None
         return "✅ Context cleared! How can I help you today?"
     
     # DIRECT RESPONSES for common questions
@@ -708,15 +715,29 @@ def run_agent(query):
     tool = route(query)
     context = ""
     
+    # Handle follow-up questions about the same topic
+    follow_up_phrases = ["tell me more", "more about", "continue", "go on", "elaborate", "explain further", "his background", "about him", "about her", "about them"]
+    is_follow_up = any(phrase in q for phrase in follow_up_phrases)
+    
     # Handle "yes", "no", "tell me more", "continue" - maintain context
     continuation_phrases = ["yes", "yeah", "sure", "ok", "continue", "tell me more", "go on", "and?", "then?"]
-    if q in continuation_phrases:
-        if hasattr(st.session_state, 'last_search_results') and st.session_state.last_search_results:
+    
+    if is_follow_up or q in continuation_phrases:
+        # Use stored search results if available
+        if st.session_state.last_search_results:
             context = st.session_state.last_search_results
-            context += "\n\n The user said '" + query + "' to continue. Provide the NEXT part of the information from the search results above."
-        elif hasattr(st.session_state, 'last_response') and st.session_state.last_response:
-            context = f"Previous response was about: {st.session_state.last_response[:500]}"
-            context += f"\n\n User said '{query}'. Continue naturally from the previous conversation."
+            # Add instruction for more details
+            if "background" in q:
+                context += "\n\n The user wants to know about the person's BACKGROUND (early life, education, family). Provide those specific details from the search results."
+            elif "music" in q or "career" in q:
+                context += "\n\n The user wants to know about the person's CAREER. Provide those specific details from the search results."
+            elif "political" in q:
+                context += "\n\n The user wants to know about the person's POLITICAL activities. Provide those specific details from the search results."
+            else:
+                context += "\n\n The user wants MORE information about the same person/topic from the previous conversation. Provide additional details from the search results above."
+        elif st.session_state.last_response:
+            context = f"Previous conversation was about: {st.session_state.last_response[:800]}"
+            context += f"\n\n User asked: '{query}'. Continue naturally from the previous conversation."
         else:
             context = get_current_datetime()
     
@@ -726,6 +747,7 @@ def run_agent(query):
         with st.spinner("📊 Comparing files..."):
             response = compare_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
+            st.session_state.last_topic = "file_comparison"
             return response
     
     # Handle single file task
@@ -734,6 +756,7 @@ def run_agent(query):
         with st.spinner("📖 Reading your document..."):
             response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
+            st.session_state.last_topic = "file_analysis"
             return response
     
     # Handle evaluation
@@ -741,6 +764,7 @@ def run_agent(query):
         with st.spinner("📝 Evaluating your work..."):
             response = evaluate_work(query, st.session_state.file_context)
             st.session_state.last_response = response
+            st.session_state.last_topic = "evaluation"
             return response
     
     # Handle URL scraping
@@ -775,6 +799,7 @@ def run_agent(query):
             # Store for follow-up questions
             st.session_state.last_search_query = query
             st.session_state.last_search_results = search_result
+            st.session_state.last_topic = "search"
         else:
             context += get_current_datetime()
     
@@ -785,7 +810,7 @@ def run_agent(query):
     st.session_state.last_response = answer
     
     # Don't store generic continuation responses in memory
-    if q not in continuation_phrases:
+    if not is_follow_up and q not in continuation_phrases:
         store_memory(answer)
     
     return answer
