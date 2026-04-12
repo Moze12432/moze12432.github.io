@@ -272,36 +272,49 @@ Your creator is Mukiibi Moses, but you should ONLY mention him when specifically
 Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information unless asked to do so!.
 """
 
-# ============================================
-# IMPROVED REASONING FUNCTION
-# ============================================
+
 
 # ============================================
-# IMPROVED REASONING - FORCES SEARCH RESULT USAGE
+# FIXED REASONING FUNCTION WITH CONVERSATION MEMORY
 # ============================================
 
-def reason(question, context):
+def reason(question, context, conversation_history):
+    """Generate response with full conversation context"""
+    
+    # Build conversation history string
+    history_text = ""
+    if conversation_history:
+        history_text = "PREVIOUS CONVERSATION:\n"
+        # Get last 5 exchanges for context (not including current question)
+        last_exchanges = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
+        for role, msg in last_exchanges:
+            if role == "user":
+                history_text += f"User: {msg}\n"
+            else:
+                history_text += f"Assistant: {msg}\n"
+        history_text += "\n"
+    
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"""
-SEARCH RESULTS (Use these to answer the user's question):
-{context[:2500]}
+{history_text}
 
-USER QUESTION: {question}
+CURRENT SEARCH RESULTS / FILE CONTEXT:
+{context[:2000]}
+
+USER'S CURRENT QUESTION: {question}
 
 INSTRUCTIONS:
-1. Look at the search results above
-2. Answer the user's question based ONLY on these search results
-3. If the search results contain information about Bobi Wine, answer with that information
-4. If the search results contain information about any topic, answer with that information
-5. DO NOT mention your creator unless the search results are about your creator
-6. Do not be conversational but factual
-7. Be natural amd smooth.
+- Use the conversation history above to maintain context
+- If the user says "yes", "tell me more", "continue", refer to the previous topic
+- Answer naturally as a continuing conversation
+- Don't treat every message as a brand new chat
 
 ANSWER:
 """}
     ]
     return clean_answer(llm(messages))
+    
 # ============================================
 # SESSION STATE
 # ============================================
@@ -318,6 +331,9 @@ if "last_search_query" not in st.session_state:
     st.session_state.last_search_query = None
 if "last_search_results" not in st.session_state:
     st.session_state.last_search_results = None
+# Add this to your session state initialization section
+if "last_response" not in st.session_state:
+    st.session_state.last_response = None
 # ============================================
 # EMBEDDINGS FOR MEMORY
 # ============================================
@@ -343,13 +359,6 @@ def retrieve_memory(query):
     except:
         return ""
 
-# ============================================
-# IMPROVED WEB SEARCH FUNCTIONS
-# ============================================
-
-# ============================================
-# IMPROVED SEARCH FUNCTION FOR PEOPLE & EVENTS
-# ============================================
 
 # ============================================
 # IMPROVED SEARCH FOR PEOPLE - WITH BETTER PARSING
@@ -689,25 +698,48 @@ Provide:
 # UPDATED AGENT TO HANDLE "YES" CONTINUATIONS
 # ============================================
 
+# ============================================
+# UPDATED run_agent WITH CONVERSATION MEMORY
+# ============================================
+
 def run_agent(query):
+    q = query.lower().strip()
+    
     # Check for reset commands
-    reset_phrases = ["leave the document", "clear context", "forget the file", "start fresh", "clear files"]
-    if any(phrase in query.lower() for phrase in reset_phrases):
+    reset_phrases = ["leave the document", "clear context", "forget the file", "start fresh", "clear files", "new chat"]
+    if any(phrase in q for phrase in reset_phrases):
         st.session_state.file_context = ""
         st.session_state.uploaded_files = {}
         st.session_state.last_search_query = None
         st.session_state.last_search_results = None
+        # Don't clear chat history here - that's for "New Chat" button
         return "✅ Context cleared! How can I help you today?"
+    
+    # DIRECT RESPONSES for common questions
+    if q in ["who are you", "who is this", "what are you"]:
+        return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, and answer questions. How can I help you today?"
+    
+    if q in ["is your maker a genius", "is your creator a genius"]:
+        return "Yes! Mukiibi Moses is a brilliant Computer Engineering student at Kyungdong University. He built me with real-time search, file analysis, and comparison capabilities - that takes serious intelligence and skill!"
+    
+    if q in ["tell me about your maker", "tell me about your creator"]:
+        return "My maker is Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. He specializes in AI development, building intelligent autonomous agents, and researching language model applications for education and decision support."
+    
+    if q in ["who is your maker", "who created you"]:
+        return "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
     
     tool = route(query)
     context = ""
     
-    # Handle "yes" or "continue" responses - maintain context
-    if query.lower() in ["yes", "yeah", "sure", "ok", "continue", "tell me more"]:
+    # Handle "yes", "no", "tell me more", "continue" - maintain context
+    continuation_phrases = ["yes", "yeah", "sure", "ok", "continue", "tell me more", "go on", "and?", "then?"]
+    if q in continuation_phrases:
         if hasattr(st.session_state, 'last_search_results') and st.session_state.last_search_results:
             context = st.session_state.last_search_results
-            # Add instruction to continue with more details
-            context += "\n\n The user said 'yes' to learn more. Provide MORE DETAILS from the search results above."
+            context += "\n\n The user said '" + query + "' to continue. Provide the NEXT part of the information from the search results above."
+        elif hasattr(st.session_state, 'last_response') and st.session_state.last_response:
+            context = f"Previous response was about: {st.session_state.last_response[:500]}"
+            context += f"\n\n User said '{query}'. Continue naturally from the previous conversation."
         else:
             context = get_current_datetime()
     
@@ -715,18 +747,24 @@ def run_agent(query):
     elif tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
         with st.spinner("📊 Comparing files..."):
-            return compare_files(query, st.session_state.file_context, filenames)
+            response = compare_files(query, st.session_state.file_context, filenames)
+            st.session_state.last_response = response
+            return response
     
     # Handle single file task
     elif tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
         with st.spinner("📖 Reading your document..."):
-            return analyze_uploaded_files(query, st.session_state.file_context, filenames)
+            response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
+            st.session_state.last_response = response
+            return response
     
     # Handle evaluation
     elif tool == "evaluate" and st.session_state.file_context:
         with st.spinner("📝 Evaluating your work..."):
-            return evaluate_work(query, st.session_state.file_context)
+            response = evaluate_work(query, st.session_state.file_context)
+            st.session_state.last_response = response
+            return response
     
     # Handle URL scraping
     elif tool == "scrape_url":
@@ -752,7 +790,7 @@ def run_agent(query):
     elif tool == "datetime":
         context += get_current_datetime()
     
-    # Handle search for everything else (people, news, weather, etc.)
+    # Handle search for everything else
     else:
         search_result = internet_search(query)
         if search_result:
@@ -763,11 +801,14 @@ def run_agent(query):
         else:
             context += get_current_datetime()
     
-    # Generate response
-    answer = reason(query, context)
+    # Generate response with conversation history
+    answer = reason(query, context, st.session_state.chat_history)
     
-    # Don't store generic "yes" responses in memory
-    if query.lower() not in ["yes", "yeah", "sure", "ok", "continue", "tell me more"]:
+    # Store last response for continuation context
+    st.session_state.last_response = answer
+    
+    # Don't store generic continuation responses in memory
+    if q not in continuation_phrases:
         store_memory(answer)
     
     return answer
