@@ -637,42 +637,39 @@ Now compare the files:
     response = llm(messages)
     return clean_answer(response)
 
-# ============================================
-# IMPROVED FILE ANALYSIS FUNCTION
-# ============================================
-
 def analyze_uploaded_files(query, file_context, filenames):
     """Analyze uploaded files and answer questions about them"""
     
     analysis_prompt = f"""
 You are analyzing uploaded files. Answer the user's question based ONLY on the actual file contents below.
 
-**IMPORTANT:** The user uploaded these files. You MUST answer based on what is ACTUALLY in the files.
+**IMPORTANT:** The user has uploaded MULTIPLE files. You have access to ALL of them below.
 
 **Uploaded Files:**
 {filenames}
 
-**ACTUAL FILE CONTENT (READ THIS CAREFULLY - THIS IS WHAT YOU MUST BASE YOUR ANSWER ON):**
-{file_context[:4000]}
+**ACTUAL FILE CONTENTS (READ ALL OF THESE CAREFULLY - YOU HAVE ACCESS TO EVERY FILE):**
+{file_context[:6000]}
 
 **USER QUESTION:** {query}
 
 **INSTRUCTIONS:**
-1. READ the file content above carefully
-2. Answer the question based ONLY on what is in the file
-3. If the user asks "what is this document about", summarize the actual content
-4. If the file contains text, quote specific sentences
-5. If the file is empty or has an error, tell the user
-6. Be specific - mention what the file actually says
+1. READ ALL the file contents above - there are multiple files
+2. Answer based on what is ACTUALLY in EACH file
+3. If the user asks "what is in paper.pdf" - find that specific file and answer
+4. If the user asks "what is in research summary" - find that specific file
+5. If the user asks to compare files - compare the actual content
+6. Be specific - mention which file your information comes from
+7. Quote specific content from each file when relevant
 
 **ANSWER:**
 """
     messages = [
-        {"role": "system", "content": "You are a file analysis assistant. Answer ONLY based on the actual file content provided. Do not make up information. If the file is about taxes, say that. If it's about deep fake technology, say that. Be accurate."},
+        {"role": "system", "content": "You are a file analysis assistant. You have access to MULTIPLE uploaded files. Answer based on the actual content of each file. Be specific about which file contains what information."},
         {"role": "user", "content": analysis_prompt}
     ]
     return clean_answer(llm(messages))
-
+    
 def evaluate_work(question, file_context):
     prompt = f"""
 Content to Evaluate:
@@ -692,22 +689,6 @@ Provide:
     ]
     return clean_answer(llm(messages))
 
-# ============================================
-# MAIN AGENT FUNCTION
-# ============================================
-
-# ============================================
-# UPDATED AGENT TO HANDLE "YES" CONTINUATIONS
-# ============================================
-
-# ============================================
-# UPDATED run_agent WITH CONVERSATION MEMORY
-# ============================================
-
-# ============================================
-# COMPLETELY FIXED run_agent WITH PROPER CONTEXT
-# ============================================
-
 def run_agent(query):
     q = query.lower().strip()
     
@@ -725,7 +706,7 @@ def run_agent(query):
     if q in ["who are you", "who is this", "what are you"]:
         return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, and answer questions. How can I help you today?"
     
-    # DIRECT RESPONSE for questions about Mukiibi Moses (YOUR CREATOR)
+    # DIRECT RESPONSE for questions about Mukiibi Moses
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "tell me about your maker", "tell me about your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
 
@@ -734,48 +715,37 @@ def run_agent(query):
 - Develops emotion-aware AI models, conversational bots, and data-driven applications
 - His portfolio: https://moze12432.github.io/
 - Passionate about using AI to solve real-world problems in education and decision support
-- Active researcher on platforms like ResearchGate and Academia.edu
 
-He built me with real-time web search, file analysis, document comparison, and conversation memory capabilities. I'm proud to be his creation! 😊
-
-Is there anything specific about him you'd like to know?"""
+He built me with real-time web search, file analysis, document comparison, and conversation memory capabilities. I'm proud to be his creation! 😊"""
     
     if q in ["is your maker a genius", "is your creator a genius"]:
         return "Yes! Mukiibi Moses is a brilliant Computer Engineering student at Kyungdong University. He built me with real-time search, file analysis, and comparison capabilities - that takes serious intelligence and skill!"
     
     if q in ["tell me about your maker", "tell me about your creator"]:
-        return "My maker is Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. He specializes in AI development, building intelligent autonomous agents, and researching language model applications for education and decision support. Check out his portfolio: https://moze12432.github.io/"
+        return "My maker is Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. He specializes in AI development, building intelligent autonomous agents. Check out his portfolio: https://moze12432.github.io/"
     
     if q in ["who is your maker", "who created you"]:
         return "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
     
-    # CONTINUE with the rest of your function...
     tool = route(query)
     context = ""
     
-    # Handle follow-up questions about the same topic
+    # Handle follow-up questions
     follow_up_phrases = ["tell me more", "more about", "continue", "go on", "elaborate", "explain further", "his background", "about him", "about her", "about them"]
     is_follow_up = any(phrase in q for phrase in follow_up_phrases)
-    
-    # Handle "yes", "no", "tell me more", "continue" - maintain context
     continuation_phrases = ["yes", "yeah", "sure", "ok", "continue", "tell me more", "go on", "and?", "then?"]
     
     if is_follow_up or q in continuation_phrases:
-        # Use stored search results if available
         if st.session_state.last_search_results:
             context = st.session_state.last_search_results
-            # Add instruction for more details
             if "background" in q:
-                context += "\n\n The user wants to know about the person's BACKGROUND (early life, education, family). Provide those specific details from the search results."
+                context += "\n\n Provide BACKGROUND details from the search results."
             elif "music" in q or "career" in q:
-                context += "\n\n The user wants to know about the person's CAREER. Provide those specific details from the search results."
-            elif "political" in q:
-                context += "\n\n The user wants to know about the person's POLITICAL activities. Provide those specific details from the search results."
+                context += "\n\n Provide CAREER details from the search results."
             else:
-                context += "\n\n The user wants MORE information about the same person/topic from the previous conversation. Provide additional details from the search results above."
+                context += "\n\n Provide MORE information from the search results above."
         elif st.session_state.last_response:
-            context = f"Previous conversation was about: {st.session_state.last_response[:800]}"
-            context += f"\n\n User asked: '{query}'. Continue naturally from the previous conversation."
+            context = f"Previous response: {st.session_state.last_response[:500]}\n\nContinue naturally."
         else:
             context = get_current_datetime()
     
@@ -785,16 +755,14 @@ Is there anything specific about him you'd like to know?"""
         with st.spinner("📊 Comparing files..."):
             response = compare_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
-            st.session_state.last_topic = "file_comparison"
             return response
     
-    # Handle single file task
+    # Handle FILE TASK (SINGLE OR MULTIPLE) - ONLY ONE OF THESE!
     elif tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
-        with st.spinner("📖 Reading your document..."):
+        with st.spinner(f"📖 Reading {len(st.session_state.uploaded_files)} file(s)..."):
             response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
-            st.session_state.last_topic = "file_analysis"
             return response
     
     # Handle evaluation
@@ -802,7 +770,6 @@ Is there anything specific about him you'd like to know?"""
         with st.spinner("📝 Evaluating your work..."):
             response = evaluate_work(query, st.session_state.file_context)
             st.session_state.last_response = response
-            st.session_state.last_topic = "evaluation"
             return response
     
     # Handle URL scraping
@@ -829,25 +796,19 @@ Is there anything specific about him you'd like to know?"""
     elif tool == "datetime":
         context += get_current_datetime()
     
-    # Handle search for everything else
+    # Handle search
     else:
         search_result = internet_search(query)
         if search_result:
             context += "\n" + search_result
-            # Store for follow-up questions
             st.session_state.last_search_query = query
             st.session_state.last_search_results = search_result
-            st.session_state.last_topic = "search"
         else:
             context += get_current_datetime()
     
-    # Generate response with conversation history
     answer = reason(query, context)
-    
-    # Store last response for continuation context
     st.session_state.last_response = answer
     
-    # Don't store generic continuation responses in memory
     if not is_follow_up and q not in continuation_phrases:
         store_memory(answer)
     
@@ -886,7 +847,8 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # File upload section
+
+    # File upload section - IMPROVED FOR MULTIPLE FILES
     st.markdown("### 📤 Upload Files")
     st.markdown("Supported: PDF, DOCX, TXT, CSV, JSON")
     
@@ -899,6 +861,7 @@ with st.sidebar:
     )
     
     if uploaded_files:
+        files_processed = False
         for file in uploaded_files:
             if file.name not in st.session_state.uploaded_files:
                 with st.spinner(f"Processing {file.name}..."):
@@ -906,37 +869,52 @@ with st.sidebar:
                     if content and not content.startswith("Error"):
                         st.session_state.uploaded_files[file.name] = content
                         st.success(f"✅ {file.name}")
+                        files_processed = True
                     else:
                         st.error(f"❌ {file.name}: {content}")
         
-        # Update file context
+        # Update file context - CRITICAL: Include ALL files
         if st.session_state.uploaded_files:
-            st.session_state.file_context = "\n\n" + ("="*50) + "\n".join([
-                f"\n📄 FILE: {name}\n{'-'*40}\n{content}\n" 
-                for name, content in st.session_state.uploaded_files.items()
-            ])
+            file_context_parts = []
+            for name, content in st.session_state.uploaded_files.items():
+                file_context_parts.append(f"\n{'='*60}\n📄 FILE: {name}\n{'='*60}\n{content}\n")
+            st.session_state.file_context = "\n".join(file_context_parts)
+            
+            # Show which files are loaded
+            st.info(f"📁 {len(st.session_state.uploaded_files)} file(s) loaded: {', '.join(st.session_state.uploaded_files.keys())}")
     
-    # Display loaded files
+    # Display loaded files with previews
     if st.session_state.uploaded_files:
         st.markdown("---")
         st.markdown(f"**📄 Loaded Files ({len(st.session_state.uploaded_files)})**")
-        for name in st.session_state.uploaded_files.keys():
-            st.markdown(f"- {name}")
+        for name, content in st.session_state.uploaded_files.items():
+            with st.expander(f"📄 {name} (click to preview)"):
+                preview = content[:500] + "..." if len(content) > 500 else content
+                st.text(preview)
         
         # Comparison tips for multiple files
         if len(st.session_state.uploaded_files) >= 2:
             st.markdown("---")
             st.markdown("### 🔍 Comparison Tips")
             st.markdown("**Try asking:**")
-            st.markdown("- \"Compare these files\"")
-            st.markdown("- \"What are the differences?\"")
-            st.markdown("- \"Which file has more detail?\"")
+            st.markdown("- \"Compare all the files\"")
+            st.markdown("- \"What are the differences between these documents?\"")
+            st.markdown("- \"What is in each file?\"")
         
         st.markdown("---")
         st.markdown("**💡 Try asking:**")
         st.markdown("- \"What is this file about?\"")
         st.markdown("- \"Summarize the key points\"")
         st.markdown("- \"Evaluate my work\"")
+    
+    # Debug expander (remove after testing)
+    with st.expander("🔧 Debug: File Context Preview", expanded=False):
+        if st.session_state.file_context:
+            st.text(f"Total context length: {len(st.session_state.file_context)} characters")
+            st.text("First 1000 characters:")
+            st.code(st.session_state.file_context[:1000])
+        else:
+            st.write("No file context loaded")
     
     st.markdown("---")
     st.markdown("### ℹ️ About")
