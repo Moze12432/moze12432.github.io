@@ -486,7 +486,7 @@ def extract_urls_from_query(query):
     return re.findall(url_pattern, query)
 
 # ============================================
-# ROUTER FUNCTION
+# EXPANDED ROUTER FUNCTION - BETTER FILE DETECTION
 # ============================================
 
 def route(query):
@@ -496,17 +496,24 @@ def route(query):
     if extract_urls_from_query(query):
         return "scrape_url"
     
-    # Check for COMPARISON keywords
-    comparison_keywords = ["compare", "comparison", "difference between", "similarities", "versus", "vs"]
-    if any(x in q for x in comparison_keywords):
-        return "compare_files"
-    
-    # File-related tasks
-    file_keywords = ["summarize", "analyze this file", "what does the file say", "from the file", "in the document", "based on the file"]
+    # Check for FILE-RELATED TASKS (MUST BE FIRST - expanded keywords)
+    file_keywords = [
+        "document", "file", "upload", "pdf", "docx", "txt", "csv", "json",
+        "what is this", "what does this", "tell me about this", "about this file",
+        "the file", "the document", "my file", "my document", "uploaded file",
+        "what's in", "what is in", "summarize", "analyze this", "this document",
+        "this file", "read the file", "read this", "file content", "document content",
+        "what is the file", "what does the file", "file says", "document says"
+    ]
     if any(x in q for x in file_keywords):
         return "file_task"
     
-    # Questions about PEOPLE (Bobi Wine, Trump, Biden, etc.)
+    # Check for COMPARISON keywords
+    comparison_keywords = ["compare", "comparison", "difference between", "similarities", "versus", "vs", "diff"]
+    if any(x in q for x in comparison_keywords):
+        return "compare_files"
+    
+    # Questions about PEOPLE
     people_patterns = ["who is", "tell me about", "what do you know about", "information about"]
     if any(x in q for x in people_patterns):
         return "search"
@@ -516,7 +523,7 @@ def route(query):
         return "search"
     
     # Calculator
-    if any(x in q for x in ["+", "-", "*", "/", "×", "calculate", "="]):
+    if any(x in q for x in ["+", "-", "*", "/", "×", "calculate", "=", "math"]):
         return "calculator"
     
     # Time/Date
@@ -631,23 +638,38 @@ Now compare the files:
     return clean_answer(response)
 
 # ============================================
-# FILE ANALYSIS FUNCTION
+# IMPROVED FILE ANALYSIS FUNCTION
 # ============================================
 
 def analyze_uploaded_files(query, file_context, filenames):
-    prompt = f"""
-Files: {filenames}
+    """Analyze uploaded files and answer questions about them"""
+    
+    analysis_prompt = f"""
+You are analyzing uploaded files. Answer the user's question based ONLY on the actual file contents below.
 
-Content:
-{file_context[:3500]}
+**IMPORTANT:** The user uploaded these files. You MUST answer based on what is ACTUALLY in the files.
 
-Question: {query}
+**Uploaded Files:**
+{filenames}
 
-Answer based ONLY on the file content above. Be specific and quote from the files.
+**ACTUAL FILE CONTENT (READ THIS CAREFULLY - THIS IS WHAT YOU MUST BASE YOUR ANSWER ON):**
+{file_context[:4000]}
+
+**USER QUESTION:** {query}
+
+**INSTRUCTIONS:**
+1. READ the file content above carefully
+2. Answer the question based ONLY on what is in the file
+3. If the user asks "what is this document about", summarize the actual content
+4. If the file contains text, quote specific sentences
+5. If the file is empty or has an error, tell the user
+6. Be specific - mention what the file actually says
+
+**ANSWER:**
 """
     messages = [
-        {"role": "system", "content": "You are a file analysis assistant. Answer only from the provided file content."},
-        {"role": "user", "content": prompt}
+        {"role": "system", "content": "You are a file analysis assistant. Answer ONLY based on the actual file content provided. Do not make up information. If the file is about taxes, say that. If it's about deep fake technology, say that. Be accurate."},
+        {"role": "user", "content": analysis_prompt}
     ]
     return clean_answer(llm(messages))
 
