@@ -13,6 +13,30 @@ import json
 from datetime import datetime
 import pytz
 import time
+from supabase import create_client, Client
+import hashlib
+import uuid
+
+# ============================================
+# AUTHENTICATION HELPER FUNCTIONS
+# ============================================
+
+def hash_password(password):
+    """Hash a password for storage"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def save_to_user_storage(query, response):
+    """Save chat messages to user storage (authenticated users only)"""
+    try:
+        current_user_id = get_current_user_id()
+        save_user_chat_message(current_user_id, "user", query)
+        save_user_chat_message(current_user_id, "assistant", response[:500])
+        
+        if is_authenticated():
+            save_user_memory(current_user_id, f"User asked: {query[:200]}")
+            save_user_memory(current_user_id, f"Assistant replied: {response[:200]}")
+    except Exception as e:
+        pass
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -129,7 +153,185 @@ MODEL_NAME = "llama-3.1-8b-instant"
 TEMPERATURE = 0
 MAX_TOKENS = 800
 
-st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
+
+# ============================================
+# AUTHENTICATION SYSTEM (WITH GUEST MODE)
+# ============================================
+
+@st.cache_resource
+def init_supabase() -> Client:
+    """Initialize Supabase client"""
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_ANON_KEY"]
+    return create_client(url, key)
+
+supabase = init_supabase()
+
+def generate_guest_id():
+    """Generate a unique guest ID stored in session"""
+    if "guest_id" not in st.session_state:
+        st.session_state.guest_id = f"guest_{uuid.uuid4().hex[:8]}"
+    return st.session_state.guest_id
+
+def sign_up(email, password):
+    """Register a new user"""
+    try:
+        existing = supabase.table("users").select("*").eq("email", email).execute()
+        if existing.data:
+            return False, "Email already exists"
+        
+        response = supabase.table("users").insert({
+            "email": email,
+            "password": hash_password(password)
+        }).execute()
+        
+        if response.data:
+            return True, "Account created successfully! Please sign in."
+        return False, "Signup failed"
+    except Exception as e:
+        return False, str(e)
+
+def sign_in(email, password):
+    """Authenticate a user"""
+    try:
+        hashed_pw = hash_password(password)
+        response = supabase.table("users").select("*").eq("email", email).eq("password", hashed_pw).execute()
+        
+        if response.data:
+            user = response.data[0]
+            st.session_state.user_id = user["id"]
+            st.session_state.user_email = user["email"]
+            st.session_state.auth_mode = "authenticated"
+            
+            migrate_guest_data_to_user(st.session_state.get("guest_id"), user["id"])
+            
+            return True, "Login successful!"
+        return False, "Invalid email or password"
+    except Exception as e:
+        return False, str(e)
+
+def sign_out():
+    """Log out the current user and return to guest mode"""
+    for key in ["user_id", "user_email", "auth_mode"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.rerun()
+
+def is_authenticated():
+    """Check if user is logged in"""
+    return st.session_state.get("auth_mode") == "authenticated"
+
+def get_current_user_id():
+    """Get current user ID (either authenticated user or guest)"""
+    if is_authenticated():
+        return st.session_state.user_id
+    else:
+        return generate_guest_id()
+
+def migrate_guest_data_to_user(guest_id, user_id):
+    """Migrate guest chat history to user account"""
+    if not guest_id:
+        return
+    
+    try:
+        guest_memories = supabase.table("user_memories").select("*").eq("user_id", guest_id).execute()
+        for memory in guest_memories.data:
+            supabase.table("user_memories").insert({
+                "user_id": user_id,
+                "memory_type": memory["memory_type"],
+                "content": memory["content"]
+            }).execute()
+        
+        guest_chats = supabase.table("user_chat_history").select("*").eq("user_id", guest_id).execute()
+        for chat in guest_chats.data:
+            supabase.table("user_chat_history").insert({
+                "user_id": user_id,
+                "role": chat["role"],
+                "message": chat["message"]
+            }).execute()
+        
+        supabase.table("user_memories").delete().eq("user_id", guest_id).execute()
+        supabase.table("user_chat_history").delete().eq("user_id", guest_id).execute()
+        
+    except Exception as e:
+        print(f"Migration error: {e}")
+
+def save_user_chat_message(user_id, role, message):
+    """Save chat message to database"""
+    try:
+        supabase.table("user_chat_history").insert({
+            "user_id": str(user_id),
+            "role": role,
+            "message": message
+        }).execute()
+    except:
+        pass
+
+def load_user_chat_history(user_id):
+    """Load user's chat history from database"""
+    try:
+        response = supabase.table("user_chat_history").select("*").eq("user_id", str(user_id)).order("timestamp").execute()
+        return [(item["role"], item["message"]) for item in response.data]
+    except:
+        return []
+
+def save_user_memory(user_id, content, memory_type="conversation"):
+    """Save user memory to database"""
+    try:
+        supabase.table("user_memories").insert({
+            "user_id": str(user_id),
+            "memory_type": memory_type,
+            "content": content
+        }).execute()
+    except:
+        pass
+
+def show_login_sidebar():
+    """Show login/signup options in sidebar"""
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🔐 Personalize Your Experience")
+        st.markdown("Sign in to save your chat history and memories!")
+        
+        tab1, tab2 = st.tabs(["Sign In", "Sign Up"])
+        
+        with tab1:
+            with st.form("signin_form"):
+                email = st.text_input("Email", placeholder="your@email.com")
+                password = st.text_input("Password", type="password", placeholder="••••••••")
+                submitted = st.form_submit_button("Sign In", use_container_width=True)
+                
+                if submitted:
+                    if email and password:
+                        success, message = sign_in(email, password)
+                        if success:
+                            st.success(message)
+                            st.rerun()
+                        else:
+                            st.error(message)
+                    else:
+                        st.warning("Please enter email and password")
+        
+        with tab2:
+            with st.form("signup_form"):
+                email = st.text_input("Email", placeholder="your@email.com")
+                password = st.text_input("Password", type="password", placeholder="••••••••")
+                confirm = st.text_input("Confirm Password", type="password", placeholder="••••••••")
+                submitted = st.form_submit_button("Sign Up", use_container_width=True)
+                
+                if submitted:
+                    if email and password:
+                        if password != confirm:
+                            st.error("Passwords do not match")
+                        else:
+                            success, message = sign_up(email, password)
+                            if success:
+                                st.success(message)
+                            else:
+                                st.error(message)
+                    else:
+                        st.warning("Please fill all fields")
 
 # ============================================
 # CSS - FIXED CHAT INPUT AT BOTTOM
@@ -215,115 +417,7 @@ You are MozeAI, a friendly, warm, and conversational AI assistant created by Muk
 - Be warm, friendly, and conversational
 - Respond naturally like a human friend would
 - Show personality and enthusiasm
-- Use appropriate emotions and emojis
 - Make the user feel comfortable and understood
-
-## UNIVERSAL CODING RULES (FOLLOW FOR EVERY LANGUAGE)
-
-### 1. COMPLETENESS
-- Include ALL necessary imports, includes, or dependencies
-- Provide complete, runnable code (no placeholders like "...")
-- Add a main entry point or test case
-- Include error handling for edge cases
-
-### 2. LOGIC VERIFICATION (Mental Checklist)
-Before outputting ANY code, verify:
-- [ ] Will this compile/run without syntax errors?
-- [ ] Are all variables defined before use?
-- [ ] Are loop conditions correct? (no infinite loops)
-- [ ] Are array/list indices within bounds?
-- [ ] For recursion: Is there a base case?
-- [ ] For async: Are promises/callbacks handled?
-- [ ] For user input: Is it validated and sanitized?
-- [ ] For file operations: Are files properly closed?
-
-### 3. LANGUAGE-SPECIFIC BEST PRACTICES
-
-**Python:**
-- Use snake_case for variables/functions
-- Use PascalCase for classes
-- Add type hints where helpful
-- Use context managers (with statements) for resources
-- Follow PEP 8
-
-**JavaScript/TypeScript:**
-- Use camelCase for variables/functions
-- Use PascalCase for classes/components
-- Prefer const over let, avoid var
-- Use async/await over raw promises
-- Handle promise rejections
-
-**Java:**
-- Use camelCase for methods/variables
-- Use PascalCase for classes
-- Follow proper encapsulation (private fields, public getters/setters)
-- Use try-catch-finally for exceptions
-
-**HTML/CSS:**
-- Use semantic HTML5 elements
-- Keep CSS organized and modular
-- Ensure responsive design
-- Include meta viewport tag
-
-### 4. SPATIAL & VISUAL REASONING (For UI/Graphics)
-**Canvas/Graphics Rule:** Y-axis increases downward (0 = top)
-- Smaller Y = HIGHER on screen
-- For a candle: Flame Y < Wick Y < Body Y
-- For a button: Should be inside window bounds
-- For animation: Include proper update loop and stop conditions
-
-**Coordinate Verification Checklist:**
-- [ ] Are objects positioned relative to each other correctly?
-- [ ] Is object A above object B? (Check Y values)
-- [ ] Are all objects within canvas/window bounds?
-- [ ] For animations: Does the update function have a stop condition?
-
-### 5. ALGORITHM THINKING
-Before coding any algorithm:
-1. Understand the problem (restate in your own words)
-2. Consider time and space complexity
-3. Think about edge cases (empty input, single item, duplicates)
-4. Choose appropriate data structures
-5. Write clean, readable code
-
-## CRITICAL SPATIAL RULE FOR TKINTER CANVAS
-
-**REMEMBER THIS ALWAYS:**
-- Y=0 is the TOP of the screen
-- Y=400 is the BOTTOM of the screen
-- Smaller Y = HIGHER on screen
-- Larger Y = LOWER on screen
-
-**FOR A CANDLE:**
-- Wax body: y=200 to 350 (middle to bottom)
-- Wick: y=180 to 200 (above wax)
-- Flame: y=120 to 180 (above wick)
-
-**VERIFICATION CHECK BEFORE OUTPUTTING:**
-Is flame_y (120-180) < wick_y (180-200) < wax_y (200-350)?
-If YES → Correct
-If NO → You have it backwards! Fix it!
-
-**WRONG EXAMPLE (NEVER DO THIS):**
-- Wax at y=50-150 (top of screen)
-- Flame at y=250 (bottom of screen)
-This puts the flame BELOW the candle! ALWAYS put flame ABOVE the wax.
-
-**SELF-CORRECTION:**
-After generating tkinter canvas code, mentally check:
-1. Is the flame ABOVE the candle body? (flame Y should be smaller than body Y)
-2. Is the wick connecting them? (wick Y between flame and body)
-3. If not, SWAP the coordinates immediately before outputting.
-
-### 6. RESPONSE FORMAT
-```language
-// Your complete code here
-
-**EXAMPLE BEHAVIOR:**
-- User: "hello" → "Hey there!  Great to see you! How can I help you today?"
-- User: "hi" → "Hi! 👋 Hope you're doing well! What's on your mind?"
-- User: "how are you?" → "I'm doing great, thanks for asking! Ready to help you with whatever you need!"
-- User: "good morning" → "Good morning! ☀️ Hope you have a fantastic day! What can I do for you?"
 
 **YOUR CAPABILITIES:**
 - Real-time web search
@@ -331,15 +425,15 @@ After generating tkinter canvas code, mentally check:
 - Image generation and editing
 - Calculator
 - News and weather
+- Coding assistance
 
 **RULES:**
 1. Be conversational and friendly, not robotic
 2. Acknowledge greetings warmly
-3. Show enthusiasm when helping
-4. ONLY mention your creator (Mukiibi Moses) when specifically asked
-5. Answer questions accurately but conversationally
+3. ONLY mention your creator (Mukiibi Moses) when specifically asked
+4. Answer questions accurately but conversationally
 
-Remember: You're a helpful friend, not a cold robot! 
+Remember: You're a helpful friend!
 """
 
 # ============================================
@@ -420,49 +514,6 @@ def internet_search(query):
     except:
         return ""
 
-# ============================================
-# CODING SEARCH FUNCTIONS
-# ============================================
-
-def search_coding_solution(query):
-    """Search the internet for the best coding solution"""
-    
-    # Construct search query for coding resources
-    search_queries = [
-        f"{query} stack overflow",
-        f"{query} example code",
-        f"{query} best practice",
-        f"{query} github"
-    ]
-    
-    all_results = ""
-    
-    for search_q in search_queries[:2]:  # Limit to 2 searches for speed
-        result = internet_search(search_q)
-        if result:
-            all_results += result + "\n\n"
-    
-    return all_results
-
-def search_coding_solution_cached(query):
-    """Cached version to avoid repeated searches"""
-    
-    # Create a cache key
-    cache_key = query.lower().strip()
-    
-    if cache_key in st.session_state.code_search_cache:
-        return st.session_state.code_search_cache[cache_key]
-    
-    # Perform search
-    result = search_coding_solution(query)
-    
-    # Store in cache
-    st.session_state.code_search_cache[cache_key] = result
-    
-    return result
-
-
-
 def get_current_news():
     try:
         url = "https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
@@ -519,14 +570,38 @@ def extract_urls_from_query(query):
     return re.findall(url_pattern, query)
 
 # ============================================
-# CODING ASSISTANT WITH INTERNET SEARCH
+# CODING SEARCH FUNCTIONS
 # ============================================
 
-def coding_assistant_with_search(query, context=""):
-    """Coding assistant that searches the internet first"""
+def search_coding_solution(query):
+    search_queries = [
+        f"{query} stack overflow",
+        f"{query} example code",
+        f"{query} best practice",
+        f"{query} github"
+    ]
     
+    all_results = ""
+    
+    for search_q in search_queries[:2]:
+        result = internet_search(search_q)
+        if result:
+            all_results += result + "\n\n"
+    
+    return all_results
+
+def search_coding_solution_cached(query):
+    cache_key = query.lower().strip()
+    
+    if cache_key in st.session_state.code_search_cache:
+        return st.session_state.code_search_cache[cache_key]
+    
+    result = search_coding_solution(query)
+    st.session_state.code_search_cache[cache_key] = result
+    return result
+
+def coding_assistant_with_search(query, context=""):
     with st.spinner("🔍 Searching the internet for the best solution..."):
-        # Search for relevant code examples
         search_results = search_coding_solution_cached(query)
     
     coding_prompt = f"""
@@ -537,28 +612,17 @@ USER REQUEST: {query}
 ## INTERNET SEARCH RESULTS (Use these as reference):
 {search_results[:3000]}
 
-## YOUR TASK:
-1. Analyze the search results above
-2. Extract the best practices and patterns
-3. Generate complete, working code based on the best solution found
-4. Cite your sources if you use specific code from search results
-5. Explain why this solution is optimal
-
 ## REQUIREMENTS:
 - Code must be complete and runnable
 - Include all imports
 - Add comments
 - Handle edge cases
-- Follow language best practices
-
-## OUTPUT FORMAT:
-First provide the code in a code block, then provide explanation.
 
 Generate the best possible code now:
 """
     
     messages = [
-        {"role": "system", "content": "You are an expert programming assistant. Use the search results to find the best solution, then generate production-ready code."},
+        {"role": "system", "content": "You are an expert programming assistant. Use search results to find the best solution."},
         {"role": "user", "content": coding_prompt}
     ]
     
@@ -582,45 +646,24 @@ def route(query):
     if any(x in q for x in comparison_keywords):
         return "compare_files"
     
-    # IMAGE GENERATION
     if any(x in q for x in ["generate image", "create image", "draw", "make an image", "picture of", "image of"]):
         return "generate_image"
     
-    # IMAGE EDITING
     if any(x in q for x in ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]):
         return "edit_image"
     
-    # CODING DETECTION
-    coding_keywords = [
-        "code", "python", "javascript", "js", "html", "css", "react", "vue", "angular",
-        "function", "class", "import", "def ", "return", "loop", "array", "list",
-        "dictionary", "tkinter", "pyqt", "flask", "django", "streamlit", "pandas", "numpy",
-        "algorithm", "sort", "search", "recursion", "debug", "fix", "error", "bug",
-        "write a program", "create a script", "implement", "build a", "make a",
-        "how to", "example", "tutorial", "best way to"
-    ]
+    coding_keywords = ["code", "python", "javascript", "html", "css", "react", "tkinter", "function", "class", "import", "algorithm", "debug", "fix", "write a program", "create a script"]
     if any(x in q for x in coding_keywords):
         return "coding_with_search"
     
-    # SEARCH
-    if any(x in q for x in ["who is", "tell me about", "what is"]):
+    if any(x in q for x in ["who is", "tell me about", "what is", "weather", "temperature", "rain", "snow", "news", "headlines"]):
         return "search"
     
-    # WEATHER
-    if any(x in q for x in ["weather", "temperature", "rain", "snow"]):
-        return "search"
-    
-    # CALCULATOR
     if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
         return "calculator"
     
-    # DATETIME
     if any(x in q for x in ["time", "date", "today"]):
         return "datetime"
-    
-    # NEWS
-    if any(x in q for x in ["news", "headlines"]):
-        return "search"
     
     return "reason"
 
@@ -684,8 +727,6 @@ def evaluate_work(question, file_context):
     messages = [{"role": "system", "content": "You evaluate work."}, {"role": "user", "content": prompt}]
     return clean_answer(llm(messages))
 
-
-
 # ============================================
 # IMAGE GENERATION FUNCTIONS
 # ============================================
@@ -710,13 +751,12 @@ def generate_and_display_image(prompt, is_edit=False):
         return "❌ Sorry, I couldn't generate an image right now. Please try again."
 
 # ============================================
-# RUN AGENT FUNCTION - WITH BOTH GENERATION AND EDITING
+# RUN AGENT FUNCTION
 # ============================================
 
 def run_agent(query):
     q = query.lower().strip()
     
-    # Reset commands
     reset_phrases = ["leave the document", "clear context", "forget the file", "start fresh", "clear files", "new chat"]
     if any(phrase in q for phrase in reset_phrases):
         st.session_state.file_context = ""
@@ -727,7 +767,6 @@ def run_agent(query):
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
     
-    # Greetings - respond warmly
     if q in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "hi there", "hello there"]:
         return "Hey there! Great to see you! How can I help you today?"
     
@@ -737,9 +776,8 @@ def run_agent(query):
     if q in ["what's up", "sup", "whats up"]:
         return "Not much, just here waiting to help you! What's going on with you?"
     
-    # DIRECT RESPONSES
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        return "I'm MozeAI, your friendly AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, coding, and lots more! What would you like to do today?"
+        return "I'm MozeAI, your friendly AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, coding, and lots more!"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
@@ -748,12 +786,11 @@ def run_agent(query):
 - Specializes in artificial intelligence and machine learning
 - His portfolio: https://moze12432.github.io/
 
-He built me with web search, file analysis, image generation and editing, and coding assistance capabilities."""
+He built me with web search, file analysis, image generation, and coding assistance capabilities."""
     
     tool = route(query)
     context = ""
     
-    # Follow-up questions
     follow_up = ["tell me more", "more about", "continue", "elaborate"]
     is_follow_up = any(phrase in q for phrase in follow_up)
     
@@ -766,23 +803,22 @@ He built me with web search, file analysis, image generation and editing, and co
         else:
             context = get_current_datetime()
     
-    # FILE COMPARISON
     elif tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
         filenames = "\n".join(st.session_state.uploaded_files.keys())
         with st.spinner("Comparing files..."):
             response = compare_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
+            save_to_user_storage(query, response)
             return response
     
-    # FILE TASK
     elif tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join(st.session_state.uploaded_files.keys())
         with st.spinner("Reading files..."):
             response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
+            save_to_user_storage(query, response)
             return response
     
-    # URL SCRAPING
     elif tool == "scrape_url":
         urls = extract_urls_from_query(query)
         scraped = ""
@@ -795,17 +831,16 @@ He built me with web search, file analysis, image generation and editing, and co
         else:
             return "I couldn't read that link."
     
-    # CALCULATOR
     elif tool == "calculator":
         result = calculator(query)
         if result:
-            return f"Result: {result}"
+            response = f"Result: {result}"
+            save_to_user_storage(query, response)
+            return response
     
-    # DATETIME
     elif tool == "datetime":
         context += get_current_datetime()
     
-    # IMAGE GENERATION
     elif tool == "generate_image":
         with st.spinner("🎨 Generating image..."):
             image_prompt = query
@@ -826,9 +861,10 @@ He built me with web search, file analysis, image generation and editing, and co
                 image_prompt = query
             
             st.session_state.last_image_prompt = image_prompt
-            return generate_and_display_image(image_prompt, is_edit=False)
+            response = generate_and_display_image(image_prompt, is_edit=False)
+            save_to_user_storage(query, response)
+            return response
     
-    # IMAGE EDITING
     elif tool == "edit_image":
         with st.spinner("🎨 Editing image..."):
             last_prompt = st.session_state.get("last_image_prompt", "")
@@ -846,15 +882,16 @@ He built me with web search, file analysis, image generation and editing, and co
             edit_text = ' '.join(edit_text.split())
             new_prompt = f"{last_prompt}, {edit_text}"
             st.session_state.last_image_prompt = new_prompt
-            return generate_and_display_image(new_prompt, is_edit=True)
+            response = generate_and_display_image(new_prompt, is_edit=True)
+            save_to_user_storage(query, response)
+            return response
     
-    # CODING WITH INTERNET SEARCH
     elif tool == "coding_with_search":
         response = coding_assistant_with_search(query)
         st.session_state.last_response = response
+        save_to_user_storage(query, response)
         return response
     
-    # SEARCH
     else:
         search_result = internet_search(query)
         if search_result:
@@ -870,18 +907,41 @@ He built me with web search, file analysis, image generation and editing, and co
     if not is_follow_up:
         store_memory(answer)
     
+    save_to_user_storage(query, answer)
+    
     return answer
 
 # ============================================
-# UI - MAIN DISPLAY
+# MAIN APP - GUEST MODE BY DEFAULT
 # ============================================
 
-st.markdown('<h1 style="text-align: center;">🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Image Generation</p>', unsafe_allow_html=True)
+# Initialize guest ID if not authenticated
+if not is_authenticated():
+    generate_guest_id()
+
+# Show login option in sidebar
+show_login_sidebar()
+
+# Main UI
+st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Image Generation & Coding Assistant</p>', unsafe_allow_html=True)
+
+# Show user status
+if is_authenticated():
+    st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
+else:
+    st.markdown('<p style="text-align: center; color: #666;">👤 Guest Mode - Sign in to save your chats</p>', unsafe_allow_html=True)
+
 st.markdown("---")
 
+# Load user-specific chat history (for authenticated users only)
+current_user_id = get_current_user_id()
+
+if is_authenticated() and not st.session_state.chat_history:
+    st.session_state.chat_history = load_user_chat_history(current_user_id)
+
 # ============================================
-# SIDEBAR
+# SIDEBAR CONTENT
 # ============================================
 
 with st.sidebar:
@@ -948,7 +1008,7 @@ for role, msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.write(msg)
 
-query = st.chat_input("Ask me anything - generate images, search the web, analyze files, and more!")
+query = st.chat_input("Ask me anything - generate images, search the web, analyze files, code, and more!")
 
 if query:
     st.session_state.chat_history.append(("user", query))
