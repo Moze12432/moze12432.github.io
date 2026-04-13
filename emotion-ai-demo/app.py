@@ -16,6 +16,21 @@ import time
 from supabase import create_client, Client
 import uuid
 
+import streamlit as st
+
+# Initialize authentication FIRST
+st.logo = None  # Optional
+
+# Check login status
+if not st.experimental_user.is_logged_in:
+    st.login()
+    st.stop()
+
+# User is logged in
+st.write(f"Welcome, {st.experimental_user.name}!")
+st.write(f"Your email: {st.experimental_user.email}")
+
+
 # ============================================
 # AUTHENTICATION HELPER FUNCTIONS
 # ============================================
