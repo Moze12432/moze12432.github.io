@@ -138,7 +138,7 @@ MAX_TOKENS = 800
 st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
 # ============================================
-# SUPABASE MAGIC LINK AUTHENTICATION
+# SUPABASE MAGIC LINK AUTHENTICATION + GUEST MODE
 # ============================================
 
 @st.cache_resource
@@ -152,6 +152,7 @@ supabase = init_supabase()
 def send_magic_link(email):
     """Send a magic login link to user's email"""
     try:
+        # First check if user exists, if not create them
         response = supabase.auth.sign_in_with_otp({
             "email": email
         })
@@ -175,16 +176,25 @@ def handle_magic_link_callback():
             st.error(f"Login failed: {str(e)}")
             st.query_params.clear()
 
-def show_login():
-    """Show email login form"""
+def show_auth_choice():
+    """Show login options (Guest or Email Magic Link)"""
     st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center;">Enter your email to get a magic login link</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center;">Choose how to continue</p>', unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("👤 Continue as Guest", use_container_width=True):
+            st.session_state.user_email = f"guest_{secrets.token_hex(6)}"
+            st.session_state.user_name = "Guest User"
+            st.session_state.auth_mode = "guest"
+            st.rerun()
+    
     with col2:
-        email = st.text_input("Email address", placeholder="you@example.com", label_visibility="collapsed")
+        st.markdown("### 📧 Email Login")
+        email = st.text_input("Email address", placeholder="you@example.com", label_visibility="collapsed", key="login_email")
         
-        if st.button("Send Magic Link", use_container_width=True):
+        if st.button("Send Magic Link", use_container_width=True, key="send_magic_btn"):
             if email and "@" in email:
                 success, message = send_magic_link(email)
                 if success:
@@ -195,14 +205,27 @@ def show_login():
             else:
                 st.error("Please enter a valid email address")
     
-    st.caption("No password needed. We'll send you a magic login link.")
+    st.caption("Guest mode: Your chats are saved only in this session. | Email login: Your chats are saved to your account.")
 
 def is_authenticated():
-    return st.session_state.get("auth_mode") == "authenticated"
+    """Check if user is logged in (either guest or authenticated)"""
+    return st.session_state.get("auth_mode") is not None
+
+def is_guest():
+    """Check if user is in guest mode"""
+    return st.session_state.get("auth_mode") == "guest"
+
+def get_user_email():
+    """Get user email (returns guest ID for guests)"""
+    return st.session_state.get("user_email", "Guest")
+
+def get_user_name():
+    """Get user name"""
+    return st.session_state.get("user_name", "User")
 
 def logout():
-    supabase.auth.sign_out()
-    for key in ["user_email", "user_id", "auth_mode"]:
+    """Log out user"""
+    for key in ["user_email", "user_name", "auth_mode", "user_id"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
@@ -310,18 +333,24 @@ def llm(messages):
         return "AI service temporarily unavailable."
 
 # ============================================
-# SYSTEM PROMPT (Personalized with user email)
+# SYSTEM PROMPT (Personalized with user info)
 # ============================================
 
 def get_system_prompt():
+    user_info = f"User: {st.session_state.user_email}"
+    if is_guest():
+        user_info += " (Guest Mode - temporary session)"
+    else:
+        user_info += " (Authenticated User)"
+    
     return f"""
 You are MozeAI, a personalized AI assistant.
 
-**CURRENT USER:** {st.session_state.user_email}
+**CURRENT USER:** {user_info}
 
 **PERSONALIZATION:**
 - Remember this user's preferences and chat history
-- Address them by their email (or ask for their name if you want)
+- Address them appropriately
 - Reference previous conversations when relevant
 
 **YOUR CAPABILITIES:**
@@ -334,7 +363,7 @@ You are MozeAI, a personalized AI assistant.
 
 **RULES:**
 - Be conversational and friendly
-- Use the user's email to personalize responses
+- Use the user's info to personalize responses
 - Remember context from this conversation
 - ONLY mention your creator (Mukiibi Moses) when specifically asked
 - Answer questions accurately but conversationally
@@ -632,12 +661,12 @@ def generate_and_display_image(prompt, is_edit=False):
         return "❌ Sorry, I couldn't generate an image right now. Please try again."
 
 # ============================================
-# USER STORAGE FUNCTIONS
+# USER STORAGE FUNCTIONS (for authenticated users only)
 # ============================================
 
 def save_to_user_storage(query, response):
-    """Save chat messages to user storage"""
-    if is_authenticated():
+    """Save chat messages to user storage (authenticated users only)"""
+    if not is_guest():
         try:
             supabase.table("user_chat_history").insert({
                 "user_email": st.session_state.user_email,
@@ -653,8 +682,8 @@ def save_to_user_storage(query, response):
             pass
 
 def load_user_chats():
-    """Load user's chat history from Supabase"""
-    if is_authenticated():
+    """Load user's chat history from Supabase (authenticated users only)"""
+    if not is_guest():
         try:
             response = supabase.table("user_chat_history").select("*").eq("user_email", st.session_state.user_email).order("timestamp").execute()
             return [(item["role"], item["message"]) for item in response.data]
@@ -689,7 +718,8 @@ def run_agent(query):
         return "Not much, just here waiting to help you! What's going on with you?"
     
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        return f"I'm MozeAI, your personalized AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I know you as {st.session_state.user_email}. How can I help you today?"
+        user_type = "guest" if is_guest() else "authenticated user"
+        return f"I'm MozeAI, your personalized AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I know you as {st.session_state.user_email} ({user_type}). How can I help you today?"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
@@ -830,14 +860,19 @@ He built me with web search, file analysis, image generation, and coding assista
 # Handle magic link callback FIRST
 handle_magic_link_callback()
 
-# Check authentication
+# Check if user is logged in or in guest mode
 if not is_authenticated():
-    show_login()
+    show_auth_choice()
     st.stop()
 
-# User is authenticated - show app
+# User is logged in - show app
 st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
+
+# Show user status
+if is_guest():
+    st.markdown(f'<p style="text-align: center; color: #f39c12;">👤 Guest Mode - {get_user_email()}</p>', unsafe_allow_html=True)
+else:
+    st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
 
 # Add logout button in sidebar
 with st.sidebar:
@@ -898,8 +933,8 @@ with st.sidebar:
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
 
-# Load user's chat history
-if not st.session_state.chat_history:
+# Load user's chat history (for authenticated users only)
+if not is_guest() and not st.session_state.chat_history:
     st.session_state.chat_history = load_user_chats()
 
 # ============================================
