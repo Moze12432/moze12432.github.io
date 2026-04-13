@@ -1,7 +1,3 @@
-# ============================================
-# IMPORTS
-# ============================================
-
 import streamlit as st
 from groq import Groq
 import requests
@@ -17,8 +13,6 @@ import json
 from datetime import datetime
 import pytz
 import time
-from supabase import create_client, Client
-import secrets
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -138,124 +132,6 @@ MAX_TOKENS = 800
 st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
 # ============================================
-# SUPABASE MAGIC LINK AUTHENTICATION + GUEST MODE
-# ============================================
-
-@st.cache_resource
-def init_supabase():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_ANON_KEY"]
-    return create_client(url, key)
-
-supabase = init_supabase()
-
-def send_magic_link(email):
-    """Send a magic login link to user's email"""
-    try:
-        # First check if user exists, if not create them
-        response = supabase.auth.sign_in_with_otp({
-            "email": email
-        })
-        return True, "Check your email for the login link!"
-    except Exception as e:
-        return False, str(e)
-
-def handle_magic_link_callback():
-    """Handle magic link callback from email"""
-    params = st.query_params
-    if "access_token" in params:
-        try:
-            supabase.auth.set_session(params["access_token"], params.get("refresh_token", ""))
-            user = supabase.auth.get_user()
-            st.session_state.user_email = user.user.email
-            st.session_state.user_id = user.user.id
-            st.session_state.auth_mode = "authenticated"
-            st.query_params.clear()
-            st.rerun()
-        except Exception as e:
-            st.error(f"Login failed: {str(e)}")
-            st.query_params.clear()
-
-def show_auth_choice():
-    """Show login options (Guest or Email Magic Link)"""
-    st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center;">Choose how to continue</p>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("👤 Continue as Guest", use_container_width=True):
-            st.session_state.user_email = f"guest_{secrets.token_hex(6)}"
-            st.session_state.user_name = "Guest User"
-            st.session_state.auth_mode = "guest"
-            st.rerun()
-    
-    with col2:
-        st.markdown("### 📧 Email Login")
-        email = st.text_input("Email address", placeholder="you@example.com", label_visibility="collapsed", key="login_email")
-        
-        if st.button("Send Magic Link", use_container_width=True, key="send_magic_btn"):
-            if email and "@" in email:
-                success, message = send_magic_link(email)
-                if success:
-                    st.success(message)
-                    st.info("Click the link in your email to log in. Check spam folder if you don't see it.")
-                else:
-                    st.error(message)
-            else:
-                st.error("Please enter a valid email address")
-    
-    st.caption("Guest mode: Your chats are saved only in this session. | Email login: Your chats are saved to your account.")
-
-def is_authenticated():
-    """Check if user is logged in (either guest or authenticated)"""
-    return st.session_state.get("auth_mode") is not None
-
-def is_guest():
-    """Check if user is in guest mode"""
-    return st.session_state.get("auth_mode") == "guest"
-
-def get_user_email():
-    """Get user email (returns guest ID for guests)"""
-    return st.session_state.get("user_email", "Guest")
-
-def get_user_name():
-    """Get user name"""
-    return st.session_state.get("user_name", "User")
-
-def logout():
-    """Log out user"""
-    for key in ["user_email", "user_name", "auth_mode", "user_id"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.rerun()
-
-# ============================================
-# SESSION STATE
-# ============================================
-
-if "memory_store" not in st.session_state:
-    st.session_state.memory_store = []
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = {}
-if "file_context" not in st.session_state:
-    st.session_state.file_context = ""
-if "last_search_query" not in st.session_state:
-    st.session_state.last_search_query = None
-if "last_search_results" not in st.session_state:
-    st.session_state.last_search_results = None
-if "last_response" not in st.session_state:
-    st.session_state.last_response = None
-if "last_topic" not in st.session_state:
-    st.session_state.last_topic = None
-if "last_image_prompt" not in st.session_state:
-    st.session_state.last_image_prompt = None
-if "code_search_cache" not in st.session_state:
-    st.session_state.code_search_cache = {}
-
-# ============================================
 # CSS - FIXED CHAT INPUT AT BOTTOM
 # ============================================
 
@@ -332,26 +208,14 @@ def llm(messages):
     except Exception as e:
         return "AI service temporarily unavailable."
 
-# ============================================
-# SYSTEM PROMPT (Personalized with user info)
-# ============================================
+SYSTEM_PROMPT = """
+You are MozeAI, a friendly, warm, and conversational AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea.
 
-def get_system_prompt():
-    user_info = f"User: {st.session_state.user_email}"
-    if is_guest():
-        user_info += " (Guest Mode - temporary session)"
-    else:
-        user_info += " (Authenticated User)"
-    
-    return f"""
-You are MozeAI, a personalized AI assistant.
-
-**CURRENT USER:** {user_info}
-
-**PERSONALIZATION:**
-- Remember this user's preferences and chat history
-- Address them appropriately
-- Reference previous conversations when relevant
+**YOUR PERSONALITY:**
+- Be warm, friendly, and conversational
+- Respond naturally like a human friend would
+- Show personality and enthusiasm
+- Make the user feel comfortable and understood
 
 **YOUR CAPABILITIES:**
 - Real-time web search
@@ -362,14 +226,39 @@ You are MozeAI, a personalized AI assistant.
 - Coding assistance
 
 **RULES:**
-- Be conversational and friendly
-- Use the user's info to personalize responses
-- Remember context from this conversation
-- ONLY mention your creator (Mukiibi Moses) when specifically asked
-- Answer questions accurately but conversationally
+1. Be conversational and friendly, not robotic
+2. Acknowledge greetings warmly
+3. ONLY mention your creator (Mukiibi Moses) when specifically asked
+4. Answer questions accurately but conversationally
+5. Remember previous messages in this conversation
 
-Remember: You're a helpful friend who knows who you're talking to!
+Remember: You're a helpful friend!
 """
+
+# ============================================
+# SESSION STATE
+# ============================================
+
+if "memory_store" not in st.session_state:
+    st.session_state.memory_store = []
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = {}
+if "file_context" not in st.session_state:
+    st.session_state.file_context = ""
+if "last_search_query" not in st.session_state:
+    st.session_state.last_search_query = None
+if "last_search_results" not in st.session_state:
+    st.session_state.last_search_results = None
+if "last_response" not in st.session_state:
+    st.session_state.last_response = None
+if "last_topic" not in st.session_state:
+    st.session_state.last_topic = None
+if "last_image_prompt" not in st.session_state:
+    st.session_state.last_image_prompt = None
+if "code_search_cache" not in st.session_state:
+    st.session_state.code_search_cache = {}
 
 # ============================================
 # EMBEDDINGS
@@ -595,7 +484,7 @@ def reason(question, context):
     history_text = ""
     if st.session_state.chat_history:
         history_text = "PREVIOUS CONVERSATION:\n"
-        last_exchanges = st.session_state.chat_history[-6:] if len(st.session_state.chat_history) > 6 else st.session_state.chat_history
+        last_exchanges = st.session_state.chat_history[-8:] if len(st.session_state.chat_history) > 8 else st.session_state.chat_history
         for role, msg in last_exchanges:
             if role == "user":
                 history_text += f"User: {msg}\n"
@@ -604,16 +493,16 @@ def reason(question, context):
         history_text += "\n"
     
     messages = [
-        {"role": "system", "content": get_system_prompt()},
+        {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"""
 {history_text}
 
-SEARCH RESULTS / CONTEXT:
+SEARCH RESULTS / FILE CONTEXT:
 {context[:2000]}
 
 USER QUESTION: {question}
 
-ANSWER:
+Answer naturally and conversationally. Use the conversation history above to maintain context.
 """}
     ]
     return clean_answer(llm(messages))
@@ -661,37 +550,6 @@ def generate_and_display_image(prompt, is_edit=False):
         return "❌ Sorry, I couldn't generate an image right now. Please try again."
 
 # ============================================
-# USER STORAGE FUNCTIONS (for authenticated users only)
-# ============================================
-
-def save_to_user_storage(query, response):
-    """Save chat messages to user storage (authenticated users only)"""
-    if not is_guest():
-        try:
-            supabase.table("user_chat_history").insert({
-                "user_email": st.session_state.user_email,
-                "role": "user",
-                "message": query[:500]
-            }).execute()
-            supabase.table("user_chat_history").insert({
-                "user_email": st.session_state.user_email,
-                "role": "assistant",
-                "message": response[:500]
-            }).execute()
-        except Exception as e:
-            pass
-
-def load_user_chats():
-    """Load user's chat history from Supabase (authenticated users only)"""
-    if not is_guest():
-        try:
-            response = supabase.table("user_chat_history").select("*").eq("user_email", st.session_state.user_email).order("timestamp").execute()
-            return [(item["role"], item["message"]) for item in response.data]
-        except:
-            pass
-    return []
-
-# ============================================
 # RUN AGENT FUNCTION
 # ============================================
 
@@ -718,8 +576,7 @@ def run_agent(query):
         return "Not much, just here waiting to help you! What's going on with you?"
     
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        user_type = "guest" if is_guest() else "authenticated user"
-        return f"I'm MozeAI, your personalized AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I know you as {st.session_state.user_email} ({user_type}). How can I help you today?"
+        return "I'm MozeAI, your friendly AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, coding, and lots more! What would you like to do today?"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
@@ -750,7 +607,6 @@ He built me with web search, file analysis, image generation, and coding assista
         with st.spinner("Comparing files..."):
             response = compare_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
-            save_to_user_storage(query, response)
             return response
     
     elif tool == "file_task" and st.session_state.file_context:
@@ -758,7 +614,6 @@ He built me with web search, file analysis, image generation, and coding assista
         with st.spinner("Reading files..."):
             response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
-            save_to_user_storage(query, response)
             return response
     
     elif tool == "scrape_url":
@@ -776,9 +631,7 @@ He built me with web search, file analysis, image generation, and coding assista
     elif tool == "calculator":
         result = calculator(query)
         if result:
-            response = f"Result: {result}"
-            save_to_user_storage(query, response)
-            return response
+            return f"Result: {result}"
     
     elif tool == "datetime":
         context += get_current_datetime()
@@ -803,9 +656,7 @@ He built me with web search, file analysis, image generation, and coding assista
                 image_prompt = query
             
             st.session_state.last_image_prompt = image_prompt
-            response = generate_and_display_image(image_prompt, is_edit=False)
-            save_to_user_storage(query, response)
-            return response
+            return generate_and_display_image(image_prompt, is_edit=False)
     
     elif tool == "edit_image":
         with st.spinner("🎨 Editing image..."):
@@ -824,14 +675,11 @@ He built me with web search, file analysis, image generation, and coding assista
             edit_text = ' '.join(edit_text.split())
             new_prompt = f"{last_prompt}, {edit_text}"
             st.session_state.last_image_prompt = new_prompt
-            response = generate_and_display_image(new_prompt, is_edit=True)
-            save_to_user_storage(query, response)
-            return response
+            return generate_and_display_image(new_prompt, is_edit=True)
     
     elif tool == "coding_with_search":
         response = coding_assistant_with_search(query)
         st.session_state.last_response = response
-        save_to_user_storage(query, response)
         return response
     
     else:
@@ -849,36 +697,22 @@ He built me with web search, file analysis, image generation, and coding assista
     if not is_follow_up:
         store_memory(answer)
     
-    save_to_user_storage(query, answer)
-    
     return answer
 
 # ============================================
-# MAIN APP
+# UI - MAIN DISPLAY
 # ============================================
 
-# Handle magic link callback FIRST
-handle_magic_link_callback()
-
-# Check if user is logged in or in guest mode
-if not is_authenticated():
-    show_auth_choice()
-    st.stop()
-
-# User is logged in - show app
 st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Image Generation & Coding Assistant</p>', unsafe_allow_html=True)
+st.markdown("---")
 
-# Show user status
-if is_guest():
-    st.markdown(f'<p style="text-align: center; color: #f39c12;">👤 Guest Mode - {get_user_email()}</p>', unsafe_allow_html=True)
-else:
-    st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
+# ============================================
+# SIDEBAR
+# ============================================
 
-# Add logout button in sidebar
 with st.sidebar:
-    if st.button("🚪 Sign Out", use_container_width=True):
-        logout()
-    
+    st.markdown("### 🧠 MozeAI")
     st.markdown("---")
     
     if st.button("🔄 New Chat", use_container_width=True):
@@ -932,10 +766,6 @@ with st.sidebar:
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
-
-# Load user's chat history (for authenticated users only)
-if not is_guest() and not st.session_state.chat_history:
-    st.session_state.chat_history = load_user_chats()
 
 # ============================================
 # CHAT DISPLAY
