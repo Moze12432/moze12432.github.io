@@ -18,10 +18,10 @@ from datetime import datetime
 import pytz
 import time
 from supabase import create_client, Client
-from authlib.integrations.requests_client import OAuth2Session
 import secrets
 import hashlib
 import base64
+import hmac
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -141,47 +141,35 @@ MAX_TOKENS = 800
 st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
 # ============================================
-# MANUAL GOOGLE OAUTH (WORKING)
+# SIMPLE AUTHENTICATION (NO OAuth)
 # ============================================
 
-def generate_code_verifier():
-    """Generate PKCE code verifier for Google OAuth"""
-    code_verifier = secrets.token_urlsafe(96)
-    return code_verifier
-
-def generate_code_challenge(code_verifier):
-    """Generate PKCE code challenge"""
-    code_challenge = hashlib.sha256(code_verifier.encode()).digest()
-    code_challenge = base64.urlsafe_b64encode(code_challenge).decode().replace('=', '')
-    return code_challenge
-
-def get_google_auth_url():
-    """Get Google OAuth authorization URL"""
-    client_id = st.secrets["GOOGLE_CLIENT_ID"]
-    redirect_uri = "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
+def show_auth_choice():
+    """Show guest mode and Google login options"""
+    st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center;">Choose how to continue</p>', unsafe_allow_html=True)
     
-    # Generate PKCE codes
-    code_verifier = generate_code_verifier()
-    code_challenge = generate_code_challenge(code_verifier)
+    col1, col2 = st.columns(2)
     
-    # Store verifier in session for later
-    st.session_state.code_verifier = code_verifier
+    with col1:
+        if st.button("👤 Continue as Guest", use_container_width=True):
+            st.session_state.user_email = f"guest_{secrets.token_hex(4)}"
+            st.session_state.user_name = "Guest User"
+            st.session_state.auth_mode = "guest"
+            st.rerun()
     
-    # Create OAuth session
-    oauth = OAuth2Session(
-        client_id=client_id,
-        redirect_uri=redirect_uri,
-        scope="openid email profile"
-    )
+    with col2:
+        if st.button("🚀 Sign in with Google", use_container_width=True):
+            # Simple redirect to Google OAuth
+            client_id = st.secrets["GOOGLE_CLIENT_ID"]
+            redirect_uri = "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
+            scope = "openid email profile"
+            
+            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}&access_type=offline"
+            
+            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
     
-    # Generate authorization URL
-    auth_url = oauth.create_authorization_url(
-        "https://accounts.google.com/o/oauth2/v2/auth",
-        code_challenge=code_challenge,
-        code_challenge_method="S256"
-    )
-    
-    return auth_url
+    st.stop()
 
 def handle_oauth_callback():
     """Handle OAuth callback from Google"""
@@ -193,33 +181,28 @@ def handle_oauth_callback():
             client_secret = st.secrets["GOOGLE_CLIENT_SECRET"]
             redirect_uri = "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
             
-            # Get code verifier from session
-            code_verifier = st.session_state.get("code_verifier", "")
-            
-            # Create OAuth session
-            oauth = OAuth2Session(
-                client_id=client_id,
-                client_secret=client_secret,
-                redirect_uri=redirect_uri
-            )
-            
             # Exchange code for token
-            token = oauth.fetch_token(
-                "https://oauth2.googleapis.com/token",
-                authorization_response=f"{redirect_uri}?code={params['code']}",
-                code_verifier=code_verifier
-            )
+            token_url = "https://oauth2.googleapis.com/token"
+            token_data = {
+                "code": params["code"],
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code"
+            }
+            
+            token_response = requests.post(token_url, data=token_data)
+            token_json = token_response.json()
             
             # Get user info
-            userinfo = oauth.get("https://openidconnect.googleapis.com/v1/userinfo").json()
+            access_token = token_json.get("access_token")
+            userinfo_response = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"})
+            userinfo = userinfo_response.json()
             
-            # Store in session
             st.session_state.user_email = userinfo.get("email")
-            st.session_state.user_name = userinfo.get("name")
-            st.session_state.user_picture = userinfo.get("picture")
+            st.session_state.user_name = userinfo.get("name", userinfo.get("email"))
             st.session_state.auth_mode = "authenticated"
             
-            # Clear URL params
             st.query_params.clear()
             st.rerun()
             
@@ -227,41 +210,72 @@ def handle_oauth_callback():
             st.error(f"Login failed: {str(e)}")
             st.query_params.clear()
 
-def show_login_button():
-    """Display Google login button"""
-    st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center;">Sign in to continue</p>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🚀 Sign in with Google", use_container_width=True):
-            auth_url = get_google_auth_url()
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
-    
-    st.stop()
-
 def is_authenticated():
-    """Check if user is logged in"""
-    return st.session_state.get("auth_mode") == "authenticated"
+    """Check if user is logged in (either guest or authenticated)"""
+    return st.session_state.get("auth_mode") is not None
+
+def is_guest():
+    """Check if user is in guest mode"""
+    return st.session_state.get("auth_mode") == "guest"
+
+def get_user_email():
+    """Get user email (returns guest ID for guests)"""
+    return st.session_state.get("user_email", "unknown")
+
+def get_user_name():
+    """Get user name"""
+    return st.session_state.get("user_name", "User")
 
 def logout():
     """Log out user"""
-    for key in ["user_email", "user_name", "user_picture", "auth_mode", "code_verifier"]:
+    for key in ["user_email", "user_name", "auth_mode"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
 
 # ============================================
-# SUPABASE INITIALIZATION
+# SUPABASE INITIALIZATION (Optional - for saving chats)
 # ============================================
 
 @st.cache_resource
 def init_supabase():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_ANON_KEY"]
-    return create_client(url, key)
+    try:
+        url = st.secrets.get("SUPABASE_URL", "")
+        key = st.secrets.get("SUPABASE_ANON_KEY", "")
+        if url and key:
+            return create_client(url, key)
+    except:
+        pass
+    return None
 
 supabase = init_supabase()
+
+def save_to_user_storage(query, response):
+    """Save chat messages (if Supabase is available)"""
+    if supabase and is_authenticated() and not is_guest():
+        try:
+            supabase.table("user_chat_history").insert({
+                "user_email": st.session_state.user_email,
+                "role": "user",
+                "message": query[:500]
+            }).execute()
+            supabase.table("user_chat_history").insert({
+                "user_email": st.session_state.user_email,
+                "role": "assistant",
+                "message": response[:500]
+            }).execute()
+        except:
+            pass
+
+def load_user_chats():
+    """Load user's chat history (if Supabase is available)"""
+    if supabase and is_authenticated() and not is_guest():
+        try:
+            response = supabase.table("user_chat_history").select("*").eq("user_email", st.session_state.user_email).order("timestamp").execute()
+            return [(item["role"], item["message"]) for item in response.data]
+        except:
+            pass
+    return []
 
 # ============================================
 # SESSION STATE
@@ -685,37 +699,6 @@ def generate_and_display_image(prompt, is_edit=False):
         return "❌ Sorry, I couldn't generate an image right now. Please try again."
 
 # ============================================
-# USER STORAGE FUNCTIONS
-# ============================================
-
-def save_to_user_storage(query, response):
-    """Save chat messages to user storage (authenticated users only)"""
-    if is_authenticated():
-        try:
-            supabase.table("user_chat_history").insert({
-                "user_email": st.session_state.user_email,
-                "role": "user",
-                "message": query[:500]
-            }).execute()
-            supabase.table("user_chat_history").insert({
-                "user_email": st.session_state.user_email,
-                "role": "assistant",
-                "message": response[:500]
-            }).execute()
-        except Exception as e:
-            pass
-
-def load_user_chats():
-    """Load user's chat history from Supabase"""
-    if is_authenticated():
-        try:
-            response = supabase.table("user_chat_history").select("*").eq("user_email", st.session_state.user_email).order("timestamp").execute()
-            return [(item["role"], item["message"]) for item in response.data]
-        except:
-            pass
-    return []
-
-# ============================================
 # RUN AGENT FUNCTION
 # ============================================
 
@@ -877,19 +860,24 @@ He built me with web search, file analysis, image generation, and coding assista
     return answer
 
 # ============================================
-# MAIN APP - WITH GOOGLE OAUTH
+# MAIN APP
 # ============================================
 
 # Handle OAuth callback FIRST
 handle_oauth_callback()
 
-# Check authentication
+# Check if user is logged in or in guest mode
 if not is_authenticated():
-    show_login_button()
+    show_auth_choice()
 
-# User is logged in - show app
+# User is logged in (either guest or authenticated) - show app
 st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
+
+# Show user status
+if is_guest():
+    st.markdown(f'<p style="text-align: center; color: #f39c12;">👤 Guest Mode - {get_user_name()}</p>', unsafe_allow_html=True)
+else:
+    st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
 
 # Add logout button in sidebar
 with st.sidebar:
@@ -950,8 +938,8 @@ with st.sidebar:
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
 
-# Load user's chat history
-if is_authenticated() and not st.session_state.chat_history:
+# Load user's chat history (for authenticated users only)
+if not is_guest() and not st.session_state.chat_history:
     st.session_state.chat_history = load_user_chats()
 
 # ============================================
