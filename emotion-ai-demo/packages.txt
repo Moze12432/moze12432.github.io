@@ -1,2 +1,4 @@
 libgl1
 python3.12
+build-essential
+python3-dev
