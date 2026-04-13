@@ -163,12 +163,11 @@ def init_supabase():
 supabase = init_supabase()
 
 def sign_in_with_google():
-    """Get Google OAuth URL"""
     try:
         response = supabase.auth.sign_in_with_oauth({
             "provider": "google",
             "options": {
-                "redirect_to": "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/"
+                "redirect_to": "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
             }
         })
         return response.url
