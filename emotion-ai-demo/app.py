@@ -18,17 +18,19 @@ import uuid
 
 import streamlit as st
 
-# Initialize authentication FIRST
-st.logo = None  # Optional
+# Must be first
+st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
-# Check login status
-if not st.experimental_user.is_logged_in:
+# Initialize authentication
+if not st.user.is_logged_in:
     st.login()
     st.stop()
 
 # User is logged in
-st.write(f"Welcome, {st.experimental_user.name}!")
-st.write(f"Your email: {st.experimental_user.email}")
+st.write(f"Welcome, {st.user.name}!")
+st.write(f"Email: {st.user.email}")
+
+# Your app continues here...
 
 
 # ============================================
