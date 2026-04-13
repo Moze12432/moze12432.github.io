@@ -14,16 +14,11 @@ from datetime import datetime
 import pytz
 import time
 from supabase import create_client, Client
-import hashlib
 import uuid
 
 # ============================================
 # AUTHENTICATION HELPER FUNCTIONS
 # ============================================
-
-def hash_password(password):
-    """Hash a password for storage"""
-    return hashlib.sha256(password.encode()).hexdigest()
 
 def save_to_user_storage(query, response):
     """Save chat messages to user storage (authenticated users only)"""
@@ -156,106 +151,94 @@ MAX_TOKENS = 800
 st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
 # ============================================
-# AUTHENTICATION SYSTEM (WITH GUEST MODE)
+# GOOGLE-ONLY AUTHENTICATION
 # ============================================
 
 @st.cache_resource
-def init_supabase() -> Client:
-    """Initialize Supabase client"""
+def init_supabase():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_ANON_KEY"]
     return create_client(url, key)
 
 supabase = init_supabase()
 
-def generate_guest_id():
-    """Generate a unique guest ID stored in session"""
-    if "guest_id" not in st.session_state:
-        st.session_state.guest_id = f"guest_{uuid.uuid4().hex[:8]}"
-    return st.session_state.guest_id
-
-def sign_up(email, password):
-    """Register a new user"""
+def sign_in_with_google():
+    """Get Google OAuth URL"""
     try:
-        existing = supabase.table("users").select("*").eq("email", email).execute()
-        if existing.data:
-            return False, "Email already exists"
-        
-        response = supabase.table("users").insert({
-            "email": email,
-            "password": hash_password(password)
-        }).execute()
-        
-        if response.data:
-            return True, "Account created successfully! Please sign in."
-        return False, "Signup failed"
+        response = supabase.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {
+                "redirect_to": "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/"
+            }
+        })
+        return response.url
     except Exception as e:
-        return False, str(e)
+        st.error(f"Login error: {e}")
+        return None
 
-def sign_in(email, password):
-    """Authenticate a user"""
-    try:
-        hashed_pw = hash_password(password)
-        response = supabase.table("users").select("*").eq("email", email).eq("password", hashed_pw).execute()
-        
-        if response.data:
-            user = response.data[0]
-            st.session_state.user_id = user["id"]
-            st.session_state.user_email = user["email"]
+def handle_oauth_callback():
+    """Handle OAuth callback after Google login"""
+    query_params = st.query_params
+    if "access_token" in query_params:
+        try:
+            supabase.auth.set_session(
+                query_params["access_token"], 
+                query_params.get("refresh_token", "")
+            )
+            user = supabase.auth.get_user()
+            st.session_state.user_id = user.user.id
+            st.session_state.user_email = user.user.email
             st.session_state.auth_mode = "authenticated"
-            
-            migrate_guest_data_to_user(st.session_state.get("guest_id"), user["id"])
-            
-            return True, "Login successful!"
-        return False, "Invalid email or password"
-    except Exception as e:
-        return False, str(e)
+            st.query_params.clear()
+            st.rerun()
+        except Exception as e:
+            st.error(f"Login failed: {e}")
+
+handle_oauth_callback()   # <-- ADD THIS LINE HERE
 
 def sign_out():
-    """Log out the current user and return to guest mode"""
+    """Sign out user"""
+    supabase.auth.sign_out()
     for key in ["user_id", "user_email", "auth_mode"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
 
 def is_authenticated():
-    """Check if user is logged in"""
     return st.session_state.get("auth_mode") == "authenticated"
 
 def get_current_user_id():
-    """Get current user ID (either authenticated user or guest)"""
     if is_authenticated():
         return st.session_state.user_id
-    else:
-        return generate_guest_id()
+    if "guest_id" not in st.session_state:
+        st.session_state.guest_id = f"guest_{uuid.uuid4().hex[:8]}"
+    return st.session_state.guest_id
 
-def migrate_guest_data_to_user(guest_id, user_id):
-    """Migrate guest chat history to user account"""
-    if not guest_id:
-        return
-    
+def show_login_sidebar():
+    """Show Google login button in sidebar"""
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 🔐 Sign In")
+        st.markdown("Save your chat history and memories!")
+        
+        if st.button("🚀 Sign in with Google", use_container_width=True):
+            auth_url = sign_in_with_google()
+            if auth_url:
+                st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
+
+def generate_guest_id():
+    """Generate a unique guest ID"""
+    if "guest_id" not in st.session_state:
+        st.session_state.guest_id = f"guest_{uuid.uuid4().hex[:8]}"
+    return st.session_state.guest_id
+
+def load_user_chat_history(user_id):
+    """Load user's chat history from database"""
     try:
-        guest_memories = supabase.table("user_memories").select("*").eq("user_id", guest_id).execute()
-        for memory in guest_memories.data:
-            supabase.table("user_memories").insert({
-                "user_id": user_id,
-                "memory_type": memory["memory_type"],
-                "content": memory["content"]
-            }).execute()
-        
-        guest_chats = supabase.table("user_chat_history").select("*").eq("user_id", guest_id).execute()
-        for chat in guest_chats.data:
-            supabase.table("user_chat_history").insert({
-                "user_id": user_id,
-                "role": chat["role"],
-                "message": chat["message"]
-            }).execute()
-        
-        supabase.table("user_memories").delete().eq("user_id", guest_id).execute()
-        supabase.table("user_chat_history").delete().eq("user_id", guest_id).execute()
-        
-    except Exception as e:
-        print(f"Migration error: {e}")
+        response = supabase.table("user_chat_history").select("*").eq("user_id", str(user_id)).order("timestamp").execute()
+        return [(item["role"], item["message"]) for item in response.data]
+    except:
+        return []
 
 def save_user_chat_message(user_id, role, message):
     """Save chat message to database"""
@@ -268,14 +251,6 @@ def save_user_chat_message(user_id, role, message):
     except:
         pass
 
-def load_user_chat_history(user_id):
-    """Load user's chat history from database"""
-    try:
-        response = supabase.table("user_chat_history").select("*").eq("user_id", str(user_id)).order("timestamp").execute()
-        return [(item["role"], item["message"]) for item in response.data]
-    except:
-        return []
-
 def save_user_memory(user_id, content, memory_type="conversation"):
     """Save user memory to database"""
     try:
@@ -286,52 +261,6 @@ def save_user_memory(user_id, content, memory_type="conversation"):
         }).execute()
     except:
         pass
-
-def show_login_sidebar():
-    """Show login/signup options in sidebar"""
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 🔐 Personalize Your Experience")
-        st.markdown("Sign in to save your chat history and memories!")
-        
-        tab1, tab2 = st.tabs(["Sign In", "Sign Up"])
-        
-        with tab1:
-            with st.form("signin_form"):
-                email = st.text_input("Email", placeholder="your@email.com")
-                password = st.text_input("Password", type="password", placeholder="••••••••")
-                submitted = st.form_submit_button("Sign In", use_container_width=True)
-                
-                if submitted:
-                    if email and password:
-                        success, message = sign_in(email, password)
-                        if success:
-                            st.success(message)
-                            st.rerun()
-                        else:
-                            st.error(message)
-                    else:
-                        st.warning("Please enter email and password")
-        
-        with tab2:
-            with st.form("signup_form"):
-                email = st.text_input("Email", placeholder="your@email.com")
-                password = st.text_input("Password", type="password", placeholder="••••••••")
-                confirm = st.text_input("Confirm Password", type="password", placeholder="••••••••")
-                submitted = st.form_submit_button("Sign Up", use_container_width=True)
-                
-                if submitted:
-                    if email and password:
-                        if password != confirm:
-                            st.error("Passwords do not match")
-                        else:
-                            success, message = sign_up(email, password)
-                            if success:
-                                st.success(message)
-                            else:
-                                st.error(message)
-                    else:
-                        st.warning("Please fill all fields")
 
 # ============================================
 # CSS - FIXED CHAT INPUT AT BOTTOM
