@@ -1,3 +1,7 @@
+# ============================================
+# IMPORTS
+# ============================================
+
 import streamlit as st
 from groq import Groq
 import requests
@@ -14,41 +18,10 @@ from datetime import datetime
 import pytz
 import time
 from supabase import create_client, Client
-import uuid
-
-import streamlit as st
-
-# Must be first
-st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
-
-# Initialize authentication
-if not st.user.is_logged_in:
-    st.login()
-    st.stop()
-
-# User is logged in
-st.write(f"Welcome, {st.user.name}!")
-st.write(f"Email: {st.user.email}")
-
-# Your app continues here...
-
-
-# ============================================
-# AUTHENTICATION HELPER FUNCTIONS
-# ============================================
-
-def save_to_user_storage(query, response):
-    """Save chat messages to user storage (authenticated users only)"""
-    try:
-        current_user_id = get_current_user_id()
-        save_user_chat_message(current_user_id, "user", query)
-        save_user_chat_message(current_user_id, "assistant", response[:500])
-        
-        if is_authenticated():
-            save_user_memory(current_user_id, f"User asked: {query[:200]}")
-            save_user_memory(current_user_id, f"Assistant replied: {response[:200]}")
-    except Exception as e:
-        pass
+from authlib.integrations.requests_client import OAuth2Session
+import secrets
+import hashlib
+import base64
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -168,7 +141,118 @@ MAX_TOKENS = 800
 st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
 # ============================================
-# GOOGLE-ONLY AUTHENTICATION
+# MANUAL GOOGLE OAUTH (WORKING)
+# ============================================
+
+def generate_code_verifier():
+    """Generate PKCE code verifier for Google OAuth"""
+    code_verifier = secrets.token_urlsafe(96)
+    return code_verifier
+
+def generate_code_challenge(code_verifier):
+    """Generate PKCE code challenge"""
+    code_challenge = hashlib.sha256(code_verifier.encode()).digest()
+    code_challenge = base64.urlsafe_b64encode(code_challenge).decode().replace('=', '')
+    return code_challenge
+
+def get_google_auth_url():
+    """Get Google OAuth authorization URL"""
+    client_id = st.secrets["GOOGLE_CLIENT_ID"]
+    redirect_uri = "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
+    
+    # Generate PKCE codes
+    code_verifier = generate_code_verifier()
+    code_challenge = generate_code_challenge(code_verifier)
+    
+    # Store verifier in session for later
+    st.session_state.code_verifier = code_verifier
+    
+    # Create OAuth session
+    oauth = OAuth2Session(
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scope="openid email profile"
+    )
+    
+    # Generate authorization URL
+    auth_url = oauth.create_authorization_url(
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        code_challenge=code_challenge,
+        code_challenge_method="S256"
+    )
+    
+    return auth_url
+
+def handle_oauth_callback():
+    """Handle OAuth callback from Google"""
+    params = st.query_params
+    
+    if "code" in params:
+        try:
+            client_id = st.secrets["GOOGLE_CLIENT_ID"]
+            client_secret = st.secrets["GOOGLE_CLIENT_SECRET"]
+            redirect_uri = "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
+            
+            # Get code verifier from session
+            code_verifier = st.session_state.get("code_verifier", "")
+            
+            # Create OAuth session
+            oauth = OAuth2Session(
+                client_id=client_id,
+                client_secret=client_secret,
+                redirect_uri=redirect_uri
+            )
+            
+            # Exchange code for token
+            token = oauth.fetch_token(
+                "https://oauth2.googleapis.com/token",
+                authorization_response=f"{redirect_uri}?code={params['code']}",
+                code_verifier=code_verifier
+            )
+            
+            # Get user info
+            userinfo = oauth.get("https://openidconnect.googleapis.com/v1/userinfo").json()
+            
+            # Store in session
+            st.session_state.user_email = userinfo.get("email")
+            st.session_state.user_name = userinfo.get("name")
+            st.session_state.user_picture = userinfo.get("picture")
+            st.session_state.auth_mode = "authenticated"
+            
+            # Clear URL params
+            st.query_params.clear()
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Login failed: {str(e)}")
+            st.query_params.clear()
+
+def show_login_button():
+    """Display Google login button"""
+    st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center;">Sign in to continue</p>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🚀 Sign in with Google", use_container_width=True):
+            auth_url = get_google_auth_url()
+            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
+    
+    st.stop()
+
+def is_authenticated():
+    """Check if user is logged in"""
+    return st.session_state.get("auth_mode") == "authenticated"
+
+def logout():
+    """Log out user"""
+    for key in ["user_email", "user_name", "user_picture", "auth_mode", "code_verifier"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.rerun()
+
+# ============================================
+# SUPABASE INITIALIZATION
 # ============================================
 
 @st.cache_resource
@@ -179,104 +263,30 @@ def init_supabase():
 
 supabase = init_supabase()
 
-def sign_in_with_google():
-    try:
-        response = supabase.auth.sign_in_with_oauth({
-            "provider": "google",
-            "options": {
-                "redirect_to": "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
-            }
-        })
-        return response.url
-    except Exception as e:
-        st.error(f"Login error: {e}")
-        return None
+# ============================================
+# SESSION STATE
+# ============================================
 
-def handle_oauth_callback():
-    """Handle OAuth callback after Google login"""
-    query_params = st.query_params
-    if "access_token" in query_params:
-        try:
-            supabase.auth.set_session(
-                query_params["access_token"], 
-                query_params.get("refresh_token", "")
-            )
-            user = supabase.auth.get_user()
-            st.session_state.user_id = user.user.id
-            st.session_state.user_email = user.user.email
-            st.session_state.auth_mode = "authenticated"
-            st.query_params.clear()
-            st.rerun()
-        except Exception as e:
-            st.error(f"Login failed: {e}")
-
-handle_oauth_callback()   # <-- ADD THIS LINE HERE
-
-def sign_out():
-    """Sign out user"""
-    supabase.auth.sign_out()
-    for key in ["user_id", "user_email", "auth_mode"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.rerun()
-
-def is_authenticated():
-    return st.session_state.get("auth_mode") == "authenticated"
-
-def get_current_user_id():
-    if is_authenticated():
-        return st.session_state.user_id
-    if "guest_id" not in st.session_state:
-        st.session_state.guest_id = f"guest_{uuid.uuid4().hex[:8]}"
-    return st.session_state.guest_id
-
-def show_login_sidebar():
-    """Show Google login button in sidebar"""
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### 🔐 Sign In")
-        st.markdown("Save your chat history and memories!")
-        
-        if st.button("🚀 Sign in with Google", use_container_width=True):
-            auth_url = sign_in_with_google()
-            if auth_url:
-                st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
-
-def generate_guest_id():
-    """Generate a unique guest ID"""
-    if "guest_id" not in st.session_state:
-        st.session_state.guest_id = f"guest_{uuid.uuid4().hex[:8]}"
-    return st.session_state.guest_id
-
-def load_user_chat_history(user_id):
-    """Load user's chat history from database"""
-    try:
-        response = supabase.table("user_chat_history").select("*").eq("user_id", str(user_id)).order("timestamp").execute()
-        return [(item["role"], item["message"]) for item in response.data]
-    except:
-        return []
-
-def save_user_chat_message(user_id, role, message):
-    """Save chat message to database"""
-    try:
-        supabase.table("user_chat_history").insert({
-            "user_id": str(user_id),
-            "role": role,
-            "message": message
-        }).execute()
-    except:
-        pass
-
-def save_user_memory(user_id, content, memory_type="conversation"):
-    """Save user memory to database"""
-    try:
-        supabase.table("user_memories").insert({
-            "user_id": str(user_id),
-            "memory_type": memory_type,
-            "content": content
-        }).execute()
-    except:
-        pass
+if "memory_store" not in st.session_state:
+    st.session_state.memory_store = []
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = {}
+if "file_context" not in st.session_state:
+    st.session_state.file_context = ""
+if "last_search_query" not in st.session_state:
+    st.session_state.last_search_query = None
+if "last_search_results" not in st.session_state:
+    st.session_state.last_search_results = None
+if "last_response" not in st.session_state:
+    st.session_state.last_response = None
+if "last_topic" not in st.session_state:
+    st.session_state.last_topic = None
+if "last_image_prompt" not in st.session_state:
+    st.session_state.last_image_prompt = None
+if "code_search_cache" not in st.session_state:
+    st.session_state.code_search_cache = {}
 
 # ============================================
 # CSS - FIXED CHAT INPUT AT BOTTOM
@@ -355,6 +365,10 @@ def llm(messages):
     except Exception as e:
         return "AI service temporarily unavailable."
 
+# ============================================
+# SYSTEM PROMPT
+# ============================================
+
 SYSTEM_PROMPT = """
 You are MozeAI, a friendly, warm, and conversational AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea.
 
@@ -380,31 +394,6 @@ You are MozeAI, a friendly, warm, and conversational AI assistant created by Muk
 
 Remember: You're a helpful friend!
 """
-
-# ============================================
-# SESSION STATE
-# ============================================
-
-if "memory_store" not in st.session_state:
-    st.session_state.memory_store = []
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = {}
-if "file_context" not in st.session_state:
-    st.session_state.file_context = ""
-if "last_search_query" not in st.session_state:
-    st.session_state.last_search_query = None
-if "last_search_results" not in st.session_state:
-    st.session_state.last_search_results = None
-if "last_response" not in st.session_state:
-    st.session_state.last_response = None
-if "last_topic" not in st.session_state:
-    st.session_state.last_topic = None
-if "last_image_prompt" not in st.session_state:
-    st.session_state.last_image_prompt = None
-if "code_search_cache" not in st.session_state:
-    st.session_state.code_search_cache = {}
 
 # ============================================
 # EMBEDDINGS
@@ -696,6 +685,37 @@ def generate_and_display_image(prompt, is_edit=False):
         return "❌ Sorry, I couldn't generate an image right now. Please try again."
 
 # ============================================
+# USER STORAGE FUNCTIONS
+# ============================================
+
+def save_to_user_storage(query, response):
+    """Save chat messages to user storage (authenticated users only)"""
+    if is_authenticated():
+        try:
+            supabase.table("user_chat_history").insert({
+                "user_email": st.session_state.user_email,
+                "role": "user",
+                "message": query[:500]
+            }).execute()
+            supabase.table("user_chat_history").insert({
+                "user_email": st.session_state.user_email,
+                "role": "assistant",
+                "message": response[:500]
+            }).execute()
+        except Exception as e:
+            pass
+
+def load_user_chats():
+    """Load user's chat history from Supabase"""
+    if is_authenticated():
+        try:
+            response = supabase.table("user_chat_history").select("*").eq("user_email", st.session_state.user_email).order("timestamp").execute()
+            return [(item["role"], item["message"]) for item in response.data]
+        except:
+            pass
+    return []
+
+# ============================================
 # RUN AGENT FUNCTION
 # ============================================
 
@@ -857,40 +877,25 @@ He built me with web search, file analysis, image generation, and coding assista
     return answer
 
 # ============================================
-# MAIN APP - GUEST MODE BY DEFAULT
+# MAIN APP - WITH GOOGLE OAUTH
 # ============================================
 
-# Initialize guest ID if not authenticated
+# Handle OAuth callback FIRST
+handle_oauth_callback()
+
+# Check authentication
 if not is_authenticated():
-    generate_guest_id()
+    show_login_button()
 
-# Show login option in sidebar
-show_login_sidebar()
-
-# Main UI
+# User is logged in - show app
 st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Image Generation & Coding Assistant</p>', unsafe_allow_html=True)
+st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
 
-# Show user status
-if is_authenticated():
-    st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
-else:
-    st.markdown('<p style="text-align: center; color: #666;">👤 Guest Mode - Sign in to save your chats</p>', unsafe_allow_html=True)
-
-st.markdown("---")
-
-# Load user-specific chat history (for authenticated users only)
-current_user_id = get_current_user_id()
-
-if is_authenticated() and not st.session_state.chat_history:
-    st.session_state.chat_history = load_user_chat_history(current_user_id)
-
-# ============================================
-# SIDEBAR CONTENT
-# ============================================
-
+# Add logout button in sidebar
 with st.sidebar:
-    st.markdown("### 🧠 MozeAI")
+    if st.button("🚪 Sign Out", use_container_width=True):
+        logout()
+    
     st.markdown("---")
     
     if st.button("🔄 New Chat", use_container_width=True):
@@ -944,6 +949,10 @@ with st.sidebar:
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
+
+# Load user's chat history
+if is_authenticated() and not st.session_state.chat_history:
+    st.session_state.chat_history = load_user_chats()
 
 # ============================================
 # CHAT DISPLAY
