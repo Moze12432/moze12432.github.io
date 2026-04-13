@@ -19,9 +19,6 @@ import pytz
 import time
 from supabase import create_client, Client
 import secrets
-import hashlib
-import base64
-import hmac
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -141,141 +138,74 @@ MAX_TOKENS = 800
 st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
 # ============================================
-# SIMPLE AUTHENTICATION (NO OAuth)
-# ============================================
-
-def show_auth_choice():
-    """Show guest mode and Google login options"""
-    st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center;">Choose how to continue</p>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("👤 Continue as Guest", use_container_width=True):
-            st.session_state.user_email = f"guest_{secrets.token_hex(4)}"
-            st.session_state.user_name = "Guest User"
-            st.session_state.auth_mode = "guest"
-            st.rerun()
-    
-    with col2:
-        if st.button("🚀 Sign in with Google", use_container_width=True):
-            # Simple redirect to Google OAuth
-            client_id = st.secrets["GOOGLE_CLIENT_ID"]
-            redirect_uri = "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
-            scope = "openid email profile"
-            
-            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}&access_type=offline"
-            
-            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
-    
-    st.stop()
-
-def handle_oauth_callback():
-    """Handle OAuth callback from Google"""
-    params = st.query_params
-    
-    if "code" in params:
-        try:
-            client_id = st.secrets["GOOGLE_CLIENT_ID"]
-            client_secret = st.secrets["GOOGLE_CLIENT_SECRET"]
-            redirect_uri = "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app"
-            
-            # Exchange code for token
-            token_url = "https://oauth2.googleapis.com/token"
-            token_data = {
-                "code": params["code"],
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code"
-            }
-            
-            token_response = requests.post(token_url, data=token_data)
-            token_json = token_response.json()
-            
-            # Get user info
-            access_token = token_json.get("access_token")
-            userinfo_response = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"})
-            userinfo = userinfo_response.json()
-            
-            st.session_state.user_email = userinfo.get("email")
-            st.session_state.user_name = userinfo.get("name", userinfo.get("email"))
-            st.session_state.auth_mode = "authenticated"
-            
-            st.query_params.clear()
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"Login failed: {str(e)}")
-            st.query_params.clear()
-
-def is_authenticated():
-    """Check if user is logged in (either guest or authenticated)"""
-    return st.session_state.get("auth_mode") is not None
-
-def is_guest():
-    """Check if user is in guest mode"""
-    return st.session_state.get("auth_mode") == "guest"
-
-def get_user_email():
-    """Get user email (returns guest ID for guests)"""
-    return st.session_state.get("user_email", "unknown")
-
-def get_user_name():
-    """Get user name"""
-    return st.session_state.get("user_name", "User")
-
-def logout():
-    """Log out user"""
-    for key in ["user_email", "user_name", "auth_mode"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.rerun()
-
-# ============================================
-# SUPABASE INITIALIZATION (Optional - for saving chats)
+# SUPABASE MAGIC LINK AUTHENTICATION
 # ============================================
 
 @st.cache_resource
 def init_supabase():
-    try:
-        url = st.secrets.get("SUPABASE_URL", "")
-        key = st.secrets.get("SUPABASE_ANON_KEY", "")
-        if url and key:
-            return create_client(url, key)
-    except:
-        pass
-    return None
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_ANON_KEY"]
+    return create_client(url, key)
 
 supabase = init_supabase()
 
-def save_to_user_storage(query, response):
-    """Save chat messages (if Supabase is available)"""
-    if supabase and is_authenticated() and not is_guest():
-        try:
-            supabase.table("user_chat_history").insert({
-                "user_email": st.session_state.user_email,
-                "role": "user",
-                "message": query[:500]
-            }).execute()
-            supabase.table("user_chat_history").insert({
-                "user_email": st.session_state.user_email,
-                "role": "assistant",
-                "message": response[:500]
-            }).execute()
-        except:
-            pass
+def send_magic_link(email):
+    """Send a magic login link to user's email"""
+    try:
+        response = supabase.auth.sign_in_with_otp({
+            "email": email
+        })
+        return True, "Check your email for the login link!"
+    except Exception as e:
+        return False, str(e)
 
-def load_user_chats():
-    """Load user's chat history (if Supabase is available)"""
-    if supabase and is_authenticated() and not is_guest():
+def handle_magic_link_callback():
+    """Handle magic link callback from email"""
+    params = st.query_params
+    if "access_token" in params:
         try:
-            response = supabase.table("user_chat_history").select("*").eq("user_email", st.session_state.user_email).order("timestamp").execute()
-            return [(item["role"], item["message"]) for item in response.data]
-        except:
-            pass
-    return []
+            supabase.auth.set_session(params["access_token"], params.get("refresh_token", ""))
+            user = supabase.auth.get_user()
+            st.session_state.user_email = user.user.email
+            st.session_state.user_id = user.user.id
+            st.session_state.auth_mode = "authenticated"
+            st.query_params.clear()
+            st.rerun()
+        except Exception as e:
+            st.error(f"Login failed: {str(e)}")
+            st.query_params.clear()
+
+def show_login():
+    """Show email login form"""
+    st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center;">Enter your email to get a magic login link</p>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        email = st.text_input("Email address", placeholder="you@example.com", label_visibility="collapsed")
+        
+        if st.button("Send Magic Link", use_container_width=True):
+            if email and "@" in email:
+                success, message = send_magic_link(email)
+                if success:
+                    st.success(message)
+                    st.info("Click the link in your email to log in. Check spam folder if you don't see it.")
+                else:
+                    st.error(message)
+            else:
+                st.error("Please enter a valid email address")
+    
+    st.caption("No password needed. We'll send you a magic login link.")
+
+def is_authenticated():
+    return st.session_state.get("auth_mode") == "authenticated"
+
+def logout():
+    supabase.auth.sign_out()
+    for key in ["user_email", "user_id", "auth_mode"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.rerun()
 
 # ============================================
 # SESSION STATE
@@ -380,17 +310,19 @@ def llm(messages):
         return "AI service temporarily unavailable."
 
 # ============================================
-# SYSTEM PROMPT
+# SYSTEM PROMPT (Personalized with user email)
 # ============================================
 
-SYSTEM_PROMPT = """
-You are MozeAI, a friendly, warm, and conversational AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea.
+def get_system_prompt():
+    return f"""
+You are MozeAI, a personalized AI assistant.
 
-**YOUR PERSONALITY:**
-- Be warm, friendly, and conversational
-- Respond naturally like a human friend would
-- Show personality and enthusiasm
-- Make the user feel comfortable and understood
+**CURRENT USER:** {st.session_state.user_email}
+
+**PERSONALIZATION:**
+- Remember this user's preferences and chat history
+- Address them by their email (or ask for their name if you want)
+- Reference previous conversations when relevant
 
 **YOUR CAPABILITIES:**
 - Real-time web search
@@ -401,12 +333,13 @@ You are MozeAI, a friendly, warm, and conversational AI assistant created by Muk
 - Coding assistance
 
 **RULES:**
-1. Be conversational and friendly, not robotic
-2. Acknowledge greetings warmly
-3. ONLY mention your creator (Mukiibi Moses) when specifically asked
-4. Answer questions accurately but conversationally
+- Be conversational and friendly
+- Use the user's email to personalize responses
+- Remember context from this conversation
+- ONLY mention your creator (Mukiibi Moses) when specifically asked
+- Answer questions accurately but conversationally
 
-Remember: You're a helpful friend!
+Remember: You're a helpful friend who knows who you're talking to!
 """
 
 # ============================================
@@ -642,7 +575,7 @@ def reason(question, context):
         history_text += "\n"
     
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": get_system_prompt()},
         {"role": "user", "content": f"""
 {history_text}
 
@@ -699,6 +632,37 @@ def generate_and_display_image(prompt, is_edit=False):
         return "❌ Sorry, I couldn't generate an image right now. Please try again."
 
 # ============================================
+# USER STORAGE FUNCTIONS
+# ============================================
+
+def save_to_user_storage(query, response):
+    """Save chat messages to user storage"""
+    if is_authenticated():
+        try:
+            supabase.table("user_chat_history").insert({
+                "user_email": st.session_state.user_email,
+                "role": "user",
+                "message": query[:500]
+            }).execute()
+            supabase.table("user_chat_history").insert({
+                "user_email": st.session_state.user_email,
+                "role": "assistant",
+                "message": response[:500]
+            }).execute()
+        except Exception as e:
+            pass
+
+def load_user_chats():
+    """Load user's chat history from Supabase"""
+    if is_authenticated():
+        try:
+            response = supabase.table("user_chat_history").select("*").eq("user_email", st.session_state.user_email).order("timestamp").execute()
+            return [(item["role"], item["message"]) for item in response.data]
+        except:
+            pass
+    return []
+
+# ============================================
 # RUN AGENT FUNCTION
 # ============================================
 
@@ -725,7 +689,7 @@ def run_agent(query):
         return "Not much, just here waiting to help you! What's going on with you?"
     
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        return "I'm MozeAI, your friendly AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, coding, and lots more!"
+        return f"I'm MozeAI, your personalized AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I know you as {st.session_state.user_email}. How can I help you today?"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
         return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
@@ -863,21 +827,17 @@ He built me with web search, file analysis, image generation, and coding assista
 # MAIN APP
 # ============================================
 
-# Handle OAuth callback FIRST
-handle_oauth_callback()
+# Handle magic link callback FIRST
+handle_magic_link_callback()
 
-# Check if user is logged in or in guest mode
+# Check authentication
 if not is_authenticated():
-    show_auth_choice()
+    show_login()
+    st.stop()
 
-# User is logged in (either guest or authenticated) - show app
+# User is authenticated - show app
 st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-
-# Show user status
-if is_guest():
-    st.markdown(f'<p style="text-align: center; color: #f39c12;">👤 Guest Mode - {get_user_name()}</p>', unsafe_allow_html=True)
-else:
-    st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
+st.markdown(f'<p style="text-align: center; color: #28a745;">✅ Logged in as {st.session_state.user_email}</p>', unsafe_allow_html=True)
 
 # Add logout button in sidebar
 with st.sidebar:
@@ -938,8 +898,8 @@ with st.sidebar:
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
 
-# Load user's chat history (for authenticated users only)
-if not is_guest() and not st.session_state.chat_history:
+# Load user's chat history
+if not st.session_state.chat_history:
     st.session_state.chat_history = load_user_chats()
 
 # ============================================
