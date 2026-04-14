@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
-
+Sitemap: https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/sitemap.xml
 Sitemap: https://moze12432.github.io/sitemap.xml
 Sitemap: https://moze12432.github.io/research.html/sitemap.xml
+
+
