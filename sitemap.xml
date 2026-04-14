@@ -1,17 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
-  <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Streamlit App -->
   <url>
     <loc>https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/</loc>
     <lastmod>2025-04-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
-</urlset>
 
+  <!-- Portfolio Site -->
   <url>
     <loc>https://moze12432.github.io/</loc>
     <lastmod>2026-03-05</lastmod>
@@ -59,8 +57,9 @@
     <lastmod>2026-03-05</lastmod>
     <priority>0.80</priority>
   </url>
-  
-<url>
+
+  <!-- Research Profiles -->
+  <url>
     <loc>https://orcid.org/0009-0009-7086-7113</loc>
     <lastmod>2026-03-05</lastmod>
     <priority>0.80</priority>
@@ -68,13 +67,14 @@
 
   <url>
     <loc>https://www.researchgate.net/profile/Mukiibi-Moses</loc>
-      <lastmod>2026-03-05</lastmod>
+    <lastmod>2026-03-05</lastmod>
     <priority>0.80</priority>
   </url>
-    <loc>https://scholar.google.com/citations?view_op=list_works&hl=en&user=na2PjYsAAAAJ</loc>
-      <lastmod>2026-03-05</lastmod>
+
+  <url>
+    <loc>https://scholar.google.com/citations?user=na2PjYsAAAAJ&amp;hl=en</loc>
+    <lastmod>2026-03-05</lastmod>
     <priority>0.90</priority>
   </url>
-  
 
 </urlset>
