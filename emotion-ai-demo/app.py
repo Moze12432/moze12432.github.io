@@ -793,6 +793,12 @@ st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_htm
 st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Image Generation & Coding Assistant</p>', unsafe_allow_html=True)
 st.markdown("---")
 
+st.markdown("""
+<head>
+    <meta name="msvalidate.01" content="BD25F54F11FFEC62C7CBFB315292DF0F" />
+</head>
+""", unsafe_allow_html=True)
+
 # ============================================
 # SIDEBAR
 # ============================================
