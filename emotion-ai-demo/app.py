@@ -597,30 +597,38 @@ def evaluate_work(question, file_context):
 # Generate and display IMAGE
 # ============================================
 def generate_and_display_image(prompt, is_edit=False):
-    """Generate and display image using st.image"""
+    """Generate image or show emoji fallback"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
-        timestamp = int(time.time())
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?_{timestamp}"
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
         
-        # Download the image
-        response = requests.get(image_url, timeout=45)
+        # Show loading message
+        with st.spinner("🎨 Generating image (may take 15-30 seconds)..."):
+            response = requests.get(image_url, timeout=30)
         
-        if response.status_code == 200:
+        if response.status_code == 200 and len(response.content) > 5000:
             from io import BytesIO
             img = BytesIO(response.content)
-            
-            # Display using st.image
-            st.image(img, caption=f"Generated image: {prompt}", use_container_width=True)
-            
-            if is_edit:
-                return f"🎨 **Edited Image - New Prompt:** \"{prompt}\""
-            else:
-                return f"🎨 **Generated Image for:** \"{prompt}\""
+            st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
+            return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\""
         else:
-            return "❌ Sorry, I couldn't generate an image right now. The image service is temporarily unavailable."
+            # Show relevant emoji as fallback
+            emojis = {
+                "sun": "☀️", "smiling sun": "😊☀️", "cat": "🐱", "dog": "🐶",
+                "flower": "🌸", "tree": "🌳", "mountain": "⛰️", "star": "⭐"
+            }
+            emoji = "🎨"
+            for key, value in emojis.items():
+                if key in prompt.lower():
+                    emoji = value
+                    break
+            
+            st.markdown(f"# {emoji}")
+            st.info(f"Image generation timed out. Here's a {emoji} representing '{prompt}'")
+            return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\" (showing emoji fallback - service busy)"
+            
     except Exception as e:
-        return f"❌ Error generating image: {str(e)}"
+        return f"❌ Error: {str(e)}"
         
 # ============================================
 # RUN_AGENT FUNCTIONS
