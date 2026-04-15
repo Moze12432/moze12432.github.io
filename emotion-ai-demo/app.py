@@ -1,3 +1,13 @@
+import sys
+import subprocess
+
+# Ensure torch is installed with CPU only (smaller footprint)
+try:
+    import torch
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "torch==2.0.1", "--index-url", "https://download.pytorch.org/whl/cpu"])
+    import torch
+
 import streamlit as st
 from groq import Groq
 import requests
