@@ -648,25 +648,39 @@ def run_agent(query):
         st.session_state.last_topic = None
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
-
-        # Add this BEFORE the tool detection
-    # Direct response for capability questions (bypasses router)
-    capability_questions = [
-        "can you generate images", "do you generate images", 
-        "can you create images", "do you create images",
-        "can you draw", "do you draw", "are you able to generate images"
-    ]
-    if any(phrase in q for phrase in capability_questions):
+    
+    # ============================================
+    # DIRECT RESPONSE FOR CAPABILITY QUESTIONS
+    # ============================================
+    if q in ["can you generate images", "do you generate images", "can you create images", "can you draw", "are you able to generate images"]:
         return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
-        
+    
+    # ============================================
+    # DIRECT EDIT CHECK - MUST BE BEFORE ROUTER
+    # ============================================
+    edit_triggers = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove"]
+    if any(phrase in q for phrase in edit_triggers) and st.session_state.get("last_image_prompt"):
+        last_prompt = st.session_state.last_image_prompt
+        # Extract edit instruction
+        edit_text = query
+        for word in edit_triggers:
+            if word in edit_text.lower():
+                edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
+                break
+        edit_text = ' '.join(edit_text.split())
+        new_prompt = f"{last_prompt}, {edit_text}"
+        st.session_state.last_image_prompt = new_prompt
+        with st.spinner("Editing image..."):
+            return generate_and_display_image(new_prompt, is_edit=True)
+    
+    # ============================================
+    # DIRECT RESPONSES
+    # ============================================
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
         return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can search the web, analyze files, generate images, and help with coding. What can I do for you?"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
         return "Mukiibi Moses is my creator, a Computer Engineering student at Kyungdong University in South Korea, specializing in AI and machine learning. His portfolio: https://moze12432.github.io/"
-    
-    if q in ["can you generate images", "do you generate images"]:
-        return "Yes, I can generate images! Just say 'generate image of a cat' or 'draw a beautiful sunset'"
     
     tool = route(query)
     context = ""
@@ -745,7 +759,7 @@ def run_agent(query):
             if not last_prompt:
                 return "No previous image. Generate one first with 'generate image of...'"
             edit_text = query
-            for word in ["make it", "change it", "turn it", "add a"]:
+            for word in ["make it", "change it", "turn it", "add a", "edit image"]:
                 if word in edit_text.lower():
                     edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
                     break
