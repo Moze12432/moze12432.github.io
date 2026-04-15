@@ -970,38 +970,36 @@ with st.sidebar:
     st.markdown("### 🧠 MozeAI")
     st.markdown("---")
     
-    # New Chat button - UPDATED to clear everything
-    if st.button("🔄 New Chat", use_container_width=True):
-        # Clear conversation history
-        st.session_state.chat_history = []
-        # Clear memory store (embeddings)
-        st.session_state.memory_store = []
-        # Clear file-related data
-        st.session_state.uploaded_files = {}
-        st.session_state.file_context = ""
-        # Clear image generation history
-        st.session_state.last_image_prompt = None
-        st.session_state.generated_images = []
-        st.session_state.current_image_index = -1
-        # Clear search history
-        st.session_state.last_search_query = None
-        st.session_state.last_search_results = None
-        st.session_state.last_response = None
-        st.session_state.last_topic = None
-        # Clear code search cache
-        st.session_state.code_search_cache = {}
-        # Rerun to refresh the UI
-        st.rerun()
+    # New Chat button - with reset flag to prevent duplicate errors
+    if st.button("🔄 New Chat", key="new_chat_btn", use_container_width=True):
+        if not st.session_state.get("is_resetting", False):
+            st.session_state.is_resetting = True
+            
+            # Clear conversation history
+            st.session_state.chat_history = []
+            # Clear memory store (embeddings)
+            st.session_state.memory_store = []
+            # Clear file-related data
+            st.session_state.uploaded_files = {}
+            st.session_state.file_context = ""
+            # Clear image generation history
+            st.session_state.last_image_prompt = None
+            st.session_state.generated_images = []
+            st.session_state.current_image_index = -1
+            # Clear search history
+            st.session_state.last_search_query = None
+            st.session_state.last_search_results = None
+            st.session_state.last_response = None
+            st.session_state.last_topic = None
+            # Clear code search cache
+            st.session_state.code_search_cache = {}
+            
+            st.session_state.is_resetting = False
+            st.success("✨ New chat started!")
+            st.rerun()
     
-    # Clear Files button (keep this as is)
-    if st.button("🗑️ Clear Files", use_container_width=True):
-        st.session_state.uploaded_files = {}
-        st.session_state.file_context = ""
-        st.success("✅ All files cleared!")
-        st.rerun()
-    
-    # Clear Files button
-    if st.button("🗑️ Clear Files", use_container_width=True):
+    # Clear Files button - with unique key
+    if st.button("🗑️ Clear Files", key="clear_files_btn", use_container_width=True):
         st.session_state.uploaded_files = {}
         st.session_state.file_context = ""
         st.success("✅ All files cleared!")
