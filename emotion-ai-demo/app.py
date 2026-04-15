@@ -599,11 +599,11 @@ def evaluate_work(question, file_context):
 # ============================================
 
 def generate_image(prompt):
-    """Generate an image from text prompt using Pollinations.ai"""
+    """Generate an image using Pollinations.ai"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
-        # This returns a direct image, not a webpage
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        # Try the alternative endpoint
+        image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=1024&response=image"
         return image_url
     except Exception as e:
         return None
