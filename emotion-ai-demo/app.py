@@ -1,32 +1,8 @@
-# ============================================
-# STREAMLIT CLOUD COMPATIBLE SETUP
-# ============================================
-
-import sys
-import subprocess
-import os
-
-# Disable tokenizers parallelism (avoids warnings)
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-# Install torch if not present (CPU only for Streamlit Cloud)
-try:
-    import torch
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "torch==2.0.1", "--index-url", "https://download.pytorch.org/whl/cpu"])
-    import torch
-
-# Force CPU mode
-torch.cuda.is_available = lambda: False
-torch.cuda.device_count = lambda: 0
-
-# Now import the rest
 import streamlit as st
 from groq import Groq
 import requests
 import re
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from bs4 import BeautifulSoup
 import PyPDF2
 import docx
@@ -37,6 +13,7 @@ from datetime import datetime
 import pytz
 import time
 import hashlib
+from collections import defaultdict
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -152,7 +129,7 @@ def process_uploaded_file(uploaded_file):
 TEMPERATURE = 0
 MAX_TOKENS = 800
 
-st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
 # ============================================
 # CSS - FIXED CHAT INPUT AT BOTTOM
@@ -220,192 +197,79 @@ def get_current_datetime():
 • Timezone: Asia/Seoul"""
 
 # ============================================
-# INITIALIZE EMBEDDER
+# LIGHTWEIGHT MEMORY SYSTEM (No torch needed)
 # ============================================
 
-try:
-    embedder = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-except Exception as e:
-    embedder = SentenceTransformer("paraphrase-MiniLM-L3-v2", device="cpu")
-
-# ============================================
-# SIMPLE CHUNKING FUNCTION
-# ============================================
-
-def simple_text_chunker(text, chunk_size=500, overlap=50):
-    """Simple text chunking without external dependencies"""
-    if not text or len(text) < 50:
-        return [text] if text else []
-    
-    chunks = []
-    start = 0
-    text_length = len(text)
-    
-    while start < text_length:
-        end = min(start + chunk_size, text_length)
-        
-        if end < text_length:
-            paragraph_break = text.rfind('\n\n', start, end)
-            if paragraph_break > start:
-                end = paragraph_break + 2
-            else:
-                sentence_break = max(
-                    text.rfind('. ', start, end),
-                    text.rfind('? ', start, end),
-                    text.rfind('! ', start, end)
-                )
-                if sentence_break > start:
-                    end = sentence_break + 2
-                else:
-                    space_break = text.rfind(' ', start, end)
-                    if space_break > start:
-                        end = space_break + 1
-        
-        chunks.append(text[start:end].strip())
-        start = end - overlap
-    
-    return [chunk for chunk in chunks if chunk]
-
-# ============================================
-# ADVANCED RAG CLASS
-# ============================================
-
-class AdvancedRAG:
+class LightweightMemory:
     def __init__(self):
-        self.chunk_size = 500
-        self.chunk_overlap = 50
-        self.bm25_corpus = []
-        self.bm25_index = None
-        self.documents = []
-        self.vector_store = []
-        
-    def chunk_document(self, text, metadata=None):
-        if not text or len(text) < 50:
-            return [], []
-        
-        chunks = simple_text_chunker(text, self.chunk_size, self.chunk_overlap)
-        chunk_metadata = []
-        
-        for i, chunk in enumerate(chunks):
-            chunk_metadata.append({
-                "chunk_id": i,
-                "total_chunks": len(chunks),
-                "source": metadata.get("source", "unknown") if metadata else "unknown",
-                "timestamp": time.time(),
-                "chunk_hash": hashlib.md5(chunk.encode()).hexdigest() if chunk else f"empty_{i}"
-            })
-        
-        return chunks, chunk_metadata
+        self.memories = []
+        self.keyword_index = defaultdict(list)
     
     def add_memory(self, text, metadata=None):
         if len(text) < 50:
             return
         
-        chunks, chunk_metadata = self.chunk_document(text, metadata)
+        # Extract keywords (simple approach)
+        words = set(re.findall(r'\b[a-z]{3,}\b', text.lower()))
         
-        if not chunks:
-            return
-        
-        self.bm25_corpus.extend(chunks)
-        
-        for chunk in chunks:
-            if chunk.strip():
-                embedding = embedder.encode(chunk)
-                self.vector_store.append({
-                    "embedding": embedding,
-                    "text": chunk,
-                    "metadata": metadata,
-                    "timestamp": time.time()
-                })
-        
-        try:
-            from rank_bm25 import BM25Okapi
-            self.bm25_index = BM25Okapi(self.bm25_corpus)
-        except:
-            pass
-        
-        self.documents.append({
+        memory = {
             "text": text,
-            "metadata": metadata,
-            "chunks": chunks,
+            "keywords": words,
+            "metadata": metadata or {},
             "timestamp": time.time()
-        })
+        }
         
-        if len(self.documents) > 50:
-            self.documents = self.documents[-50:]
-            if len(self.vector_store) > 500:
-                self.vector_store = self.vector_store[-500:]
+        self.memories.append(memory)
+        
+        # Index by keywords
+        for word in words:
+            self.keyword_index[word].append(len(self.memories) - 1)
+        
+        # Keep only last 50 memories
+        if len(self.memories) > 50:
+            self.memories = self.memories[-50:]
+            # Rebuild index
+            self._rebuild_index()
     
-    def retrieve_with_reranking(self, query, top_k=5):
-        if not self.documents:
+    def _rebuild_index(self):
+        self.keyword_index = defaultdict(list)
+        for idx, memory in enumerate(self.memories):
+            for word in memory["keywords"]:
+                self.keyword_index[word].append(idx)
+    
+    def retrieve(self, query, top_k=3):
+        if not self.memories:
             return []
         
-        query_embedding = embedder.encode(query)
-        all_results = []
+        query_words = set(re.findall(r'\b[a-z]{3,}\b', query.lower()))
         
-        for item in self.vector_store:
-            try:
-                similarity = np.dot(query_embedding, item["embedding"]) / (
-                    np.linalg.norm(query_embedding) * np.linalg.norm(item["embedding"])
-                )
-                if similarity > 0.3:
-                    all_results.append((item["text"], similarity, "vector"))
-            except:
-                pass
+        # Score memories by keyword matches
+        scored = []
+        for idx, memory in enumerate(self.memories):
+            matches = len(query_words & memory["keywords"])
+            if matches > 0:
+                scored.append((memory["text"], matches))
         
-        if self.bm25_index and self.bm25_corpus:
-            try:
-                bm25_scores = self.bm25_index.get_scores(query.split())
-                for i, score in enumerate(bm25_scores):
-                    if score > 0 and i < len(self.bm25_corpus):
-                        all_results.append((self.bm25_corpus[i], score / 10, "bm25"))
-            except:
-                pass
-        
-        seen_texts = set()
-        unique_results = []
-        for text, score, source in all_results:
-            if text not in seen_texts:
-                seen_texts.add(text)
-                unique_results.append((text, score, source))
-        
-        unique_results.sort(key=lambda x: x[1], reverse=True)
-        return [text for text, score, source in unique_results[:top_k]]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [text for text, score in scored[:top_k]]
     
-    def get_context(self, query, max_chunks=3):
-        if not self.documents:
-            return ""
-        
-        retrieved_chunks = self.retrieve_with_reranking(query, top_k=max_chunks)
-        
-        if retrieved_chunks:
-            context = "RELEVANT CONTEXT FROM MEMORY:\n\n"
-            for i, chunk in enumerate(retrieved_chunks):
-                context += f"[{i+1}] {chunk}\n\n"
+    def get_context(self, query):
+        results = self.retrieve(query)
+        if results:
+            context = "RELEVANT PAST CONVERSATIONS:\n\n"
+            for i, result in enumerate(results):
+                context += f"[{i+1}] {result}\n\n"
             return context
         return ""
 
-# Initialize RAG
-advanced_rag = AdvancedRAG()
-
-# ============================================
-# MEMORY FUNCTIONS
-# ============================================
+# Initialize memory
+memory = LightweightMemory()
 
 def store_memory(text):
-    if len(text) > 50:
-        try:
-            advanced_rag.add_memory(text, metadata={"type": "conversation"})
-        except:
-            pass
+    memory.add_memory(text)
 
 def retrieve_memory(query):
-    if not advanced_rag.documents:
-        return ""
-    try:
-        return advanced_rag.get_context(query, max_chunks=3)
-    except:
-        return ""
+    return memory.get_context(query)
 
 # ============================================
 # LLM FUNCTION WITH MULTIPLE MODEL FALLBACKS
@@ -420,8 +284,6 @@ def llm_with_fallback(messages, max_retries=2):
         "gemma2-9b-it"
     ]
     
-    last_error = None
-    
     for model in models_to_try:
         for attempt in range(max_retries):
             try:
@@ -435,19 +297,17 @@ def llm_with_fallback(messages, max_retries=2):
                 st.session_state.last_model_used = model
                 return completion.choices[0].message.content.strip()
             except Exception as e:
-                last_error = str(e)
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt
-                    time.sleep(wait_time)
+                    time.sleep(2 ** attempt)
                 continue
     
-    return f"AI service temporarily unavailable."
+    return "AI service temporarily unavailable. Please try again."
 
 def llm(messages):
     return llm_with_fallback(messages)
 
 # ============================================
-# ENHANCED SYSTEM PROMPT
+# SYSTEM PROMPT
 # ============================================
 
 SYSTEM_PROMPT = """
@@ -460,7 +320,7 @@ YOUR CAPABILITIES:
 - REAL-TIME web search for current information
 - File analysis for PDF, DOCX, TXT, CSV, JSON files
 - File comparison (compare multiple documents)
-- Memory of past conversations (advanced RAG retrieval)
+- Memory of past conversations
 - Image generation and editing
 - Calculator and news
 
@@ -476,8 +336,6 @@ CRITICAL RULES:
 # SESSION STATE
 # ============================================
 
-if "memory_store" not in st.session_state:
-    st.session_state.memory_store = []
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "uploaded_files" not in st.session_state:
@@ -494,12 +352,6 @@ if "last_topic" not in st.session_state:
     st.session_state.last_topic = None
 if "last_image_prompt" not in st.session_state:
     st.session_state.last_image_prompt = None
-if "last_image_url" not in st.session_state:
-    st.session_state.last_image_url = None
-if "generated_images" not in st.session_state:
-    st.session_state.generated_images = []
-if "current_image_index" not in st.session_state:
-    st.session_state.current_image_index = -1
 if "code_search_cache" not in st.session_state:
     st.session_state.code_search_cache = {}
 if "is_resetting" not in st.session_state:
@@ -516,42 +368,24 @@ def internet_search(query):
         clean_query = query.strip()
         url = "https://html.duckduckgo.com/html/"
         params = {"q": clean_query}
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.post(url, data=params, headers=headers, timeout=10)
         
         if response.status_code == 200:
             results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
-            snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+(?:<[^>]+>[^<]*</[^>]+>)*)</a>', response.text)
+            snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
             
             if results:
                 context = f"SEARCH RESULTS for '{clean_query}':\n\n"
-                for i in range(min(5, len(results))):
-                    context += f"**{results[i]}**\n"
+                for i in range(min(3, len(results))):
+                    context += f"• {results[i]}\n"
                     if i < len(snippets):
                         snippet = re.sub(r'<[^>]+>', '', snippets[i])
-                        snippet = snippet.replace('&#39;', "'").replace('&quot;', '"').replace('&amp;', '&')
-                        context += f"{snippet[:400]}\n\n"
-                return context[:3000]
-        
-        return wikipedia_search(clean_query)
+                        context += f"  {snippet[:300]}...\n\n"
+                return context[:2000]
+        return ""
     except:
         return ""
-
-def wikipedia_search(query):
-    try:
-        url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
-        q = query.strip().replace(" ", "_")
-        response = requests.get(url + q, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            title = data.get("title", "")
-            extract = data.get("extract", "")
-            if extract:
-                return f"Wikipedia - {title}:\n{extract[:2000]}"
-    except:
-        pass
-    return ""
 
 def get_current_news():
     try:
@@ -590,11 +424,11 @@ def calculator(query):
 
 def scrape_webpage(url):
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            for element in soup(["script", "style", "nav", "footer", "header"]):
+            for element in soup(["script", "style", "nav", "footer"]):
                 element.decompose()
             text = soup.get_text()
             lines = (line.strip() for line in text.splitlines())
@@ -607,214 +441,6 @@ def scrape_webpage(url):
 def extract_urls_from_query(query):
     url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
     return re.findall(url_pattern, query)
-
-# ============================================
-# ROUTER FUNCTION
-# ============================================
-
-def route(query):
-    q = query.lower()
-    
-    if extract_urls_from_query(query):
-        return "scrape_url"
-    
-    file_keywords = [
-        "document", "file", "upload", "pdf", "docx", "txt", "csv", "json",
-        "what is this", "what does this", "tell me about this", "about this file",
-        "the file", "the document", "my file", "my document", "uploaded file",
-        "what's in", "what is in", "summarize", "analyze this", "this document",
-        "this file", "read the file", "read this", "file content", "document content",
-        "what is the file", "what does the file", "file says", "document says"
-    ]
-    if any(x in q for x in file_keywords):
-        return "file_task"
-    
-    comparison_keywords = ["compare", "comparison", "difference between", "similarities", "versus", "vs", "diff"]
-    if any(x in q for x in comparison_keywords):
-        return "compare_files"
-    
-    if any(phrase in q for phrase in ["can you", "do you", "are you able", "how to"]):
-        return "reason"
-    
-    if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
-        return "generate_image"
-    
-    if any(x in q for x in ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "add to the image", "remove from image", "brighter", "darker", "different", "make the cat", "turn it", "change it to"]):
-        return "edit_image"
-    
-    people_patterns = ["who is", "tell me about", "what do you know about", "information about"]
-    if any(x in q for x in people_patterns):
-        return "search"
-    
-    if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast"]):
-        return "search"
-    
-    if any(x in q for x in ["+", "-", "*", "/", "×", "calculate", "=", "math"]):
-        return "calculator"
-    
-    if any(x in q for x in ["time", "date", "today", "current time", "what day"]):
-        return "datetime"
-    
-    if any(x in q for x in ["news", "headlines", "current events", "breaking news"]):
-        return "search"
-    
-    coding_keywords = ["code", "python", "javascript", "html", "css", "react", "tkinter", "function", "class", "import", "algorithm", "debug", "fix", "write a program", "create a script"]
-    if any(x in q for x in coding_keywords):
-        return "coding_with_search"
-    
-    if len(q) > 10 and not any(x in q for x in ["how are you", "what is your", "who created"]):
-        return "search"
-    
-    return "reason"
-
-# ============================================
-# CLEAN ANSWER
-# ============================================
-
-def clean_answer(text):
-    text = text.split("🧠")[0]
-    text = text.split("Plan:")[0]
-    text = text.split("Thinking:")[0]
-    return text.strip()
-
-# ============================================
-# REASONING FUNCTION
-# ============================================
-
-def reason(question, context):
-    memory_context = retrieve_memory(question)
-    enhanced_context = context
-    if memory_context:
-        enhanced_context += "\n" + memory_context
-    
-    history_text = ""
-    if st.session_state.chat_history:
-        history_text = "PREVIOUS CONVERSATION:\n"
-        last_exchanges = st.session_state.chat_history[-8:] if len(st.session_state.chat_history) > 8 else st.session_state.chat_history
-        for role, msg in last_exchanges:
-            if role == "user":
-                history_text += f"User: {msg}\n"
-            else:
-                history_text += f"Assistant: {msg}\n"
-        history_text += "\n"
-    
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"""
-{history_text}
-
-{enhanced_context[:3000]}
-
-USER QUESTION: {question}
-
-Instructions:
-- Use the conversation history for context
-- Use the retrieved memory for relevant past information
-- Answer naturally and conversationally
-- If information isn't available, say so
-
-ANSWER:
-"""}
-    ]
-    return clean_answer(llm(messages))
-
-# ============================================
-# FILE FUNCTIONS
-# ============================================
-
-def compare_files(query, file_context, filenames):
-    prompt = f"Files: {filenames}\n\nContent: {file_context[:4000]}\n\nQuestion: {query}\n\nCompare the files."
-    messages = [{"role": "system", "content": "You compare files."}, {"role": "user", "content": prompt}]
-    return clean_answer(llm(messages))
-
-def analyze_uploaded_files(query, file_context, filenames):
-    chunks = simple_text_chunker(file_context, chunk_size=500, overlap=50)
-    
-    if not chunks:
-        analysis_prompt = f"""
-Files: {filenames}
-
-FILE CONTENT:
-{file_context[:3000]}
-
-USER QUESTION: {query}
-
-Answer based on the file content above.
-"""
-    else:
-        query_embedding = embedder.encode(query)
-        scored_chunks = []
-        for chunk in chunks[:15]:
-            if len(chunk.strip()) > 20:
-                chunk_embedding = embedder.encode(chunk)
-                try:
-                    score = np.dot(query_embedding, chunk_embedding) / (
-                        np.linalg.norm(query_embedding) * np.linalg.norm(chunk_embedding)
-                    )
-                    scored_chunks.append((chunk, score))
-                except:
-                    scored_chunks.append((chunk, 0))
-        
-        scored_chunks.sort(key=lambda x: x[1], reverse=True)
-        relevant_chunks = [chunk for chunk, score in scored_chunks[:3] if score > 0.2]
-        
-        if relevant_chunks:
-            analysis_prompt = f"""
-Files: {filenames}
-
-MOST RELEVANT SECTIONS FROM THE FILES:
-{chr(10).join(relevant_chunks)}
-
-USER QUESTION: {query}
-
-Answer based on the file content above. Be specific and quote from the relevant sections.
-"""
-        else:
-            analysis_prompt = f"""
-Files: {filenames}
-
-FILE CONTENT:
-{file_context[:3000]}
-
-USER QUESTION: {query}
-
-Answer based on the file content above.
-"""
-    
-    messages = [
-        {"role": "system", "content": "You are a file analysis assistant. Answer based on the provided file sections."},
-        {"role": "user", "content": analysis_prompt}
-    ]
-    return clean_answer(llm(messages))
-
-def evaluate_work(question, file_context):
-    prompt = f"Content: {file_context[:3000]}\n\nRequest: {question}\n\nProvide assessment."
-    messages = [{"role": "system", "content": "You evaluate work."}, {"role": "user", "content": prompt}]
-    return clean_answer(llm(messages))
-
-# ============================================
-# IMAGE GENERATION FUNCTIONS
-# ============================================
-
-def generate_image(prompt):
-    try:
-        encoded_prompt = requests.utils.quote(prompt)
-        timestamp = int(time.time())
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&_={timestamp}"
-        return image_url
-    except:
-        return None
-
-def generate_and_display_image(prompt):
-    image_url = generate_image(prompt)
-    
-    if image_url:
-        if hasattr(st.session_state, 'last_image_prompt') and st.session_state.last_image_prompt and st.session_state.last_image_prompt != prompt:
-            return f"🎨 **Edited Image - New Prompt:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
-        else:
-            return f"🎨 **Generated Image for:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
-    else:
-        return "❌ Sorry, I couldn't generate an image right now."
 
 # ============================================
 # CODING SEARCH FUNCTIONS
@@ -876,6 +502,136 @@ Generate the best possible code now:
     return clean_answer(llm(messages))
 
 # ============================================
+# ROUTER FUNCTION
+# ============================================
+
+def route(query):
+    q = query.lower()
+    
+    if extract_urls_from_query(query):
+        return "scrape_url"
+    
+    file_keywords = ["document", "file", "upload", "pdf", "docx", "txt", "csv", "json", "what is this", "summarize"]
+    if any(x in q for x in file_keywords):
+        return "file_task"
+    
+    comparison_keywords = ["compare", "comparison", "difference", "similarities"]
+    if any(x in q for x in comparison_keywords):
+        return "compare_files"
+    
+    if any(x in q for x in ["generate image", "create image", "draw", "make an image", "picture of", "image of"]):
+        return "generate_image"
+    
+    if any(x in q for x in ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]):
+        return "edit_image"
+    
+    if any(x in q for x in ["who is", "tell me about", "what is", "weather", "temperature", "rain", "snow", "news", "headlines"]):
+        return "search"
+    
+    if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
+        return "calculator"
+    
+    if any(x in q for x in ["time", "date", "today"]):
+        return "datetime"
+    
+    coding_keywords = ["code", "python", "javascript", "html", "css", "react", "tkinter", "function", "class", "import", "algorithm", "debug", "fix", "write a program", "create a script"]
+    if any(x in q for x in coding_keywords):
+        return "coding_with_search"
+    
+    factual_keywords = ["president", "current", "elected", "prime minister", "leader", "ceo of"]
+    if any(x in q for x in factual_keywords):
+        return "search"
+    
+    return "reason"
+
+# ============================================
+# CLEAN ANSWER
+# ============================================
+
+def clean_answer(text):
+    text = text.split("🧠")[0]
+    text = text.split("Plan:")[0]
+    text = text.split("Thinking:")[0]
+    return text.strip()
+
+# ============================================
+# REASONING FUNCTION
+# ============================================
+
+def reason(question, context):
+    memory_context = retrieve_memory(question)
+    enhanced_context = context
+    if memory_context:
+        enhanced_context += "\n" + memory_context
+    
+    history_text = ""
+    if st.session_state.chat_history:
+        history_text = "PREVIOUS CONVERSATION:\n"
+        last_exchanges = st.session_state.chat_history[-8:] if len(st.session_state.chat_history) > 8 else st.session_state.chat_history
+        for role, msg in last_exchanges:
+            if role == "user":
+                history_text += f"User: {msg}\n"
+            else:
+                history_text += f"Assistant: {msg}\n"
+        history_text += "\n"
+    
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"""
+{history_text}
+
+{enhanced_context[:3000]}
+
+USER QUESTION: {question}
+
+ANSWER:
+"""}
+    ]
+    return clean_answer(llm(messages))
+
+# ============================================
+# FILE FUNCTIONS
+# ============================================
+
+def compare_files(query, file_context, filenames):
+    prompt = f"Files: {filenames}\n\nContent: {file_context[:4000]}\n\nQuestion: {query}\n\nCompare the files."
+    messages = [{"role": "system", "content": "You compare files."}, {"role": "user", "content": prompt}]
+    return clean_answer(llm(messages))
+
+def analyze_uploaded_files(query, file_context, filenames):
+    prompt = f"Files: {filenames}\n\nContent: {file_context[:6000]}\n\nQuestion: {query}\n\nAnswer based on file content."
+    messages = [{"role": "system", "content": "You analyze files."}, {"role": "user", "content": prompt}]
+    return clean_answer(llm(messages))
+
+def evaluate_work(question, file_context):
+    prompt = f"Content: {file_context[:3000]}\n\nRequest: {question}\n\nProvide assessment."
+    messages = [{"role": "system", "content": "You evaluate work."}, {"role": "user", "content": prompt}]
+    return clean_answer(llm(messages))
+
+# ============================================
+# IMAGE GENERATION FUNCTIONS
+# ============================================
+
+def generate_image(prompt):
+    try:
+        encoded_prompt = requests.utils.quote(prompt)
+        timestamp = int(time.time())
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&_={timestamp}"
+        return image_url
+    except:
+        return None
+
+def generate_and_display_image(prompt, is_edit=False):
+    image_url = generate_image(prompt)
+    if image_url:
+        if is_edit:
+            return f"🎨 **Edited Image - New Prompt:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
+        else:
+            return f"🎨 **Generated Image for:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
+    else:
+        return "❌ Sorry, I couldn't generate an image right now."
+
+# ============================================
 # RUN AGENT FUNCTION
 # ============================================
 
@@ -890,97 +646,62 @@ def run_agent(query):
         st.session_state.last_search_results = None
         st.session_state.last_topic = None
         st.session_state.last_image_prompt = None
-        st.session_state.last_image_url = None
         return "✅ Context cleared! How can I help you today?"
     
-    if any(phrase in q for phrase in ["who are you", "who is this", "what are you", "tell me about yourself"]):
-        return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, generate images, and answer questions. How can I help you today?"
+    if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
+        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can search the web, analyze files, generate images, and help with coding. What can I do for you?"
     
-    if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "tell me about your maker", "tell me about your creator", "who created you"]):
-        return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
-
-**About Him:**
-- Specializes in artificial intelligence, machine learning, and data science
-- His portfolio: https://moze12432.github.io/
-
-He built me with web search, file analysis, image generation, and coding assistance capabilities."""
+    if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
+        return "Mukiibi Moses is my creator, a Computer Engineering student at Kyungdong University in South Korea, specializing in AI and machine learning. His portfolio: https://moze12432.github.io/"
     
-    if q in ["is your maker a genius", "is your creator a genius"]:
-        return "Yes! Mukiibi Moses is a brilliant Computer Engineering student at Kyungdong University."
-    
-    if q in ["tell me about your maker", "tell me about your creator"]:
-        return "My maker is Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
-    
-    if q in ["who is your maker", "who created you"]:
-        return "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
-    
-    if q in ["can you generate images", "do you generate images", "can you create images", "can you draw"]:
-        return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
-    
-    edit_indicators = ["make it", "make the", "turn it", "change it to", "change the", "add a", "add to", "remove", "make the cat", "make the image", "edit the", "modify the"]
-    if any(phrase in q for phrase in edit_indicators) and st.session_state.get("last_image_prompt"):
-        last_prompt = st.session_state.get("last_image_prompt", "")
-        if last_prompt:
-            edit_text = query
-            for word in ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the", "turn it", "change it to"]:
-                if word in edit_text.lower():
-                    edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
-                    break
-            edit_text = ' '.join(edit_text.split())
-            new_prompt = f"{last_prompt}, {edit_text}"
-            st.session_state.last_image_prompt = new_prompt
-            with st.spinner("🎨 Editing image..."):
-                return generate_and_display_image(new_prompt)
+    if q in ["can you generate images", "do you generate images"]:
+        return "Yes, I can generate images! Just say 'generate image of a cat' or 'draw a beautiful sunset'"
     
     tool = route(query)
     context = ""
     
-    follow_up_phrases = ["tell me more", "more about", "continue", "go on", "elaborate", "explain further", "his background", "about him", "about her", "about them"]
-    is_follow_up = any(phrase in q for phrase in follow_up_phrases)
-    continuation_phrases = ["yes", "yeah", "sure", "ok", "continue", "tell me more", "go on", "and?", "then?"]
+    follow_up = ["tell me more", "more about", "continue", "elaborate"]
+    is_follow_up = any(phrase in q for phrase in follow_up)
     
-    if is_follow_up or q in continuation_phrases:
+    if is_follow_up:
         if st.session_state.last_search_results:
             context = st.session_state.last_search_results
-            if "background" in q:
-                context += "\n\n Provide BACKGROUND details from the search results."
-            elif "music" in q or "career" in q:
-                context += "\n\n Provide CAREER details from the search results."
-            else:
-                context += "\n\n Provide MORE information from the search results above."
+            context += "\n\n Provide MORE information."
         elif st.session_state.last_response:
-            context = f"Previous response: {st.session_state.last_response[:500]}\n\nContinue naturally."
+            context = f"Previous: {st.session_state.last_response[:500]}\n\nContinue."
         else:
             context = get_current_datetime()
     
     if tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
-        filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
-        with st.spinner("📊 Comparing files..."):
+        filenames = "\n".join(st.session_state.uploaded_files.keys())
+        with st.spinner("Comparing files..."):
             response = compare_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
+            store_memory(response)
             return response
     
     elif tool == "file_task" and st.session_state.file_context:
-        filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
-        with st.spinner(f"📖 Reading {len(st.session_state.uploaded_files)} file(s)..."):
+        filenames = "\n".join(st.session_state.uploaded_files.keys())
+        with st.spinner("Reading files..."):
             response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
             st.session_state.last_response = response
+            store_memory(response)
             return response
     
     elif tool == "evaluate" and st.session_state.file_context:
-        with st.spinner("📝 Evaluating your work..."):
+        with st.spinner("Evaluating..."):
             response = evaluate_work(query, st.session_state.file_context)
             st.session_state.last_response = response
+            store_memory(response)
             return response
     
     elif tool == "scrape_url":
         urls = extract_urls_from_query(query)
         scraped = ""
         for url in urls:
-            with st.spinner(f"Reading {url}..."):
-                content = scrape_webpage(url)
-                if content:
-                    scraped += f"\nContent from {url}:\n{content}\n"
+            content = scrape_webpage(url)
+            if content:
+                scraped += f"\nContent from {url}:\n{content}\n"
         if scraped:
             context = scraped
         else:
@@ -995,55 +716,37 @@ He built me with web search, file analysis, image generation, and coding assista
         context += get_current_datetime()
     
     elif tool == "generate_image":
-        with st.spinner("🎨 Generating image..."):
+        with st.spinner("Generating image..."):
             image_prompt = query
-            command_phrases = [
-                "generate image of", "generate an image of", "generate a image of",
-                "generate image", "generate an image", "generate a image",
-                "create image of", "create an image of", "create a image of",
-                "create image", "create an image", "create a image",
-                "draw a", "draw an", "draw",
-                "make an image of", "make a image of", "make image of",
-                "picture of", "image of"
-            ]
-            for phrase in command_phrases:
+            for phrase in ["generate image of", "generate an image of", "create image of", "draw a", "picture of", "image of"]:
                 if phrase in image_prompt.lower():
                     image_prompt = re.sub(re.escape(phrase), "", image_prompt.lower(), flags=re.IGNORECASE).strip()
                     break
-            
             image_prompt = ' '.join(image_prompt.split())
-            if not image_prompt or len(image_prompt) < 3:
+            if not image_prompt:
                 image_prompt = query
-            
             st.session_state.last_image_prompt = image_prompt
-            st.session_state.last_image_url = None
-            
             return generate_and_display_image(image_prompt)
     
     elif tool == "edit_image":
-        with st.spinner("🎨 Editing image..."):
+        with st.spinner("Editing image..."):
             last_prompt = st.session_state.get("last_image_prompt", "")
-            
             if not last_prompt:
-                return "❌ No previous image found. Please generate an image first using 'generate image of...'"
-            
-            edit_instruction = query
-            command_words = ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the", "turn it", "change it to"]
-            for word in command_words:
-                if word in edit_instruction.lower():
-                    edit_instruction = re.sub(re.escape(word), "", edit_instruction.lower(), flags=re.IGNORECASE).strip()
+                return "No previous image. Generate one first with 'generate image of...'"
+            edit_text = query
+            for word in ["make it", "change it", "turn it", "add a"]:
+                if word in edit_text.lower():
+                    edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
                     break
-            
-            edit_instruction = ' '.join(edit_instruction.split())
-            new_prompt = f"{last_prompt}, {edit_instruction}"
+            edit_text = ' '.join(edit_text.split())
+            new_prompt = f"{last_prompt}, {edit_text}"
             st.session_state.last_image_prompt = new_prompt
-            st.session_state.last_image_url = None
-            
-            return generate_and_display_image(new_prompt)
+            return generate_and_display_image(new_prompt, is_edit=True)
     
     elif tool == "coding_with_search":
         response = coding_assistant_with_search(query)
         st.session_state.last_response = response
+        store_memory(response)
         return response
     
     else:
@@ -1058,7 +761,7 @@ He built me with web search, file analysis, image generation, and coding assista
     answer = reason(query, context)
     st.session_state.last_response = answer
     
-    if not is_follow_up and q not in continuation_phrases:
+    if not is_follow_up:
         store_memory(answer)
     
     return answer
@@ -1067,13 +770,9 @@ He built me with web search, file analysis, image generation, and coding assista
 # UI - MAIN DISPLAY
 # ============================================
 
-st.markdown('<h1 style="text-align: center;">🧠 Mukiibi-Moses AI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Real-Time Internet Access</p>', unsafe_allow_html=True)
+st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Intelligent AI Assistant</p>', unsafe_allow_html=True)
 st.markdown("---")
-
-# ============================================
-# SIDEBAR
-# ============================================
 
 with st.sidebar:
     st.markdown("### 🧠 MozeAI")
@@ -1082,41 +781,29 @@ with st.sidebar:
     if st.button("🔄 New Chat", key="new_chat_btn", use_container_width=True):
         if not st.session_state.get("is_resetting", False):
             st.session_state.is_resetting = True
-            
             st.session_state.chat_history = []
-            st.session_state.memory_store = []
             st.session_state.uploaded_files = {}
             st.session_state.file_context = ""
             st.session_state.last_image_prompt = None
-            st.session_state.generated_images = []
-            st.session_state.current_image_index = -1
             st.session_state.last_search_query = None
             st.session_state.last_search_results = None
             st.session_state.last_response = None
-            st.session_state.last_topic = None
             st.session_state.code_search_cache = {}
-            
-            # Reinitialize RAG
-            global advanced_rag
-            advanced_rag = AdvancedRAG()
-            
             st.session_state.is_resetting = False
-            st.success("✨ New chat started!")
+            st.success("New chat started!")
             st.rerun()
     
     if st.button("🗑️ Clear Files", key="clear_files_btn", use_container_width=True):
         st.session_state.uploaded_files = {}
         st.session_state.file_context = ""
-        st.success("✅ All files cleared!")
+        st.success("Files cleared!")
         st.rerun()
     
     st.markdown("---")
     
     st.markdown("### 📤 Upload Files")
-    st.markdown("Supported: PDF, DOCX, TXT, CSV, JSON")
-    
     uploaded_files = st.file_uploader(
-        "Choose files to analyze",
+        "Choose files",
         type=['pdf', 'docx', 'txt', 'csv', 'json'],
         accept_multiple_files=True,
         key="sidebar_uploader",
@@ -1131,65 +818,24 @@ with st.sidebar:
                     if content and not content.startswith("Error"):
                         st.session_state.uploaded_files[file.name] = content
                         st.success(f"✅ {file.name}")
-                    else:
-                        st.error(f"❌ {file.name}: {content}")
         
         if st.session_state.uploaded_files:
-            file_context_parts = []
+            parts = []
             for name, content in st.session_state.uploaded_files.items():
-                file_context_parts.append(f"\n{'='*60}\n📄 FILE: {name}\n{'='*60}\n{content}\n")
-            st.session_state.file_context = "\n".join(file_context_parts)
-            st.info(f"📁 {len(st.session_state.uploaded_files)} file(s) loaded: {', '.join(st.session_state.uploaded_files.keys())}")
+                parts.append(f"\n{'='*50}\n📄 {name}\n{'='*50}\n{content}\n")
+            st.session_state.file_context = "\n".join(parts)
+            st.info(f"📁 {len(st.session_state.uploaded_files)} file(s) loaded")
     
-    if st.session_state.uploaded_files:
-        st.markdown("---")
-        st.markdown(f"**📄 Loaded Files ({len(st.session_state.uploaded_files)})**")
-        for name, content in st.session_state.uploaded_files.items():
-            with st.expander(f"📄 {name} (click to preview)"):
-                preview = content[:500] + "..." if len(content) > 500 else content
-                st.text(preview)
-        
-        if len(st.session_state.uploaded_files) >= 2:
-            st.markdown("---")
-            st.markdown("### 🔍 Comparison Tips")
-            st.markdown("**Try asking:**")
-            st.markdown("- \"Compare all the files\"")
-            st.markdown("- \"What are the differences between these documents?\"")
-            st.markdown("- \"What is in each file?\"")
-        
-        st.markdown("---")
-        st.markdown("**💡 Try asking:**")
-        st.markdown("- \"What is this file about?\"")
-        st.markdown("- \"Summarize the key points\"")
-        st.markdown("- \"Evaluate my work\"")
-    
-    with st.expander("🔧 Debug: File Context Preview", expanded=False):
-        if st.session_state.file_context:
-            st.text(f"Total context length: {len(st.session_state.file_context)} characters")
-            st.text("First 1000 characters:")
-            st.code(st.session_state.file_context[:1000])
-        else:
-            st.write("No file context loaded")
-    
+    st.markdown("---")
+    st.markdown("### 🎨 Image Generation")
+    st.markdown("**Generate:** `generate image of a cat`")
+    st.markdown("**Edit:** `make it black` or `add a hat`")
     st.markdown("---")
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
-    st.markdown("**Student:** Computer Engineering")
     st.markdown("**University:** Kyungdong University, South Korea")
-    st.markdown("**Focus:** AI Agents, LLM Applications, Real-time Systems")
-    st.markdown("---")
-    st.markdown("### ✨ Features")
-    st.markdown("✅ **Real-time web search** (weather, news, facts)")
-    st.markdown("✅ **File analysis** (PDF, DOCX, CSV, JSON, TXT)")
-    st.markdown("✅ **File comparison** (compare multiple documents)")
-    st.markdown("✅ **Image generation & editing**")
-    st.markdown("✅ **Advanced RAG memory** (chunking + reranking)")
-    st.markdown("✅ **Current news headlines**")
-    st.markdown("✅ **Calculator**")
-    st.markdown("✅ **Conversation memory**")
-    st.markdown("✅ **Work evaluation**")
     if st.session_state.last_model_used:
-        st.caption(f"🤖 Model: {st.session_state.last_model_used}")
+        st.caption(f"Model: {st.session_state.last_model_used}")
 
 # ============================================
 # CHAT DISPLAY
@@ -1199,7 +845,7 @@ for role, msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.write(msg)
 
-query = st.chat_input("Ask me anything... I can check weather, compare files, search the web, and more!")
+query = st.chat_input("Ask me anything - generate images, search the web, analyze files, code, and more!")
 
 if query:
     st.session_state.chat_history.append(("user", query))
