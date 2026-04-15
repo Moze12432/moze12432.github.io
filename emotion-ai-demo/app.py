@@ -14,10 +14,7 @@ from datetime import datetime
 import pytz
 import time
 import hashlib
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from chromadb import Client as ChromaClient
-from chromadb.utils import embedding_functions
-from rank_bm25 import BM25Okapi
+
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -56,6 +53,10 @@ def extract_text_from_docx(file):
         return text[:5000] if text.strip() else "No extractable text in document"
     except Exception as e:
         return f"Error reading Word document: {str(e)}"
+
+# ============================================
+# SIMPLE CHUNKING FUNCTION (No langchain dependency)
+# ============================================
 
 def extract_text_from_txt(file):
     try:
@@ -204,33 +205,70 @@ def get_current_datetime():
 # ADVANCED RAG PIPELINE WITH CHUNKING & RERANKING
 # ============================================
 
+# ============================================
+# SIMPLE CHUNKING FUNCTION (No langchain dependency)
+# ============================================
+
+def simple_text_chunker(text, chunk_size=500, overlap=50):
+    """Simple text chunking without external dependencies"""
+    if not text or len(text) < 50:
+        return [text] if text else []
+    
+    chunks = []
+    start = 0
+    text_length = len(text)
+    
+    while start < text_length:
+        end = min(start + chunk_size, text_length)
+        
+        # Try to break at a sentence or paragraph for better quality
+        if end < text_length:
+            # Look for paragraph break (preferred)
+            paragraph_break = text.rfind('\n\n', start, end)
+            if paragraph_break > start:
+                end = paragraph_break + 2
+            else:
+                # Look for sentence break
+                sentence_break = max(
+                    text.rfind('. ', start, end),
+                    text.rfind('? ', start, end),
+                    text.rfind('! ', start, end)
+                )
+                if sentence_break > start:
+                    end = sentence_break + 2
+                else:
+                    # Look for space as last resort
+                    space_break = text.rfind(' ', start, end)
+                    if space_break > start:
+                        end = space_break + 1
+        
+        chunks.append(text[start:end].strip())
+        start = end - overlap
+    
+    # Filter out empty chunks
+    return [chunk for chunk in chunks if chunk]
+
+
 class AdvancedRAG:
     def __init__(self):
-        # Initialize chunking strategy
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=50,
-            separators=["\n\n", "\n", ".", " ", ""],
-            length_function=len
-        )
+        # Chunking parameters
+        self.chunk_size = 500
+        self.chunk_overlap = 50
         
-        # Initialize ChromaDB for vector storage
-        self.chroma_client = ChromaClient()
-        self.collection = self.chroma_client.create_collection(
-            name="mozeai_memory",
-            embedding_function=embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name="all-MiniLM-L6-v2"
-            )
-        )
-        
-        # For BM25 (keyword search)
+        # For BM25 (keyword search) - store chunks
         self.bm25_corpus = []
         self.bm25_index = None
         self.documents = []
         
+        # For simple vector storage (since ChromaDB might not be available)
+        self.vector_store = []  # Store (embedding, text, metadata)
+        
     def chunk_document(self, text, metadata=None):
-        """Split document into intelligent chunks"""
-        chunks = self.text_splitter.split_text(text)
+        """Split document into intelligent chunks using simple chunker"""
+        if not text or len(text) < 50:
+            return [], []
+        
+        chunks = simple_text_chunker(text, self.chunk_size, self.chunk_overlap)
         chunk_metadata = []
         
         for i, chunk in enumerate(chunks):
@@ -239,7 +277,7 @@ class AdvancedRAG:
                 "total_chunks": len(chunks),
                 "source": metadata.get("source", "unknown") if metadata else "unknown",
                 "timestamp": time.time(),
-                "chunk_hash": hashlib.md5(chunk.encode()).hexdigest()
+                "chunk_hash": hashlib.md5(chunk.encode()).hexdigest() if chunk else f"empty_{i}"
             })
         
         return chunks, chunk_metadata
@@ -248,39 +286,36 @@ class AdvancedRAG:
         """Add text to memory with chunking and multiple indices"""
         if len(text) < 50:
             return
-            
+        
         # Chunk the document
         chunks, chunk_metadata = self.chunk_document(text, metadata)
         
-        # Add to vector database
-        ids = []
-        embeddings = []
-        metadatas = []
+        if not chunks:
+            return
         
-        for i, (chunk, meta) in enumerate(zip(chunks, chunk_metadata)):
-            chunk_id = f"{int(time.time())}_{i}_{hashlib.md5(chunk.encode()).hexdigest()[:8]}"
-            ids.append(chunk_id)
-            embeddings.append(embedder.encode(chunk))
-            metadatas.append({
-                "text": chunk,
-                "chunk_id": i,
-                **meta
-            })
-        
-        try:
-            self.collection.add(
-                ids=ids,
-                embeddings=embeddings,
-                metadatas=metadatas
-            )
-        except:
-            pass
-        
-        # Add to BM25 corpus for keyword search
+        # Store chunks for BM25
         self.bm25_corpus.extend(chunks)
-        self.bm25_index = BM25Okapi(self.bm25_corpus)
         
-        # Store full documents
+        # Store embeddings for vector search
+        for chunk in chunks:
+            if chunk.strip():
+                embedding = embedder.encode(chunk)
+                self.vector_store.append({
+                    "embedding": embedding,
+                    "text": chunk,
+                    "metadata": metadata,
+                    "timestamp": time.time()
+                })
+        
+        # Rebuild BM25 index
+        if self.bm25_corpus:
+            try:
+                from rank_bm25 import BM25Okapi
+                self.bm25_index = BM25Okapi(self.bm25_corpus)
+            except:
+                pass
+        
+        # Store full document info
         self.documents.append({
             "text": text,
             "metadata": metadata,
@@ -291,6 +326,9 @@ class AdvancedRAG:
         # Keep only last 50 documents to manage memory
         if len(self.documents) > 50:
             self.documents = self.documents[-50:]
+            # Also trim vector store
+            if len(self.vector_store) > 500:
+                self.vector_store = self.vector_store[-500:]
     
     def retrieve_with_reranking(self, query, top_k=5):
         """Retrieve and rerank results using multiple strategies"""
@@ -298,65 +336,45 @@ class AdvancedRAG:
             return []
         
         query_embedding = embedder.encode(query)
+        query_terms = set(query.lower().split())
         
-        # Strategy 1: Vector similarity (semantic search)
-        vector_texts = []
-        try:
-            vector_results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k * 2
-            )
-            
-            if vector_results['metadatas']:
-                for meta_list in vector_results['metadatas']:
-                    for meta in meta_list:
-                        if meta and 'text' in meta:
-                            vector_texts.append(meta['text'])
-        except:
-            pass
+        # Collect all chunks with scores
+        all_results = []
         
-        # Strategy 2: BM25 keyword search
-        bm25_texts = []
-        if self.bm25_index and self.bm25_corpus:
+        # Strategy 1: Vector similarity
+        for item in self.vector_store:
             try:
-                bm25_scores = self.bm25_index.get_scores(query.split())
-                top_bm25_indices = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:top_k]
-                bm25_texts = [self.bm25_corpus[i] for i in top_bm25_indices if i < len(self.bm25_corpus)]
+                similarity = np.dot(query_embedding, item["embedding"]) / (
+                    np.linalg.norm(query_embedding) * np.linalg.norm(item["embedding"])
+                )
+                if similarity > 0.3:  # Only keep reasonably similar results
+                    all_results.append((item["text"], similarity, "vector"))
             except:
                 pass
         
-        # Combine results (deduplicate)
-        all_texts = []
-        seen = set()
+        # Strategy 2: BM25 keyword search
+        if self.bm25_index and self.bm25_corpus:
+            try:
+                bm25_scores = self.bm25_index.get_scores(query.split())
+                for i, score in enumerate(bm25_scores):
+                    if score > 0 and i < len(self.bm25_corpus):
+                        all_results.append((self.bm25_corpus[i], score / 10, "bm25"))  # Normalize
+            except:
+                pass
         
-        for text in vector_texts:
-            if text not in seen:
-                seen.add(text)
-                all_texts.append(text)
-        
-        for text in bm25_texts:
-            if text not in seen:
-                seen.add(text)
-                all_texts.append(text)
-        
-        # Reranking with hybrid scoring
-        reranked_results = []
-        query_terms = set(query.lower().split())
-        
-        for text in all_texts[:top_k * 2]:
-            # Simple relevance scoring based on query term matching
-            text_terms = set(text.lower().split())
-            overlap = len(query_terms & text_terms)
-            if overlap > 0:
-                score = min(1.0, overlap / max(len(query_terms), 1))
-            else:
-                score = 0.1
-            reranked_results.append((text, score))
+        # Deduplicate by text
+        seen_texts = set()
+        unique_results = []
+        for text, score, source in all_results:
+            if text not in seen_texts:
+                seen_texts.add(text)
+                unique_results.append((text, score, source))
         
         # Sort by score
-        reranked_results.sort(key=lambda x: x[1], reverse=True)
+        unique_results.sort(key=lambda x: x[1], reverse=True)
         
-        return [text for text, score in reranked_results[:top_k]]
+        # Return top_k results
+        return [text for text, score, source in unique_results[:top_k]]
     
     def get_context(self, query, max_chunks=3):
         """Get relevant context for query"""
@@ -371,7 +389,6 @@ class AdvancedRAG:
                 context += f"[{i+1}] {chunk}\n\n"
             return context
         return ""
-
 # Initialize embedder and RAG
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 advanced_rag = AdvancedRAG()
@@ -755,24 +772,43 @@ def compare_files(query, file_context, filenames):
 def analyze_uploaded_files(query, file_context, filenames):
     """Analyze uploaded files with chunking for better understanding"""
     
-    # Chunk the file content for better processing
-    chunks = advanced_rag.text_splitter.split_text(file_context)
+    # Chunk the file content using simple_text_chunker
+    chunks = simple_text_chunker(file_context, chunk_size=500, overlap=50)
     
-    # Find most relevant chunks for the query
-    query_embedding = embedder.encode(query)
-    chunk_embeddings = [embedder.encode(chunk) for chunk in chunks[:10]]
-    
-    # Score chunks by relevance
-    scored_chunks = []
-    for i, chunk in enumerate(chunks[:10]):
-        chunk_embedding = embedder.encode(chunk)
-        score = np.dot(query_embedding, chunk_embedding) / (np.linalg.norm(query_embedding) * np.linalg.norm(chunk_embedding))
-        scored_chunks.append((chunk, score))
-    
-    scored_chunks.sort(key=lambda x: x[1], reverse=True)
-    relevant_chunks = [chunk for chunk, score in scored_chunks[:3]]
-    
-    analysis_prompt = f"""
+    if not chunks:
+        # If no chunks, just use the original context
+        analysis_prompt = f"""
+Files: {filenames}
+
+FILE CONTENT:
+{file_context[:3000]}
+
+USER QUESTION: {query}
+
+Answer based on the file content above.
+"""
+    else:
+        # Find most relevant chunks for the query
+        query_embedding = embedder.encode(query)
+        
+        # Score chunks by relevance
+        scored_chunks = []
+        for chunk in chunks[:15]:  # Limit to first 15 chunks for performance
+            if len(chunk.strip()) > 20:  # Only consider non-empty chunks
+                chunk_embedding = embedder.encode(chunk)
+                try:
+                    score = np.dot(query_embedding, chunk_embedding) / (
+                        np.linalg.norm(query_embedding) * np.linalg.norm(chunk_embedding)
+                    )
+                    scored_chunks.append((chunk, score))
+                except:
+                    scored_chunks.append((chunk, 0))
+        
+        scored_chunks.sort(key=lambda x: x[1], reverse=True)
+        relevant_chunks = [chunk for chunk, score in scored_chunks[:3] if score > 0.2]
+        
+        if relevant_chunks:
+            analysis_prompt = f"""
 Files: {filenames}
 
 MOST RELEVANT SECTIONS FROM THE FILES:
@@ -781,6 +817,17 @@ MOST RELEVANT SECTIONS FROM THE FILES:
 USER QUESTION: {query}
 
 Answer based on the file content above. Be specific and quote from the relevant sections.
+"""
+        else:
+            analysis_prompt = f"""
+Files: {filenames}
+
+FILE CONTENT:
+{file_context[:3000]}
+
+USER QUESTION: {query}
+
+Answer based on the file content above.
 """
     
     messages = [
