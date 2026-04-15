@@ -130,24 +130,14 @@ TEMPERATURE = 0
 MAX_TOKENS = 800
 
 st.set_page_config(
-    page_title="MozeAI - Intelligent AI Assistant with Image Generation & Coding",
+    page_title="MozeAI - Intelligent AI Assistant",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="auto",
     menu_items={
         'Get Help': 'https://github.com/moze12432/mozeai',
         'Report a bug': "https://github.com/moze12432/mozeai/issues",
-        'About': """
-        # MozeAI
-        An intelligent autonomous agent with:
-        - Real-time web search
-        - File analysis (PDF, DOCX, TXT, CSV, JSON)
-        - Image generation and editing
-        - Coding assistance
-        - Calculations and news
-        
-        Created by Mukiibi Moses, Computer Engineering student at Kyungdong University.
-        """
+        'About': "# MozeAI\nCreated by Mukiibi Moses, Computer Engineering student at Kyungdong University."
     }
 )
 
@@ -229,39 +219,30 @@ def llm(messages):
         return "AI service temporarily unavailable."
 
 SYSTEM_PROMPT = """
-You are MozeAI, a highly capable AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea.
+You are MozeAI, a helpful AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea.
 
-## YOUR CORE IDENTITY
-You are helpful, harmless, and honest. You think step by step but respond concisely.
+## YOUR RULES:
+- Be concise: Give short answers (1-3 sentences) unless details are requested
+- Be honest: Say "I don't know" instead of guessing
+- Be conversational: Write like a smart friend
+- Use conversation history naturally
+- ONLY mention your creator when specifically asked
 
-## COMMUNICATION STYLE
-- **Natural & Conversational**: Write like a smart friend
-- **Concise by default**: Give short answers (1-3 sentences) unless the user asks for details
-- **Direct & honest**: If you don't know something, say so
+## YOUR CAPABILITIES:
+- Real-time web search
+- File analysis (PDF, DOCX, TXT, CSV, JSON)
+- Image generation and editing
+- Coding assistance
+- Calculator
+- News headlines
 
-## YOUR CAPABILITIES
-1. **Web Search**: Get real-time information from the internet
-2. **File Analysis**: Read and summarize PDF, DOCX, TXT, CSV, JSON files
-3. **Image Generation**: Create and edit images from text descriptions
-4. **Coding Assistant**: Help with Python, JavaScript, HTML, CSS, algorithms
-5. **Calculator**: Solve math problems
-6. **News**: Get latest headlines
-
-## CRITICAL RULES
-1. **Be concise**: Short answers unless detail is requested
-2. **No rambling**: Don't over-explain simple things
-3. **Remember context**: Use conversation history naturally
-4. **Be honest**: Say "I don't know" instead of guessing
-5. **Mention creator ONLY when asked**: Don't volunteer information about Mukiibi Moses unless specifically asked
-
-## FACTUAL ACCURACY RULE:
+## FACTUAL ACCURACY:
 For questions about current people, leaders, events, or recent facts:
 - FIRST search the web
 - ONLY answer based on search results
-- NEVER rely solely on your training data for current information
+- NEVER rely solely on your training data
 
-## REMEMBER
-You are MozeAI. Be helpful, be concise, be honest.
+Remember: Be helpful, concise, and honest.
 """
 
 # ============================================
@@ -491,14 +472,12 @@ def route(query):
     if any(x in q for x in ["who is", "tell me about", "what is", "weather", "temperature", "rain", "snow", "news", "headlines"]):
         return "search"
     
-    # Time/Date
     if any(x in q for x in ["time", "date", "today", "current time", "what day", "today's date"]):
         return "datetime"
     
     if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
         return "calculator"
     
-    # Force search for current events, people, politics
     factual_keywords = ["president", "current", "elected", "prime minister", "leader", "ceo of", "who is the"]
     if any(x in q for x in factual_keywords):
         return "search"
@@ -566,7 +545,7 @@ def evaluate_work(question, file_context):
     return clean_answer(llm(messages))
 
 # ============================================
-# IMAGE GENERATION FUNCTIONS WITH RETRY LOGIC
+# IMAGE GENERATION FUNCTIONS
 # ============================================
 
 def generate_image(prompt):
@@ -738,28 +717,22 @@ def run_agent(query):
         st.session_state.last_search_results = None
         st.session_state.last_topic = None
         st.session_state.last_image_prompt = None
-        return "✅ Context cleared! How can I help you today?"
+        return "✅ Context cleared!"
     
     if q in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "hi there", "hello there"]:
-        return "Hey there! Great to see you! How can I help you today?"
+        return "Hey there! How can I help you today?"
     
     if q in ["how are you", "how are you doing", "how's it going"]:
-        return "I'm doing great, thanks for asking! Ready and excited to help you with whatever you need. What's on your mind?"
+        return "I'm doing great! Ready to help. What's on your mind?"
     
     if q in ["what's up", "sup", "whats up"]:
-        return "Not much, just here waiting to help you! What's going on with you?"
+        return "Not much, just here to help! What's going on?"
     
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        return "I'm MozeAI, your friendly AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can help you with web search, file analysis, image generation, coding, and lots more! What would you like to do today?"
+        return "I'm MozeAI, your AI assistant! I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. What can I help you with?"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
-        return """**Mukiibi Moses** is my creator and a talented Computer Engineering student at **Kyungdong University in South Korea**.
-
-**About Him:**
-- Specializes in artificial intelligence and machine learning
-- His portfolio: https://moze12432.github.io/
-
-He built me with web search, file analysis, image generation, and coding assistance capabilities."""
+        return """**Mukiibi Moses** is my creator, a Computer Engineering student at Kyungdong University in South Korea, specializing in AI and machine learning. His portfolio: https://moze12432.github.io/"""
     
     tool = route(query)
     context = ""
@@ -776,7 +749,6 @@ He built me with web search, file analysis, image generation, and coding assista
         else:
             context = get_current_datetime()
     
-    # Handle date/time questions - ALWAYS add context
     if any(phrase in q for phrase in ["date", "today", "time", "what day", "current date", "current time"]):
         context += get_current_datetime()
     
@@ -835,13 +807,13 @@ He built me with web search, file analysis, image generation, and coding assista
         
         success = generate_image(image_prompt)
         if success:
-            return f"🎨 **Generated Image for:** \"{image_prompt}\""
+            return ""
         else:
-            return "❌ Could not generate image. Please try again later."
+            return "❌ Could not generate image. Please try again."
     
     elif tool == "edit_image":
         if not st.session_state.generated_images:
-            return "❌ No previous image found. Please generate an image first using 'generate image of...'"
+            return "❌ No previous image found. Generate an image first."
         
         edit_text = query
         command_words = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]
@@ -854,7 +826,7 @@ He built me with web search, file analysis, image generation, and coding assista
         
         success, new_prompt = edit_image(edit_text)
         if success:
-            return f"🎨 **Edited Image - New Prompt:** \"{new_prompt}\""
+            return ""
         else:
             return f"❌ Edit failed: {new_prompt}"
     
@@ -884,81 +856,22 @@ He built me with web search, file analysis, image generation, and coding assista
 # UI - MAIN DISPLAY
 # ============================================
 
-# Add Google Analytics
-st.markdown("""
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-YOUR_ID"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-YOUR_ID');
-</script>
-""", unsafe_allow_html=True)
-
-# Add this before the chat interface
 with st.expander("ℹ️ About MozeAI", expanded=False):
     st.markdown("""
     ## MozeAI: Your Intelligent AI Assistant
     
-    MozeAI is a powerful, free AI assistant that helps you with:
+    - 🔍 **Real-time Web Search**
+    - 📄 **File Analysis** (PDF, DOCX, TXT, CSV, JSON)
+    - 🎨 **Image Generation & Editing**
+    - 💻 **Coding Assistant**
+    - 🧮 **Calculator & News**
     
-    ### 🔍 Real-time Web Search
-    Get current information from the internet instantly.
-    
-    ### 📄 File Analysis
-    Upload and analyze PDF, DOCX, TXT, CSV, and JSON files.
-    
-    ### 🎨 Image Generation & Editing
-    Create and edit images using AI - just describe what you want!
-    
-    ### 💻 Coding Assistant
-    Get help with Python, JavaScript, HTML, CSS, and more.
-    
-    ### 🧮 Smart Tools
-    - Calculator for math problems
-    - Latest news headlines
-    - Current date and time
-    
-    Created by **Mukiibi Moses**, a Computer Engineering student at Kyungdong University, South Korea.
-    
-    [Start chatting now](#chat-input) - No login required!
+    Created by **Mukiibi Moses**, Computer Engineering student at Kyungdong University, South Korea.
     """)
 
-st.markdown("""
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "MozeAI",
-  "applicationCategory": "AIApplication",
-  "operatingSystem": "Web",
-  "description": "Intelligent AI assistant with web search, file analysis, image generation, and coding help.",
-  "creator": {
-    "@type": "Person",
-    "name": "Mukiibi Moses",
-    "alumniOf": "Kyungdong University",
-    "knowsAbout": ["Artificial Intelligence", "Machine Learning", "Natural Language Processing"]
-  },
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  },
-  "featureList": "Real-time web search, File analysis, Image generation, Coding assistance, Calculator"
-}
-</script>
-""", unsafe_allow_html=True)
-
 st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Autonomous Agent with Image Generation & Coding Assistant</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Your Intelligent AI Assistant</p>', unsafe_allow_html=True)
 st.markdown("---")
-
-st.markdown("""
-<head>
-    <meta name="msvalidate.01" content="BD25F54F11FFEC62C7CBFB315292DF0F" />
-</head>
-""", unsafe_allow_html=True)
 
 # ============================================
 # SIDEBAR
@@ -981,7 +894,7 @@ with st.sidebar:
     if st.button("🗑️ Clear Files", use_container_width=True):
         st.session_state.uploaded_files = {}
         st.session_state.file_context = ""
-        st.success("✅ All files cleared!")
+        st.success("✅ Files cleared!")
         st.rerun()
     
     st.markdown("---")
