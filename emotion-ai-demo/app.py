@@ -125,7 +125,6 @@ def process_uploaded_file(uploaded_file):
 # CONFIG
 # ============================================
 
-MODEL_NAME = "llama-3.1-8b-instant" 
 TEMPERATURE = 0
 MAX_TOKENS = 800
 
@@ -137,7 +136,6 @@ st.set_page_config(page_title="Mukiibi Moses AI", page_icon="🧠", layout="wide
 
 st.markdown("""
 <style>
-    /* Fix chat input at bottom */
     .stChatInputContainer {
         position: fixed !important;
         bottom: 0 !important;
@@ -149,12 +147,10 @@ st.markdown("""
         border-top: 1px solid #e0e0e0 !important;
     }
     
-    /* Add padding to main content */
     .main .block-container {
         padding-bottom: 100px !important;
     }
     
-    /* Style headers */
     h1 {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         -webkit-background-clip: text;
@@ -163,14 +159,12 @@ st.markdown("""
         font-weight: bold;
     }
     
-    /* Chat message styling */
     .stChatMessage {
         border-radius: 15px;
         padding: 10px;
         margin: 5px 0;
     }
     
-    /* Button styling */
     .stButton button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -187,10 +181,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================
-# GROQ CLIENT
+# GROQ CLIENT WITH CONNECTION POOLING
 # ============================================
 
-client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
+# Create a session with connection pooling
+session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=10)
+session.mount('https://', adapter)
+
+client = Groq(
+    api_key=st.secrets.get("GROQ_API_KEY"),
+    http_client=session
+)
 
 def get_current_datetime():
     tz = pytz.timezone('Asia/Seoul')
@@ -201,43 +203,78 @@ def get_current_datetime():
 • Day: {now.strftime('%A')}
 • Timezone: Asia/Seoul"""
 
+# ============================================
+# LLM FUNCTION WITH MULTIPLE MODEL FALLBACKS (70B PRIORITY)
+# ============================================
+
+def llm_with_fallback(messages, max_retries=2):
+    """Call LLM with automatic fallback to multiple models - 70B prioritized"""
+    
+    # 70B models prioritized (best quality)
+    models_to_try = [
+        "llama-3.3-70b-versatile",  # Latest 70B
+        "llama-3.1-70b-versatile",  # Previous stable 70B
+        "mixtral-8x7b-32768",       # 47B but performs like 70B
+        "llama-3.1-8b-instant",     # Fast fallback
+        "gemma2-9b-it"              # Google's model
+    ]
+    
+    last_error = None
+    
+    for model in models_to_try:
+        for attempt in range(max_retries):
+            try:
+                completion = client.chat.completions.create(
+                    model=model,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_TOKENS,
+                    messages=messages,
+                    timeout=30
+                )
+                # Store which model was used (for debugging)
+                st.session_state.last_model_used = model
+                return completion.choices[0].message.content.strip()
+                
+            except requests.exceptions.Timeout:
+                wait_time = 2 ** attempt
+                time.sleep(wait_time)
+                last_error = f"Timeout with {model}"
+                continue
+            except requests.exceptions.ConnectionError:
+                wait_time = 2 ** attempt
+                time.sleep(wait_time)
+                last_error = f"Connection error with {model}"
+                continue
+            except Exception as e:
+                last_error = f"{model} failed: {str(e)[:50]}"
+                break  # Move to next model
+    
+    return f"AI service temporarily unavailable. Please try again. Last error: {last_error[:100] if last_error else 'Unknown'}"
+
 def llm(messages):
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-            messages=messages
-        )
-        return completion.choices[0].message.content.strip()
-    except Exception as e:
-        return "AI service temporarily unavailable."
+    """Wrapper for backward compatibility"""
+    return llm_with_fallback(messages)
 
 # ============================================
 # ENHANCED SYSTEM PROMPT
-# ============================================
-
-# ============================================
-# FIXED SYSTEM PROMPT - BALANCED IDENTITY
 # ============================================
 
 SYSTEM_PROMPT = """
 You are MozeAI, an advanced AI assistant with REAL-TIME internet access and file analysis capabilities.
 
 CREATOR INFORMATION (ONLY mention when asked directly):
-- Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University, South Korea,  specializing in artificial intelligence, machine learning, and data science. He is known for developing emotion-aware AI models, conversational bots, and data-driven applications.
+- Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University, South Korea, specializing in artificial intelligence, machine learning, and data science.
 
-Maker's portfolio link:"https://moze12432.github.io/"
-
+Maker's portfolio link: "https://moze12432.github.io/"
 
 KNOW THIS:
 1. When a user asks about ANY person, place, event, or topic that is NOT specifically about you or your creator, you MUST answer based on SEARCH RESULTS ONLY.
 2. For questions about PEOPLE, PLACES, EVENTS, or ANY topic not related to your creator, USE SEARCH RESULTS.
 3. When users ask "who is [person]" or "tell me about [topic]", search the internet and answer based on search results.
 4. Mention your creator (Mukiibi Moses) when asked.
-5. For normal conversation about world topics, politics, celebrities, news, etc., dont default to talking about your creator unless asked about something relating to your existanc, maker or creator.
+5. For normal conversation about world topics, politics, celebrities, news, etc., dont default to talking about your creator.
 6. Use the search results provided in the context to answer questions accurately.
-7. Answer pricely and accurately.
+7. Answer precisely and accurately.
 8. Remember all conversations and use them for reference if asked.
 
 YOUR CAPABILITIES:
@@ -250,10 +287,10 @@ YOUR CAPABILITIES:
 - Current date and time awareness
 
 CRITICAL RULES:
-1. For questions about PEOPLE, PLACES, EVENTS, or ANY topic not related to your creator unless asked about him, USE SEARCH RESULTS
+1. For questions about PEOPLE, PLACES, EVENTS, or ANY topic not related to your creator, USE SEARCH RESULTS
 2. When users ask "who is [person]" or "tell me about [topic]", search the internet and answer based on search results
-3. ONLY mention your creator (Mukiibi Moses) when users specifically ask about you or your creator or your maker.
-4. For normal conversation about world topics, politics, celebrities, news, etc., NEVER default to talking about your creator unless asked to do so.
+3. ONLY mention your creator (Mukiibi Moses) when users specifically ask about you or your creator
+4. NEVER default to talking about your creator unless asked
 5. Use the search results provided in the context to answer questions accurately
 
 EXAMPLE BEHAVIOR:
@@ -267,12 +304,9 @@ WRONG BEHAVIOR (NEVER DO THIS):
 - User asks about Bobi Wine → You answer about Mukiibi Moses (NEVER do this)
 - User asks about any topic → You default to talking about your creator (NEVER do this)
 
-Your creator is Mukiibi Moses, but you should ONLY mention him when specifically asked about him.
-
-Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information unless asked to do so!.
+Remember: The world does not revolve around your creator. Answer questions based on search results, not by defaulting to creator information unless asked to do so!
 """
 
-    
 # ============================================
 # SESSION STATE
 # ============================================
@@ -303,6 +337,11 @@ if "current_image_index" not in st.session_state:
     st.session_state.current_image_index = -1
 if "code_search_cache" not in st.session_state:
     st.session_state.code_search_cache = {}
+if "is_resetting" not in st.session_state:
+    st.session_state.is_resetting = False
+if "last_model_used" not in st.session_state:
+    st.session_state.last_model_used = None
+
 # ============================================
 # EMBEDDINGS FOR MEMORY
 # ============================================
@@ -328,25 +367,20 @@ def retrieve_memory(query):
     except:
         return ""
 
-
 # ============================================
-# IMPROVED SEARCH FOR PEOPLE - WITH BETTER PARSING
+# SEARCH FUNCTIONS
 # ============================================
 
 def internet_search(query):
     """Search the web and return formatted results"""
     try:
-        # Clean the query
         clean_query = query.strip()
-        
-        # Use DuckDuckGo
         url = "https://html.duckduckgo.com/html/"
         params = {"q": clean_query}
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         response = requests.post(url, data=params, headers=headers, timeout=10)
         
         if response.status_code == 200:
-            # Extract results more carefully
             results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
             snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+(?:<[^>]+>[^<]*</[^>]+>)*)</a>', response.text)
             
@@ -355,25 +389,18 @@ def internet_search(query):
                 for i in range(min(5, len(results))):
                     context += f"**{results[i]}**\n"
                     if i < len(snippets):
-                        # Clean the snippet
                         snippet = re.sub(r'<[^>]+>', '', snippets[i])
-                        snippet = snippet.replace('&#39;', "'").replace('&quot;', '"').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+                        snippet = snippet.replace('&#39;', "'").replace('&quot;', '"').replace('&amp;', '&')
                         context += f"{snippet[:400]}\n\n"
                 return context[:3000]
         
         return wikipedia_search(clean_query)
-        
     except Exception as e:
         return wikipedia_search(query)
-
-# ============================================
-# IMPROVED WIKIPEDIA SEARCH
-# ============================================
 
 def wikipedia_search(query):
     """Search Wikipedia for comprehensive information"""
     try:
-        # First try exact match
         url = "https://en.wikipedia.org/api/rest_v1/page/summary/"
         q = query.strip().replace(" ", "_")
         response = requests.get(url + q, timeout=10)
@@ -385,7 +412,6 @@ def wikipedia_search(query):
             if extract:
                 return f"Wikipedia - {title}:\n{extract[:2000]}"
         
-        # Search Wikipedia
         search_url = "https://en.wikipedia.org/w/api.php"
         params = {
             "action": "query",
@@ -404,7 +430,6 @@ def wikipedia_search(query):
                 context = f"Wikipedia search results for '{query}':\n\n"
                 for result in search_results[:2]:
                     title = result.get("title", "")
-                    # Get the summary for each result
                     r2 = requests.get(url + title.replace(" ", "_"), timeout=10)
                     if r2.status_code == 200:
                         data2 = r2.json()
@@ -415,18 +440,16 @@ def wikipedia_search(query):
     except:
         pass
     return f"No search results found for '{query}'. Please try a different query."
-    
+
 def get_weather_from_api(query):
     """Get weather information from free weather API"""
     try:
-        # Extract location from query
         location_match = re.search(r'in (\w+)|at (\w+)|for (\w+)', query.lower())
         if location_match:
             location = location_match.group(1) or location_match.group(2) or location_match.group(3)
         else:
-            location = "Sokcho"  # Default
+            location = "Sokcho"
         
-        # Use wttr.in for weather (free, no API key)
         weather_url = f"https://wttr.in/{location}?format=%C+%t+%w+%h"
         response = requests.get(weather_url, timeout=10)
         
@@ -494,17 +517,15 @@ def extract_urls_from_query(query):
     return re.findall(url_pattern, query)
 
 # ============================================
-# EXPANDED ROUTER FUNCTION - BETTER FILE DETECTION
+# EXPANDED ROUTER FUNCTION
 # ============================================
 
 def route(query):
     q = query.lower()
     
-    # Check for URLs
     if extract_urls_from_query(query):
         return "scrape_url"
     
-    # Check for FILE-RELATED TASKS (MUST BE FIRST - expanded keywords)
     file_keywords = [
         "document", "file", "upload", "pdf", "docx", "txt", "csv", "json",
         "what is this", "what does this", "tell me about this", "about this file",
@@ -516,28 +537,27 @@ def route(query):
     if any(x in q for x in file_keywords):
         return "file_task"
     
-    # Check for COMPARISON keywords
     comparison_keywords = ["compare", "comparison", "difference between", "similarities", "versus", "vs", "diff"]
     if any(x in q for x in comparison_keywords):
         return "compare_files"
+    
+    # Questions about capability should go to reason (not image generation)
+    if any(phrase in q for phrase in ["can you", "do you", "are you able", "how to"]):
+        return "reason"
+    
+    # Image generation
+    if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
+        return "generate_image"
+    
+    # Image editing keywords
+    if any(x in q for x in ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "add to the image", "remove from image", "brighter", "darker", "different", "make the cat", "turn it", "change it to"]):
+        return "edit_image"
     
     # Questions about PEOPLE
     people_patterns = ["who is", "tell me about", "what do you know about", "information about"]
     if any(x in q for x in people_patterns):
         return "search"
-
-    # Add after calculator check
-
-    if any(phrase in q for phrase in ["can you", "do you", "are you able", "how to"]):
-        return "reason"  # Let the LLM answer naturally
     
-       # Image generation
-    if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
-        return "generate_image"
-    
-    # Image editing keywords - EXPANDED
-    if any(x in q for x in ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "add to the image", "remove from image", "brighter", "darker", "different", "make the cat", "turn it", "change it to"]):
-        return "edit_image"
     # Weather
     if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast"]):
         return "search"
@@ -554,11 +574,17 @@ def route(query):
     if any(x in q for x in ["news", "headlines", "current events", "breaking news"]):
         return "search"
     
+    # Coding keywords
+    coding_keywords = ["code", "python", "javascript", "html", "css", "react", "tkinter", "function", "class", "import", "algorithm", "debug", "fix", "write a program", "create a script"]
+    if any(x in q for x in coding_keywords):
+        return "coding_with_search"
+    
     # General search for anything else
     if len(q) > 10 and not any(x in q for x in ["how are you", "what is your", "who created"]):
         return "search"
     
     return "reason"
+
 # ============================================
 # CLEAN ANSWER
 # ============================================
@@ -576,11 +602,9 @@ def clean_answer(text):
 def reason(question, context):
     """Generate response with full conversation context from session state"""
     
-    # Build conversation history string from session state
     history_text = ""
     if st.session_state.chat_history:
         history_text = "PREVIOUS CONVERSATION:\n"
-        # Get last 8 exchanges for context (not including current question)
         last_exchanges = st.session_state.chat_history[-8:] if len(st.session_state.chat_history) > 8 else st.session_state.chat_history
         for role, msg in last_exchanges:
             if role == "user":
@@ -594,137 +618,45 @@ def reason(question, context):
         {"role": "user", "content": f"""
 {history_text}
 
-CURRENT SEARCH RESULTS / FILE CONTEXT:
+SEARCH RESULTS / FILE CONTEXT:
 {context[:2000]}
 
-USER'S CURRENT QUESTION: {question}
+USER QUESTION: {question}
 
-INSTRUCTIONS:
-- Use the conversation history above to maintain context and flow
-- If the user says "yes", "tell me more", "continue", "go on" - refer to the previous topic
-- If the user asks a follow-up question, connect it to what was just discussed
-- Answer naturally as a continuing conversation
-- Don't treat every message as a brand new chat
-- Be conversational and reference previous exchanges when relevant
-
-ANSWER:
+Answer naturally and conversationally. Use the conversation history above to maintain context.
 """}
     ]
     return clean_answer(llm(messages))
 
 # ============================================
-# FILE COMPARISON FUNCTION
+# FILE FUNCTIONS
 # ============================================
 
 def compare_files(query, file_context, filenames):
-    """Compare multiple uploaded files"""
-    
-    comparison_prompt = f"""
-You are comparing multiple uploaded files.
-
-**Uploaded Files:**
-{filenames}
-
-**FILE CONTENTS:**
-{file_context[:4000]}
-
-**USER REQUEST:** {query}
-
-**INSTRUCTIONS:**
-1. Compare the content across the different files
-2. Highlight:
-   - Similarities between the files
-   - Differences between the files  
-   - Unique information in each file
-3. Quote specific content from each file
-4. Be specific about which file information comes from
-
-**FORMAT:**
-- **File 1 (name):** [summary]
-- **File 2 (name):** [summary]
-- **Similarities:** [what's common]
-- **Differences:** [what's different]
-- **Conclusion:** [overall comparison]
-
-Now compare the files:
-"""
-    
-    messages = [
-        {"role": "system", "content": "You are a file comparison assistant. Compare files based ONLY on their actual content."},
-        {"role": "user", "content": comparison_prompt}
-    ]
-    
-    response = llm(messages)
-    return clean_answer(response)
+    prompt = f"Files: {filenames}\n\nContent: {file_context[:4000]}\n\nQuestion: {query}\n\nCompare the files."
+    messages = [{"role": "system", "content": "You compare files."}, {"role": "user", "content": prompt}]
+    return clean_answer(llm(messages))
 
 def analyze_uploaded_files(query, file_context, filenames):
-    """Analyze uploaded files and answer questions about them"""
-    
-    analysis_prompt = f"""
-You are analyzing uploaded files. Answer the user's question based ONLY on the actual file contents below.
-
-**IMPORTANT:** The user has uploaded MULTIPLE files. You have access to ALL of them below.
-
-**Uploaded Files:**
-{filenames}
-
-**ACTUAL FILE CONTENTS (READ ALL OF THESE CAREFULLY - YOU HAVE ACCESS TO EVERY FILE):**
-{file_context[:6000]}
-
-**USER QUESTION:** {query}
-
-**INSTRUCTIONS:**
-1. READ ALL the file contents above - there are multiple files
-2. Answer based on what is ACTUALLY in EACH file
-3. If the user asks "what is in paper.pdf" - find that specific file and answer
-4. If the user asks "what is in research summary" - find that specific file
-5. If the user asks to compare files - compare the actual content
-6. Be specific - mention which file your information comes from
-7. Quote specific content from each file when relevant
-
-**ANSWER:**
-"""
-    messages = [
-        {"role": "system", "content": "You are a file analysis assistant. You have access to MULTIPLE uploaded files. Answer based on the actual content of each file. Be specific about which file contains what information."},
-        {"role": "user", "content": analysis_prompt}
-    ]
+    prompt = f"Files: {filenames}\n\nContent: {file_context[:6000]}\n\nQuestion: {query}\n\nAnswer based on file content."
+    messages = [{"role": "system", "content": "You analyze files."}, {"role": "user", "content": prompt}]
     return clean_answer(llm(messages))
-    
+
 def evaluate_work(question, file_context):
-    prompt = f"""
-Content to Evaluate:
-{file_context[:3000]}
-
-Request: {question}
-
-Provide:
-1. Overall assessment
-2. Strengths (with examples)
-3. Areas for improvement (with suggestions)
-4. Score out of 100 (if applicable)
-"""
-    messages = [
-        {"role": "system", "content": "You are an expert evaluator."},
-        {"role": "user", "content": prompt}
-    ]
+    prompt = f"Content: {file_context[:3000]}\n\nRequest: {question}\n\nProvide assessment."
+    messages = [{"role": "system", "content": "You evaluate work."}, {"role": "user", "content": prompt}]
     return clean_answer(llm(messages))
 
 # ============================================
-# IMAGE GENERATION FUNCTION
+# IMAGE GENERATION FUNCTIONS
 # ============================================
 
 def generate_image(prompt):
-    """Generate an image from text prompt using Pollinations.ai (free, no API key)"""
+    """Generate an image from text prompt using Pollinations.ai"""
     try:
-        # Encode the prompt for URL
         encoded_prompt = requests.utils.quote(prompt)
-        
-        # Add timestamp to prevent caching
         timestamp = int(time.time())
-        
-        # Pollinations.ai endpoint with cache-busting
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&_={timestamp}"
-        
         return image_url
     except Exception as e:
         return None
@@ -734,14 +666,13 @@ def generate_and_display_image(prompt):
     image_url = generate_image(prompt)
     
     if image_url:
-        # Check if this is an edit or new generation
         if hasattr(st.session_state, 'last_image_prompt') and st.session_state.last_image_prompt and st.session_state.last_image_prompt != prompt:
             return f"🎨 **Edited Image - New Prompt:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
         else:
             return f"🎨 **Generated Image for:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
     else:
         return "❌ Sorry, I couldn't generate an image right now. Please try a different prompt."
-        
+
 def generate_image_fallback(prompt):
     """Generate image using alternative free API"""
     try:
@@ -750,6 +681,69 @@ def generate_image_fallback(prompt):
         return image_url
     except:
         return None
+
+# ============================================
+# CODING SEARCH FUNCTIONS
+# ============================================
+
+def search_coding_solution(query):
+    search_queries = [
+        f"{query} stack overflow",
+        f"{query} example code",
+        f"{query} best practice",
+        f"{query} github"
+    ]
+    
+    all_results = ""
+    
+    for search_q in search_queries[:2]:
+        result = internet_search(search_q)
+        if result:
+            all_results += result + "\n\n"
+    
+    return all_results
+
+def search_coding_solution_cached(query):
+    cache_key = query.lower().strip()
+    
+    if cache_key in st.session_state.code_search_cache:
+        return st.session_state.code_search_cache[cache_key]
+    
+    result = search_coding_solution(query)
+    st.session_state.code_search_cache[cache_key] = result
+    return result
+
+def coding_assistant_with_search(query, context=""):
+    with st.spinner("🔍 Searching the internet for the best solution..."):
+        search_results = search_coding_solution_cached(query)
+    
+    coding_prompt = f"""
+You are an expert programmer. Generate the best possible code based on the user's request.
+
+USER REQUEST: {query}
+
+## INTERNET SEARCH RESULTS (Use these as reference):
+{search_results[:3000]}
+
+## REQUIREMENTS:
+- Code must be complete and runnable
+- Include all imports
+- Add comments
+- Handle edge cases
+
+Generate the best possible code now:
+"""
+    
+    messages = [
+        {"role": "system", "content": "You are an expert programming assistant. Use search results to find the best solution."},
+        {"role": "user", "content": coding_prompt}
+    ]
+    
+    return clean_answer(llm(messages))
+
+# ============================================
+# RUN AGENT FUNCTION
+# ============================================
 
 def run_agent(query):
     q = query.lower().strip()
@@ -766,7 +760,7 @@ def run_agent(query):
         st.session_state.last_image_url = None
         return "✅ Context cleared! How can I help you today?"
     
-    # DIRECT RESPONSES for common questions - using 'in' for better matching
+    # DIRECT RESPONSES for common questions
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you", "tell me about yourself"]):
         return "I am MozeAI, an AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea. I can search the web, analyze files, compare documents, generate images, and answer questions. How can I help you today?"
     
@@ -790,27 +784,22 @@ He built me with real-time web search, file analysis, document comparison, image
     
     if q in ["who is your maker", "who created you"]:
         return "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
-
-        # Direct responses for capability questions
+    
+    # Direct responses for capability questions
     if q in ["can you generate images", "do you generate images", "can you create images", "can you draw"]:
         return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
     
-    # DIRECT CHECK for image editing (bypass router) - THIS IS KEY FOR UNLIMITED EDITS
+    # DIRECT CHECK for image editing (bypass router)
     edit_indicators = ["make it", "make the", "turn it", "change it to", "change the", "add a", "add to", "remove", "make the cat", "make the image", "edit the", "modify the"]
     if any(phrase in q for phrase in edit_indicators) and st.session_state.get("last_image_prompt"):
-        # This is likely an edit command
         last_prompt = st.session_state.get("last_image_prompt", "")
         if last_prompt:
-            # Extract what they want to change
             edit_text = query
-            # Remove common edit command words
             for word in ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the", "turn it", "change it to"]:
                 if word in edit_text.lower():
                     edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
                     break
-            # Clean up
             edit_text = ' '.join(edit_text.split())
-            # Create new prompt by combining original with edit
             new_prompt = f"{last_prompt}, {edit_text}"
             st.session_state.last_image_prompt = new_prompt
             with st.spinner("🎨 Editing image..."):
@@ -846,7 +835,7 @@ He built me with real-time web search, file analysis, document comparison, image
             st.session_state.last_response = response
             return response
     
-    # Handle FILE TASK (SINGLE OR MULTIPLE)
+    # Handle FILE TASK
     elif tool == "file_task" and st.session_state.file_context:
         filenames = "\n".join([f"- {name}" for name in st.session_state.uploaded_files.keys()])
         with st.spinner(f"📖 Reading {len(st.session_state.uploaded_files)} file(s)..."):
@@ -888,9 +877,7 @@ He built me with real-time web search, file analysis, document comparison, image
     # Handle image generation
     elif tool == "generate_image":
         with st.spinner("🎨 Generating image..."):
-            # Better prompt extraction
             image_prompt = query
-            # Remove common command phrases - INCLUDING "of"
             command_phrases = [
                 "generate image of", "generate an image of", "generate a image of",
                 "generate image", "generate an image", "generate a image",
@@ -905,27 +892,23 @@ He built me with real-time web search, file analysis, document comparison, image
                     image_prompt = re.sub(re.escape(phrase), "", image_prompt.lower(), flags=re.IGNORECASE).strip()
                     break
             
-            # Clean up extra spaces
             image_prompt = ' '.join(image_prompt.split())
             if not image_prompt or len(image_prompt) < 3:
                 image_prompt = query
             
-            # Store the prompt for future edits
             st.session_state.last_image_prompt = image_prompt
             st.session_state.last_image_url = None
             
             return generate_and_display_image(image_prompt)
     
-    # Handle image editing/iteration (via router)
+    # Handle image editing (via router)
     elif tool == "edit_image":
         with st.spinner("🎨 Editing image..."):
-            # Get the last generated image prompt
             last_prompt = st.session_state.get("last_image_prompt", "")
             
             if not last_prompt:
                 return "❌ No previous image found. Please generate an image first using 'generate image of...'"
             
-            # Extract the edit instruction
             edit_instruction = query
             command_words = ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the", "turn it", "change it to"]
             for word in command_words:
@@ -933,17 +916,18 @@ He built me with real-time web search, file analysis, document comparison, image
                     edit_instruction = re.sub(re.escape(word), "", edit_instruction.lower(), flags=re.IGNORECASE).strip()
                     break
             
-            # Clean up the edit instruction
             edit_instruction = ' '.join(edit_instruction.split())
-            
-            # Create new prompt by combining original with edit
             new_prompt = f"{last_prompt}, {edit_instruction}"
-            
-            # Store for future edits
             st.session_state.last_image_prompt = new_prompt
             st.session_state.last_image_url = None
             
             return generate_and_display_image(new_prompt)
+    
+    # Handle coding with search
+    elif tool == "coding_with_search":
+        response = coding_assistant_with_search(query)
+        st.session_state.last_response = response
+        return response
     
     # Handle search
     else:
@@ -962,6 +946,7 @@ He built me with real-time web search, file analysis, document comparison, image
         store_memory(answer)
     
     return answer
+
 # ============================================
 # UI - MAIN DISPLAY
 # ============================================
@@ -1015,8 +1000,7 @@ with st.sidebar:
     
     st.markdown("---")
     
-
-    # File upload section - IMPROVED FOR MULTIPLE FILES
+    # File upload section
     st.markdown("### 📤 Upload Files")
     st.markdown("Supported: PDF, DOCX, TXT, CSV, JSON")
     
@@ -1041,17 +1025,13 @@ with st.sidebar:
                     else:
                         st.error(f"❌ {file.name}: {content}")
         
-        # Update file context - CRITICAL: Include ALL files
         if st.session_state.uploaded_files:
             file_context_parts = []
             for name, content in st.session_state.uploaded_files.items():
                 file_context_parts.append(f"\n{'='*60}\n📄 FILE: {name}\n{'='*60}\n{content}\n")
             st.session_state.file_context = "\n".join(file_context_parts)
-            
-            # Show which files are loaded
             st.info(f"📁 {len(st.session_state.uploaded_files)} file(s) loaded: {', '.join(st.session_state.uploaded_files.keys())}")
     
-    # Display loaded files with previews
     if st.session_state.uploaded_files:
         st.markdown("---")
         st.markdown(f"**📄 Loaded Files ({len(st.session_state.uploaded_files)})**")
@@ -1060,7 +1040,6 @@ with st.sidebar:
                 preview = content[:500] + "..." if len(content) > 500 else content
                 st.text(preview)
         
-        # Comparison tips for multiple files
         if len(st.session_state.uploaded_files) >= 2:
             st.markdown("---")
             st.markdown("### 🔍 Comparison Tips")
@@ -1099,20 +1078,19 @@ with st.sidebar:
     st.markdown("✅ **Calculator**")
     st.markdown("✅ **Conversation memory**")
     st.markdown("✅ **Work evaluation**")
+    if st.session_state.last_model_used:
+        st.caption(f"🤖 Model: {st.session_state.last_model_used}")
 
 # ============================================
 # CHAT DISPLAY
 # ============================================
 
-# Display chat history
 for role, msg in st.session_state.chat_history:
     with st.chat_message(role):
         st.write(msg)
 
-# Chat input (fixed at bottom by CSS)
 query = st.chat_input("Ask me anything... I can check weather, compare files, search the web, and more!")
 
-# Process query
 if query:
     st.session_state.chat_history.append(("user", query))
     with st.chat_message("user"):
