@@ -232,22 +232,12 @@ SYSTEM_PROMPT = """
 You are MozeAI, a highly capable AI assistant created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea.
 
 ## YOUR CORE IDENTITY
-You are helpful, harmless, and honest. You think step by step but respond concisely. You prioritize being genuinely useful over being overly verbose.
+You are helpful, harmless, and honest. You think step by step but respond concisely.
 
 ## COMMUNICATION STYLE
-- **Natural & Conversational**: Write like a smart friend, not a robot or a textbook
+- **Natural & Conversational**: Write like a smart friend
 - **Concise by default**: Give short answers (1-3 sentences) unless the user asks for details
-- **Warm but professional**: Use occasional emojis naturally, don't force them
-- **Direct & honest**: If you don't know something, say so. Don't make things up.
-
-## RESPONSE PATTERNS FOR COMMON QUESTIONS
-| Question | Response |
-|----------|----------|
-| "are you smart?" | "I try my best to be helpful! I can search the web, analyze files, generate images, and help with coding. What would you like me to do?" |
-| "who made you?" | "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea." |
-| "what can you do?" | "I can search the web, analyze PDFs, Word docs, CSVs, and JSON files, generate and edit images, help with coding, calculate math, and fetch news. What do you need?" |
-| "how are you?" | "I'm doing great! Ready to help. What's on your mind?" |
-| "hello/hi" | "Hey there! How can I help you today?" |
+- **Direct & honest**: If you don't know something, say so
 
 ## YOUR CAPABILITIES
 1. **Web Search**: Get real-time information from the internet
@@ -260,40 +250,18 @@ You are helpful, harmless, and honest. You think step by step but respond concis
 ## CRITICAL RULES
 1. **Be concise**: Short answers unless detail is requested
 2. **No rambling**: Don't over-explain simple things
-3. **No philosophy**: Answer the question directly without tangents
-4. **Remember context**: Use conversation history naturally
-5. **Be honest**: Say "I don't know" instead of guessing
-6. **Mention creator ONLY when asked**: Don't volunteer information about Mukiibi Moses unless the user specifically asks
+3. **Remember context**: Use conversation history naturally
+4. **Be honest**: Say "I don't know" instead of guessing
+5. **Mention creator ONLY when asked**: Don't volunteer information about Mukiibi Moses unless specifically asked
 
 ## FACTUAL ACCURACY RULE:
 For questions about current people, leaders, events, or recent facts:
 - FIRST search the web
 - ONLY answer based on search results
-- If search results conflict, say "According to different sources..."
 - NEVER rely solely on your training data for current information
 
-## EXAMPLE CONVERSATIONS
-
-**User:** "hi"
-**You:** "Hey there! How can I help you today?"
-
-**User:** "what can you do?"
-**You:** "I can search the web, analyze files like PDFs and CSVs, generate and edit images, help with coding, calculate math, and fetch news. What would you like help with?"
-
-**User:** "are you smart?"
-**You:** "I'm designed to be helpful! I can search the web, analyze files, generate images, and help with coding. Want to try something?"
-
-**User:** "who made you?"
-**You:** "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
-
-**User:** "tell me about quantum physics"
-**You:** "Quantum physics is the study of matter and energy at the smallest scales—atoms and subatomic particles. Unlike classical physics, things can exist in multiple states at once. Want me to explain a specific concept like superposition or entanglement?"
-
-**User:** "yes"
-**You:** "Superposition means a particle can be in multiple states at the same time until it's measured. Schrödinger's cat is a famous thought experiment: a cat in a box is both alive and dead until you open it. That's superposition!"
-
 ## REMEMBER
-You are MozeAI. Be helpful, be concise, be honest. You're here to make the user's life easier, not to show off how much you know. Quality over quantity, always.
+You are MozeAI. Be helpful, be concise, be honest.
 """
 
 # ============================================
@@ -320,6 +288,10 @@ if "last_image_prompt" not in st.session_state:
     st.session_state.last_image_prompt = None
 if "code_search_cache" not in st.session_state:
     st.session_state.code_search_cache = {}
+if "generated_images" not in st.session_state:
+    st.session_state.generated_images = []
+if "current_image_index" not in st.session_state:
+    st.session_state.current_image_index = -1
 
 # ============================================
 # EMBEDDINGS
@@ -594,70 +566,79 @@ def evaluate_work(question, file_context):
     return clean_answer(llm(messages))
 
 # ============================================
-# IMAGE GENERATION & EDITING WITH HISTORY
+# IMAGE GENERATION FUNCTIONS WITH RETRY LOGIC
 # ============================================
 
-# Store generated images in session state
-if "generated_images" not in st.session_state:
-    st.session_state.generated_images = []  # Store (prompt, image_bytes)
-if "current_image_index" not in st.session_state:
-    st.session_state.current_image_index = -1
-
 def generate_image(prompt):
-    """Generate a new image from prompt with reliable fallback"""
+    """Generate a new image from prompt with retry logic"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
         
-        # Try multiple endpoints
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        
         endpoints = [
             f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512",
             f"https://pollinations.ai/p/{encoded_prompt}?width=512&height=512",
         ]
         
-        message_placeholder = st.empty()
-        message_placeholder.info("🖼️ Generating image... This may take 15-30 seconds.")
+        status_placeholder = st.empty()
+        status_placeholder.info("🖼️ Generating image... Attempt 1/3")
+        
+        img_bytes = None
         
         for url in endpoints:
-            try:
-                response = requests.get(url, timeout=20)
-                if response.status_code == 200 and len(response.content) > 5000:
-                    from io import BytesIO
-                    img_bytes = response.content
+            for attempt in range(3):
+                try:
+                    status_placeholder.info(f"🖼️ Generating image... Attempt {attempt + 1}/3")
+                    response = requests.get(url, headers=headers, timeout=60)
                     
-                    st.session_state.generated_images.append({
-                        "prompt": prompt,
-                        "image": img_bytes,
-                        "timestamp": time.time()
-                    })
-                    st.session_state.current_image_index = len(st.session_state.generated_images) - 1
-                    
-                    message_placeholder.empty()
-                    img = BytesIO(img_bytes)
-                    st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
-                    return True
-            except:
-                continue
+                    if response.status_code == 200 and len(response.content) > 1000:
+                        img_bytes = response.content
+                        break
+                    else:
+                        status_placeholder.warning(f"⚠️ Attempt {attempt + 1} failed. Retrying...")
+                        time.sleep(2)
+                except requests.Timeout:
+                    status_placeholder.warning(f"⏰ Attempt {attempt + 1} timed out. Retrying...")
+                    time.sleep(2)
+                except Exception as e:
+                    status_placeholder.warning(f"⚠️ Attempt {attempt + 1} error: {str(e)[:50]}. Retrying...")
+                    time.sleep(2)
+            
+            if img_bytes:
+                break
         
-        # If all endpoints fail, show a simple message
-        message_placeholder.empty()
-        st.warning(f"⚠️ Image service is busy. Please try again in a moment.")
-        st.info(f"🎨 Prompt: \"{prompt}\"")
+        status_placeholder.empty()
         
-        # Store placeholder in history
-        st.session_state.generated_images.append({
-            "prompt": prompt,
-            "image": None,
-            "timestamp": time.time(),
-            "placeholder": True
-        })
-        return True
+        if img_bytes:
+            from io import BytesIO
+            
+            st.session_state.generated_images.append({
+                "prompt": prompt,
+                "image": img_bytes,
+                "timestamp": time.time()
+            })
+            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
+            
+            img = BytesIO(img_bytes)
+            st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
+            return True
+        else:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.warning("⚠️ Service busy. Could not generate image.")
+                if st.button("🔄 Retry Generation", key=f"retry_gen_{int(time.time())}", use_container_width=True):
+                    return generate_image(prompt)
+            return False
         
     except Exception as e:
         st.error(f"Error: {e}")
         return False
 
 def edit_image(edit_instruction):
-    """Edit the last generated image using instruction"""
+    """Edit the last generated image using instruction with retry logic"""
     if not st.session_state.generated_images:
         return False, "No image to edit. Generate one first."
     
@@ -668,47 +649,65 @@ def edit_image(edit_instruction):
     try:
         encoded_prompt = requests.utils.quote(new_prompt)
         
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        
         endpoints = [
             f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512",
             f"https://pollinations.ai/p/{encoded_prompt}?width=512&height=512",
         ]
         
-        message_placeholder = st.empty()
-        message_placeholder.info("✏️ Editing image... This may take 15-30 seconds.")
+        status_placeholder = st.empty()
+        status_placeholder.info("✏️ Editing image... Attempt 1/3")
+        
+        img_bytes = None
         
         for url in endpoints:
-            try:
-                response = requests.get(url, timeout=20)
-                if response.status_code == 200 and len(response.content) > 5000:
-                    from io import BytesIO
-                    img_bytes = response.content
+            for attempt in range(3):
+                try:
+                    status_placeholder.info(f"✏️ Editing image... Attempt {attempt + 1}/3")
+                    response = requests.get(url, headers=headers, timeout=60)
                     
-                    st.session_state.generated_images.append({
-                        "prompt": new_prompt,
-                        "image": img_bytes,
-                        "timestamp": time.time(),
-                        "edited_from": original_prompt
-                    })
-                    st.session_state.current_image_index = len(st.session_state.generated_images) - 1
-                    
-                    message_placeholder.empty()
-                    img = BytesIO(img_bytes)
-                    st.image(img, caption=f"Edited: {new_prompt}", use_container_width=True)
-                    return True, new_prompt
-            except:
-                continue
+                    if response.status_code == 200 and len(response.content) > 1000:
+                        img_bytes = response.content
+                        break
+                    else:
+                        status_placeholder.warning(f"⚠️ Attempt {attempt + 1} failed. Retrying...")
+                        time.sleep(2)
+                except requests.Timeout:
+                    status_placeholder.warning(f"⏰ Attempt {attempt + 1} timed out. Retrying...")
+                    time.sleep(2)
+                except Exception as e:
+                    status_placeholder.warning(f"⚠️ Attempt {attempt + 1} error: {str(e)[:50]}. Retrying...")
+                    time.sleep(2)
+            
+            if img_bytes:
+                break
         
-        message_placeholder.empty()
-        st.warning(f"⚠️ Edit service busy. Please try again.")
-        st.info(f"🎨 Prompt: \"{new_prompt}\"")
+        status_placeholder.empty()
         
-        st.session_state.generated_images.append({
-            "prompt": new_prompt,
-            "image": None,
-            "timestamp": time.time(),
-            "placeholder": True
-        })
-        return True, new_prompt
+        if img_bytes:
+            from io import BytesIO
+            
+            st.session_state.generated_images.append({
+                "prompt": new_prompt,
+                "image": img_bytes,
+                "timestamp": time.time(),
+                "edited_from": original_prompt
+            })
+            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
+            
+            img = BytesIO(img_bytes)
+            st.image(img, caption=f"Edited: {new_prompt}", use_container_width=True)
+            return True, new_prompt
+        else:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.warning("⚠️ Service busy. Could not edit image.")
+                if st.button("🔄 Retry Edit", key=f"retry_edit_{int(time.time())}", use_container_width=True):
+                    return edit_image(edit_instruction)
+            return False, "Service busy"
         
     except Exception as e:
         return False, str(e)
@@ -719,15 +718,15 @@ def show_image_history():
         st.markdown("### 📸 Image History")
         for i, img_data in enumerate(st.session_state.generated_images[-5:]):
             idx = len(st.session_state.generated_images) - 5 + i
-            if idx >= 0:
+            if idx >= 0 and img_data.get("image") is not None:
                 from io import BytesIO
                 img = BytesIO(img_data["image"])
                 st.image(img, caption=f"{img_data['prompt'][:50]}...", width=80)
 
+# ============================================
+# RUN_AGENT FUNCTION
+# ============================================
 
-# ============================================
-# RUN_AGENT FUNCTIONS
-# ============================================
 def run_agent(query):
     q = query.lower().strip()
     
@@ -816,36 +815,34 @@ He built me with web search, file analysis, image generation, and coding assista
         context += get_current_datetime()
     
     elif tool == "generate_image":
-        with st.spinner("🎨 Preparing image generation..."):
+        image_prompt = query
+        command_phrases = [
+            "generate image of", "generate an image of", "generate a image of",
+            "generate image", "generate an image", "create image of", 
+            "create an image of", "draw a", "draw an", "draw",
+            "make an image of", "picture of", "image of"
+        ]
+        for phrase in command_phrases:
+            if phrase in image_prompt.lower():
+                image_prompt = re.sub(re.escape(phrase), "", image_prompt.lower(), flags=re.IGNORECASE).strip()
+                break
+        
+        image_prompt = ' '.join(image_prompt.split())
+        if not image_prompt or len(image_prompt) < 3:
             image_prompt = query
-            command_phrases = [
-                "generate image of", "generate an image of", "generate a image of",
-                "generate image", "generate an image", "create image of", 
-                "create an image of", "draw a", "draw an", "draw",
-                "make an image of", "picture of", "image of"
-            ]
-            for phrase in command_phrases:
-                if phrase in image_prompt.lower():
-                    image_prompt = re.sub(re.escape(phrase), "", image_prompt.lower(), flags=re.IGNORECASE).strip()
-                    break
-            
-            image_prompt = ' '.join(image_prompt.split())
-            if not image_prompt or len(image_prompt) < 3:
-                image_prompt = query
-            
-            st.session_state.last_image_prompt = image_prompt
-            
-            success = generate_image(image_prompt)
-            if success:
-                return f"🎨 **Generated Image for:** \"{image_prompt}\"\n\n*You can now edit this image by saying:*\n- 'make it black'\n- 'add a hat'\n- 'make it look angry'"
-            else:
-                return "❌ Could not generate image. Please try again with a simpler prompt like 'cat' or 'sun'."
+        
+        st.session_state.last_image_prompt = image_prompt
+        
+        success = generate_image(image_prompt)
+        if success:
+            return f"🎨 **Generated Image for:** \"{image_prompt}\""
+        else:
+            return "❌ Could not generate image. Please try again later."
     
     elif tool == "edit_image":
         if not st.session_state.generated_images:
             return "❌ No previous image found. Please generate an image first using 'generate image of...'"
         
-        # Extract edit instruction
         edit_text = query
         command_words = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]
         for word in command_words:
@@ -857,7 +854,7 @@ He built me with web search, file analysis, image generation, and coding assista
         
         success, new_prompt = edit_image(edit_text)
         if success:
-            return f"🎨 **Edited Image - New Prompt:** \"{new_prompt}\"\n\n*Continue editing with more instructions!*"
+            return f"🎨 **Edited Image - New Prompt:** \"{new_prompt}\""
         else:
             return f"❌ Edit failed: {new_prompt}"
     
@@ -977,6 +974,8 @@ with st.sidebar:
         st.session_state.uploaded_files = {}
         st.session_state.file_context = ""
         st.session_state.last_image_prompt = None
+        st.session_state.generated_images = []
+        st.session_state.current_image_index = -1
         st.rerun()
     
     if st.button("🗑️ Clear Files", use_container_width=True):
@@ -1031,8 +1030,6 @@ with st.sidebar:
         st.session_state.current_image_index = -1
         st.success("Image history cleared!")
         st.rerun()
-
-
 
 # ============================================
 # CHAT DISPLAY
