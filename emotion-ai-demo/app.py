@@ -319,6 +319,12 @@ YOUR CAPABILITIES:
 - Image generation and editing
 - Calculator and news
 
+**CRITICAL RULES FOR QUESTIONS:**
+1. When a user ASKS "can you generate images?" or "do you generate images?" → ANSWER WITH TEXT: "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
+2. When a user SAYS "generate image of X" or "draw Y" → THEN generate the image
+3. Questions about your capabilities should NEVER trigger actual image generation
+4. Only generate an image when the user explicitly COMMANDS you to, not when they ASK if you can
+
 CRITICAL RULES:
 1. For questions about PEOPLE, PLACES, EVENTS, or ANY topic not related to your creator, USE SEARCH RESULTS
 2. ONLY mention your creator when specifically asked
@@ -642,7 +648,17 @@ def run_agent(query):
         st.session_state.last_topic = None
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
-    
+
+        # Add this BEFORE the tool detection
+    # Direct response for capability questions (bypasses router)
+    capability_questions = [
+        "can you generate images", "do you generate images", 
+        "can you create images", "do you create images",
+        "can you draw", "do you draw", "are you able to generate images"
+    ]
+    if any(phrase in q for phrase in capability_questions):
+        return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
+        
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
         return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can search the web, analyze files, generate images, and help with coding. What can I do for you?"
     
