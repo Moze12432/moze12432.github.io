@@ -1,13 +1,26 @@
+# ============================================
+# STREAMLIT CLOUD COMPATIBLE SETUP
+# ============================================
+
 import sys
 import subprocess
+import os
 
-# Ensure torch is installed with CPU only (smaller footprint)
+# Disable tokenizers parallelism (avoids warnings)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Install torch if not present (CPU only for Streamlit Cloud)
 try:
     import torch
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "torch==2.0.1", "--index-url", "https://download.pytorch.org/whl/cpu"])
     import torch
 
+# Force CPU mode
+torch.cuda.is_available = lambda: False
+torch.cuda.device_count = lambda: 0
+
+# Now import the rest
 import streamlit as st
 from groq import Groq
 import requests
@@ -24,7 +37,6 @@ from datetime import datetime
 import pytz
 import time
 import hashlib
-
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -63,10 +75,6 @@ def extract_text_from_docx(file):
         return text[:5000] if text.strip() else "No extractable text in document"
     except Exception as e:
         return f"Error reading Word document: {str(e)}"
-
-# ============================================
-# SIMPLE CHUNKING FUNCTION (No langchain dependency)
-# ============================================
 
 def extract_text_from_txt(file):
     try:
@@ -212,11 +220,16 @@ def get_current_datetime():
 • Timezone: Asia/Seoul"""
 
 # ============================================
-# ADVANCED RAG PIPELINE WITH CHUNKING & RERANKING
+# INITIALIZE EMBEDDER
 # ============================================
 
+try:
+    embedder = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+except Exception as e:
+    embedder = SentenceTransformer("paraphrase-MiniLM-L3-v2", device="cpu")
+
 # ============================================
-# SIMPLE CHUNKING FUNCTION (No langchain dependency)
+# SIMPLE CHUNKING FUNCTION
 # ============================================
 
 def simple_text_chunker(text, chunk_size=500, overlap=50):
@@ -231,14 +244,11 @@ def simple_text_chunker(text, chunk_size=500, overlap=50):
     while start < text_length:
         end = min(start + chunk_size, text_length)
         
-        # Try to break at a sentence or paragraph for better quality
         if end < text_length:
-            # Look for paragraph break (preferred)
             paragraph_break = text.rfind('\n\n', start, end)
             if paragraph_break > start:
                 end = paragraph_break + 2
             else:
-                # Look for sentence break
                 sentence_break = max(
                     text.rfind('. ', start, end),
                     text.rfind('? ', start, end),
@@ -247,7 +257,6 @@ def simple_text_chunker(text, chunk_size=500, overlap=50):
                 if sentence_break > start:
                     end = sentence_break + 2
                 else:
-                    # Look for space as last resort
                     space_break = text.rfind(' ', start, end)
                     if space_break > start:
                         end = space_break + 1
@@ -255,26 +264,22 @@ def simple_text_chunker(text, chunk_size=500, overlap=50):
         chunks.append(text[start:end].strip())
         start = end - overlap
     
-    # Filter out empty chunks
     return [chunk for chunk in chunks if chunk]
 
+# ============================================
+# ADVANCED RAG CLASS
+# ============================================
 
 class AdvancedRAG:
     def __init__(self):
-        # Chunking parameters
         self.chunk_size = 500
         self.chunk_overlap = 50
-        
-        # For BM25 (keyword search) - store chunks
         self.bm25_corpus = []
         self.bm25_index = None
         self.documents = []
-        
-        # For simple vector storage (since ChromaDB might not be available)
-        self.vector_store = []  # Store (embedding, text, metadata)
+        self.vector_store = []
         
     def chunk_document(self, text, metadata=None):
-        """Split document into intelligent chunks using simple chunker"""
         if not text or len(text) < 50:
             return [], []
         
@@ -293,20 +298,16 @@ class AdvancedRAG:
         return chunks, chunk_metadata
     
     def add_memory(self, text, metadata=None):
-        """Add text to memory with chunking and multiple indices"""
         if len(text) < 50:
             return
         
-        # Chunk the document
         chunks, chunk_metadata = self.chunk_document(text, metadata)
         
         if not chunks:
             return
         
-        # Store chunks for BM25
         self.bm25_corpus.extend(chunks)
         
-        # Store embeddings for vector search
         for chunk in chunks:
             if chunk.strip():
                 embedding = embedder.encode(chunk)
@@ -317,15 +318,12 @@ class AdvancedRAG:
                     "timestamp": time.time()
                 })
         
-        # Rebuild BM25 index
-        if self.bm25_corpus:
-            try:
-                from rank_bm25 import BM25Okapi
-                self.bm25_index = BM25Okapi(self.bm25_corpus)
-            except:
-                pass
+        try:
+            from rank_bm25 import BM25Okapi
+            self.bm25_index = BM25Okapi(self.bm25_corpus)
+        except:
+            pass
         
-        # Store full document info
         self.documents.append({
             "text": text,
             "metadata": metadata,
@@ -333,46 +331,37 @@ class AdvancedRAG:
             "timestamp": time.time()
         })
         
-        # Keep only last 50 documents to manage memory
         if len(self.documents) > 50:
             self.documents = self.documents[-50:]
-            # Also trim vector store
             if len(self.vector_store) > 500:
                 self.vector_store = self.vector_store[-500:]
     
     def retrieve_with_reranking(self, query, top_k=5):
-        """Retrieve and rerank results using multiple strategies"""
         if not self.documents:
             return []
         
         query_embedding = embedder.encode(query)
-        query_terms = set(query.lower().split())
-        
-        # Collect all chunks with scores
         all_results = []
         
-        # Strategy 1: Vector similarity
         for item in self.vector_store:
             try:
                 similarity = np.dot(query_embedding, item["embedding"]) / (
                     np.linalg.norm(query_embedding) * np.linalg.norm(item["embedding"])
                 )
-                if similarity > 0.3:  # Only keep reasonably similar results
+                if similarity > 0.3:
                     all_results.append((item["text"], similarity, "vector"))
             except:
                 pass
         
-        # Strategy 2: BM25 keyword search
         if self.bm25_index and self.bm25_corpus:
             try:
                 bm25_scores = self.bm25_index.get_scores(query.split())
                 for i, score in enumerate(bm25_scores):
                     if score > 0 and i < len(self.bm25_corpus):
-                        all_results.append((self.bm25_corpus[i], score / 10, "bm25"))  # Normalize
+                        all_results.append((self.bm25_corpus[i], score / 10, "bm25"))
             except:
                 pass
         
-        # Deduplicate by text
         seen_texts = set()
         unique_results = []
         for text, score, source in all_results:
@@ -380,14 +369,10 @@ class AdvancedRAG:
                 seen_texts.add(text)
                 unique_results.append((text, score, source))
         
-        # Sort by score
         unique_results.sort(key=lambda x: x[1], reverse=True)
-        
-        # Return top_k results
         return [text for text, score, source in unique_results[:top_k]]
     
     def get_context(self, query, max_chunks=3):
-        """Get relevant context for query"""
         if not self.documents:
             return ""
         
@@ -399,38 +384,34 @@ class AdvancedRAG:
                 context += f"[{i+1}] {chunk}\n\n"
             return context
         return ""
-# Initialize embedder and RAG
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Initialize RAG
 advanced_rag = AdvancedRAG()
 
 # ============================================
-# MEMORY FUNCTIONS (USING ADVANCED RAG)
+# MEMORY FUNCTIONS
 # ============================================
 
 def store_memory(text):
-    """Store memory using advanced RAG pipeline"""
     if len(text) > 50:
         try:
             advanced_rag.add_memory(text, metadata={"type": "conversation"})
-        except Exception as e:
+        except:
             pass
 
 def retrieve_memory(query):
-    """Retrieve memory using advanced RAG with reranking"""
     if not advanced_rag.documents:
         return ""
     try:
         return advanced_rag.get_context(query, max_chunks=3)
-    except Exception as e:
+    except:
         return ""
 
 # ============================================
-# LLM FUNCTION WITH MULTIPLE MODEL FALLBACKS (70B PRIORITY)
+# LLM FUNCTION WITH MULTIPLE MODEL FALLBACKS
 # ============================================
 
 def llm_with_fallback(messages, max_retries=2):
-    """Call LLM with automatic fallback to multiple models - 70B prioritized"""
-    
     models_to_try = [
         "llama-3.3-70b-versatile",
         "llama-3.1-70b-versatile",
@@ -453,7 +434,6 @@ def llm_with_fallback(messages, max_retries=2):
                 )
                 st.session_state.last_model_used = model
                 return completion.choices[0].message.content.strip()
-                
             except Exception as e:
                 last_error = str(e)
                 if attempt < max_retries - 1:
@@ -461,10 +441,9 @@ def llm_with_fallback(messages, max_retries=2):
                     time.sleep(wait_time)
                 continue
     
-    return f"AI service temporarily unavailable. Last error: {last_error[:100] if last_error else 'Unknown'}"
+    return f"AI service temporarily unavailable."
 
 def llm(messages):
-    """Wrapper for backward compatibility"""
     return llm_with_fallback(messages)
 
 # ============================================
@@ -555,8 +534,8 @@ def internet_search(query):
                 return context[:3000]
         
         return wikipedia_search(clean_query)
-    except Exception as e:
-        return wikipedia_search(query)
+    except:
+        return ""
 
 def wikipedia_search(query):
     try:
@@ -570,32 +549,6 @@ def wikipedia_search(query):
             extract = data.get("extract", "")
             if extract:
                 return f"Wikipedia - {title}:\n{extract[:2000]}"
-        
-        search_url = "https://en.wikipedia.org/w/api.php"
-        params = {
-            "action": "query",
-            "list": "search",
-            "srsearch": query,
-            "format": "json",
-            "srlimit": 3
-        }
-        response = requests.get(search_url, params=params, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            search_results = data.get("query", {}).get("search", [])
-            
-            if search_results:
-                context = f"Wikipedia search results for '{query}':\n\n"
-                for result in search_results[:2]:
-                    title = result.get("title", "")
-                    r2 = requests.get(url + title.replace(" ", "_"), timeout=10)
-                    if r2.status_code == 200:
-                        data2 = r2.json()
-                        extract = data2.get("extract", "")[:800]
-                        if extract:
-                            context += f"**{title}**\n{extract}\n\n"
-                return context[:2500]
     except:
         pass
     return ""
@@ -729,12 +682,7 @@ def clean_answer(text):
 # ============================================
 
 def reason(question, context):
-    """Generate response with full conversation context and enhanced RAG"""
-    
-    # Get enhanced memory context
     memory_context = retrieve_memory(question)
-    
-    # Combine all contexts
     enhanced_context = context
     if memory_context:
         enhanced_context += "\n" + memory_context
@@ -780,13 +728,9 @@ def compare_files(query, file_context, filenames):
     return clean_answer(llm(messages))
 
 def analyze_uploaded_files(query, file_context, filenames):
-    """Analyze uploaded files with chunking for better understanding"""
-    
-    # Chunk the file content using simple_text_chunker
     chunks = simple_text_chunker(file_context, chunk_size=500, overlap=50)
     
     if not chunks:
-        # If no chunks, just use the original context
         analysis_prompt = f"""
 Files: {filenames}
 
@@ -798,13 +742,10 @@ USER QUESTION: {query}
 Answer based on the file content above.
 """
     else:
-        # Find most relevant chunks for the query
         query_embedding = embedder.encode(query)
-        
-        # Score chunks by relevance
         scored_chunks = []
-        for chunk in chunks[:15]:  # Limit to first 15 chunks for performance
-            if len(chunk.strip()) > 20:  # Only consider non-empty chunks
+        for chunk in chunks[:15]:
+            if len(chunk.strip()) > 20:
                 chunk_embedding = embedder.encode(chunk)
                 try:
                     score = np.dot(query_embedding, chunk_embedding) / (
@@ -861,7 +802,7 @@ def generate_image(prompt):
         timestamp = int(time.time())
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&_={timestamp}"
         return image_url
-    except Exception as e:
+    except:
         return None
 
 def generate_and_display_image(prompt):
@@ -1155,7 +1096,8 @@ with st.sidebar:
             st.session_state.last_topic = None
             st.session_state.code_search_cache = {}
             
-            # Also clear the advanced RAG memory
+            # Reinitialize RAG
+            global advanced_rag
             advanced_rag = AdvancedRAG()
             
             st.session_state.is_resetting = False
