@@ -604,42 +604,56 @@ if "current_image_index" not in st.session_state:
     st.session_state.current_image_index = -1
 
 def generate_image(prompt):
-    """Generate a new image from prompt with loading indicator"""
+    """Generate a new image from prompt with reliable fallback"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512"
         
-        # Create a placeholder for the loading message
+        # Try multiple endpoints
+        endpoints = [
+            f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512",
+            f"https://pollinations.ai/p/{encoded_prompt}?width=512&height=512",
+        ]
+        
         message_placeholder = st.empty()
         message_placeholder.info("🖼️ Generating image... This may take 15-30 seconds.")
         
-        response = requests.get(image_url, timeout=30)
+        for url in endpoints:
+            try:
+                response = requests.get(url, timeout=20)
+                if response.status_code == 200 and len(response.content) > 5000:
+                    from io import BytesIO
+                    img_bytes = response.content
+                    
+                    st.session_state.generated_images.append({
+                        "prompt": prompt,
+                        "image": img_bytes,
+                        "timestamp": time.time()
+                    })
+                    st.session_state.current_image_index = len(st.session_state.generated_images) - 1
+                    
+                    message_placeholder.empty()
+                    img = BytesIO(img_bytes)
+                    st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
+                    return True
+            except:
+                continue
         
-        if response.status_code == 200 and len(response.content) > 1000:
-            from io import BytesIO
-            img_bytes = response.content
-            
-            st.session_state.generated_images.append({
-                "prompt": prompt,
-                "image": img_bytes,
-                "timestamp": time.time()
-            })
-            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
-            
-            # Clear loading message and show image
-            message_placeholder.empty()
-            img = BytesIO(img_bytes)
-            st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
-            return True
-        else:
-            message_placeholder.error("❌ Failed to generate image. Please try again.")
-            return False
-            
-    except requests.Timeout:
-        st.error("⏰ Image generation timed out (30 seconds). The service might be busy. Please try again.")
-        return False
+        # If all endpoints fail, show a simple message
+        message_placeholder.empty()
+        st.warning(f"⚠️ Image service is busy. Please try again in a moment.")
+        st.info(f"🎨 Prompt: \"{prompt}\"")
+        
+        # Store placeholder in history
+        st.session_state.generated_images.append({
+            "prompt": prompt,
+            "image": None,
+            "timestamp": time.time(),
+            "placeholder": True
+        })
+        return True
+        
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+        st.error(f"Error: {e}")
         return False
 
 def edit_image(edit_instruction):
@@ -653,40 +667,50 @@ def edit_image(edit_instruction):
     
     try:
         encoded_prompt = requests.utils.quote(new_prompt)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512"
         
-        # Create a placeholder for the loading message
+        endpoints = [
+            f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512",
+            f"https://pollinations.ai/p/{encoded_prompt}?width=512&height=512",
+        ]
+        
         message_placeholder = st.empty()
         message_placeholder.info("✏️ Editing image... This may take 15-30 seconds.")
         
-        response = requests.get(image_url, timeout=30)
+        for url in endpoints:
+            try:
+                response = requests.get(url, timeout=20)
+                if response.status_code == 200 and len(response.content) > 5000:
+                    from io import BytesIO
+                    img_bytes = response.content
+                    
+                    st.session_state.generated_images.append({
+                        "prompt": new_prompt,
+                        "image": img_bytes,
+                        "timestamp": time.time(),
+                        "edited_from": original_prompt
+                    })
+                    st.session_state.current_image_index = len(st.session_state.generated_images) - 1
+                    
+                    message_placeholder.empty()
+                    img = BytesIO(img_bytes)
+                    st.image(img, caption=f"Edited: {new_prompt}", use_container_width=True)
+                    return True, new_prompt
+            except:
+                continue
         
-        if response.status_code == 200 and len(response.content) > 1000:
-            from io import BytesIO
-            img_bytes = response.content
-            
-            st.session_state.generated_images.append({
-                "prompt": new_prompt,
-                "image": img_bytes,
-                "timestamp": time.time(),
-                "edited_from": original_prompt
-            })
-            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
-            
-            # Clear loading message and show image
-            message_placeholder.empty()
-            img = BytesIO(img_bytes)
-            st.image(img, caption=f"Edited: {new_prompt}", use_container_width=True)
-            return True, new_prompt
-        else:
-            message_placeholder.error("❌ Edit failed. Please try again.")
-            return False, "Edit failed"
-            
-    except requests.Timeout:
-        st.error("⏰ Edit timed out (30 seconds). The service might be busy. Please try again.")
-        return False, "Timeout"
+        message_placeholder.empty()
+        st.warning(f"⚠️ Edit service busy. Please try again.")
+        st.info(f"🎨 Prompt: \"{new_prompt}\"")
+        
+        st.session_state.generated_images.append({
+            "prompt": new_prompt,
+            "image": None,
+            "timestamp": time.time(),
+            "placeholder": True
+        })
+        return True, new_prompt
+        
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
         return False, str(e)
 
 def show_image_history():
