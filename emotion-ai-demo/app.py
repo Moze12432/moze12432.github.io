@@ -529,7 +529,7 @@ def route(query):
     # Add after calculator check
 
     if any(phrase in q for phrase in ["can you", "do you", "are you able", "how to"]):
-    return "reason"  # Let the LLM answer naturally
+        return "reason"  # Let the LLM answer naturally
     
        # Image generation
     if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
