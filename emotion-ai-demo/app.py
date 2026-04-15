@@ -209,7 +209,6 @@ class LightweightMemory:
         if len(text) < 50:
             return
         
-        # Extract keywords (simple approach)
         words = set(re.findall(r'\b[a-z]{3,}\b', text.lower()))
         
         memory = {
@@ -221,14 +220,11 @@ class LightweightMemory:
         
         self.memories.append(memory)
         
-        # Index by keywords
         for word in words:
             self.keyword_index[word].append(len(self.memories) - 1)
         
-        # Keep only last 50 memories
         if len(self.memories) > 50:
             self.memories = self.memories[-50:]
-            # Rebuild index
             self._rebuild_index()
     
     def _rebuild_index(self):
@@ -243,7 +239,6 @@ class LightweightMemory:
         
         query_words = set(re.findall(r'\b[a-z]{3,}\b', query.lower()))
         
-        # Score memories by keyword matches
         scored = []
         for idx, memory in enumerate(self.memories):
             matches = len(query_words & memory["keywords"])
