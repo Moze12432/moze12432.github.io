@@ -289,17 +289,20 @@ if "last_search_query" not in st.session_state:
     st.session_state.last_search_query = None
 if "last_search_results" not in st.session_state:
     st.session_state.last_search_results = None
-# Add this to your session state initialization section
 if "last_response" not in st.session_state:
     st.session_state.last_response = None
-# Add to your session state initialization section
 if "last_topic" not in st.session_state:
     st.session_state.last_topic = None
-# Add to your session state section
 if "last_image_prompt" not in st.session_state:
     st.session_state.last_image_prompt = None
 if "last_image_url" not in st.session_state:
     st.session_state.last_image_url = None
+if "generated_images" not in st.session_state:
+    st.session_state.generated_images = []
+if "current_image_index" not in st.session_state:
+    st.session_state.current_image_index = -1
+if "code_search_cache" not in st.session_state:
+    st.session_state.code_search_cache = {}
 # ============================================
 # EMBEDDINGS FOR MEMORY
 # ============================================
@@ -967,12 +970,34 @@ with st.sidebar:
     st.markdown("### 🧠 MozeAI")
     st.markdown("---")
     
-    # New Chat button
+    # New Chat button - UPDATED to clear everything
     if st.button("🔄 New Chat", use_container_width=True):
-        st.session_state.memory_store = []
+        # Clear conversation history
         st.session_state.chat_history = []
+        # Clear memory store (embeddings)
+        st.session_state.memory_store = []
+        # Clear file-related data
         st.session_state.uploaded_files = {}
         st.session_state.file_context = ""
+        # Clear image generation history
+        st.session_state.last_image_prompt = None
+        st.session_state.generated_images = []
+        st.session_state.current_image_index = -1
+        # Clear search history
+        st.session_state.last_search_query = None
+        st.session_state.last_search_results = None
+        st.session_state.last_response = None
+        st.session_state.last_topic = None
+        # Clear code search cache
+        st.session_state.code_search_cache = {}
+        # Rerun to refresh the UI
+        st.rerun()
+    
+    # Clear Files button (keep this as is)
+    if st.button("🗑️ Clear Files", use_container_width=True):
+        st.session_state.uploaded_files = {}
+        st.session_state.file_context = ""
+        st.success("✅ All files cleared!")
         st.rerun()
     
     # Clear Files button
