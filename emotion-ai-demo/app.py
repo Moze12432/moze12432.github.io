@@ -125,7 +125,7 @@ def process_uploaded_file(uploaded_file):
 # CONFIG
 # ============================================
 
-MODEL_NAME = "llama-3.1-70b-versatile" 
+MODEL_NAME = "llama-3.1-8b-instant" 
 TEMPERATURE = 0
 MAX_TOKENS = 800
 
