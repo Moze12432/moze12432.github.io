@@ -367,6 +367,25 @@ if "last_model_used" not in st.session_state:
 def internet_search(query):
     try:
         clean_query = query.strip()
+        
+        # For weather queries, try wttr.in first
+        if any(x in clean_query.lower() for x in ["weather", "temperature", "temp"]):
+            # Extract location
+            location = clean_query
+            weather_words = ["weather in", "weather at", "temperature in", "weather", "temperature"]
+            for word in weather_words:
+                if word in location.lower():
+                    location = re.sub(re.escape(word), "", location.lower(), flags=re.IGNORECASE).strip()
+                    break
+            if location:
+                weather_url = f"https://wttr.in/{location}?format=%C+%t+%w+%h&m"
+                weather_response = requests.get(weather_url, timeout=10)
+                if weather_response.status_code == 200:
+                    weather_data = weather_response.text.strip()
+                    if weather_data and "Unknown" not in weather_data:
+                        return f"Current weather in {location}: {weather_data}"
+        
+        # Fallback to DuckDuckGo
         url = "https://html.duckduckgo.com/html/"
         params = {"q": clean_query}
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -442,6 +461,41 @@ def scrape_webpage(url):
 def extract_urls_from_query(query):
     url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
     return re.findall(url_pattern, query)
+
+# ============================================
+# WEATHER FUNCTION
+# ============================================
+
+def get_weather(location):
+    """Get current weather for a location using wttr.in (free, no API key)"""
+    try:
+        # Clean location
+        location = location.strip().replace(" ", "%20")
+        
+        # Use wttr.in API (returns simple text)
+        url = f"https://wttr.in/{location}?format=%C+%t+%w+%h&m"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            weather_data = response.text.strip()
+            if weather_data and "Unknown" not in weather_data:
+                return weather_data
+        return None
+    except Exception as e:
+        return None
+
+def get_weather_detailed(location):
+    """Get detailed weather using wttr.in API"""
+    try:
+        location = location.strip().replace(" ", "%20")
+        url = f"https://wttr.in/{location}?0T&m"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            return response.text
+        return None
+    except Exception as e:
+        return None
 
 # ============================================
 # CODING SEARCH FUNCTIONS
@@ -520,13 +574,26 @@ def route(query):
     if any(x in q for x in comparison_keywords):
         return "compare_files"
     
+    # ============================================
+    # WEATHER - SPECIAL HANDLED (MUST COME EARLY)
+    # ============================================
+    if any(x in q for x in ["weather", "temperature", "temp", "rain", "snow", "forecast", "humidity", "wind"]):
+        return "weather"
+    
+    # Image editing
+    edit_keywords = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]
+    if any(x in q for x in edit_keywords):
+        return "edit_image"
+    
+    # Image generation
     if any(x in q for x in ["generate image", "create image", "draw", "make an image", "picture of", "image of"]):
         return "generate_image"
     
-    if any(x in q for x in ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]):
-        return "edit_image"
+    # Questions about capability
+    if any(phrase in q for phrase in ["can you", "do you", "are you able to"]):
+        return "reason"
     
-    if any(x in q for x in ["who is", "tell me about", "what is", "weather", "temperature", "rain", "snow", "news", "headlines"]):
+    if any(x in q for x in ["who is", "tell me about", "what is", "news", "headlines"]):
         return "search"
     
     if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
@@ -739,6 +806,29 @@ def run_agent(query):
     
     elif tool == "datetime":
         context += get_current_datetime()
+
+    elif tool == "weather":
+        with st.spinner("🌤️ Fetching weather..."):
+            # Extract location from query
+            location = query
+            # Remove weather-related words
+            weather_words = ["weather in", "weather at", "temperature in", "temp in", "what is the weather in", "weather for", "forecast in"]
+            for word in weather_words:
+                if word in location.lower():
+                    location = re.sub(re.escape(word), "", location.lower(), flags=re.IGNORECASE).strip()
+                    break
+            location = location.strip()
+            
+            if not location:
+                location = "Lagos"  # Default
+            
+            # Get weather
+            weather_info = get_weather(location)
+            
+            if weather_info:
+                return f"🌤️ **Current weather in {location.title()}:**\n\n{weather_info}\n\n*Data from wttr.in*"
+            else:
+                return f"Sorry, I couldn't fetch the weather for {location}. Please check the location name and try again."
     
     elif tool == "generate_image":
         with st.spinner("Generating image..."):
