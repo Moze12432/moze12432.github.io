@@ -269,10 +269,6 @@ if "last_image_prompt" not in st.session_state:
     st.session_state.last_image_prompt = None
 if "code_search_cache" not in st.session_state:
     st.session_state.code_search_cache = {}
-if "generated_images" not in st.session_state:
-    st.session_state.generated_images = []
-if "current_image_index" not in st.session_state:
-    st.session_state.current_image_index = -1
 
 # ============================================
 # EMBEDDINGS
@@ -548,199 +544,20 @@ def evaluate_work(question, file_context):
 # IMAGE GENERATION FUNCTIONS
 # ============================================
 
-def generate_image(prompt):
-    """Generate a new image from prompt with editable placeholder"""
+def generate_and_display_image(prompt, is_edit=False):
+    """Generate and display image using st.image directly"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
+        timestamp = int(time.time())
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&_={timestamp}"
         
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
+        # Display image directly using st.image
+        st.image(image_url, caption=f"{'Edited' if is_edit else 'Generated'}: {prompt}", use_container_width=True)
         
-        endpoints = [
-            f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512",
-            f"https://pollinations.ai/p/{encoded_prompt}?width=512&height=512",
-        ]
-        
-        status_placeholder = st.empty()
-        status_placeholder.info("🖼️ Generating image... Attempt 1/3")
-        
-        img_bytes = None
-        
-        for url in endpoints:
-            for attempt in range(3):
-                try:
-                    status_placeholder.info(f"🖼️ Generating image... Attempt {attempt + 1}/3")
-                    response = requests.get(url, headers=headers, timeout=60)
-                    
-                    if response.status_code == 200 and len(response.content) > 1000:
-                        img_bytes = response.content
-                        break
-                    else:
-                        status_placeholder.warning(f"⚠️ Attempt {attempt + 1} failed. Retrying...")
-                        time.sleep(2)
-                except requests.Timeout:
-                    status_placeholder.warning(f"⏰ Attempt {attempt + 1} timed out. Retrying...")
-                    time.sleep(2)
-                except Exception as e:
-                    status_placeholder.warning(f"⚠️ Attempt {attempt + 1} error: {str(e)[:50]}. Retrying...")
-                    time.sleep(2)
-            
-            if img_bytes:
-                break
-        
-        status_placeholder.empty()
-        
-        if img_bytes:
-            from io import BytesIO
-            
-            st.session_state.generated_images.append({
-                "prompt": prompt,
-                "image": img_bytes,
-                "timestamp": time.time()
-            })
-            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
-            
-            img = BytesIO(img_bytes)
-            st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
-            return True
-        else:
-            # Create a simple colored rectangle placeholder that can be edited
-            from PIL import Image, ImageDraw, ImageFont
-            import io
-            
-            # Create a blank image with text
-            img = Image.new('RGB', (512, 512), color=(255, 200, 100))
-            draw = ImageDraw.Draw(img)
-            
-            # Draw a simple sun shape
-            draw.ellipse((156, 156, 356, 356), fill=(255, 255, 0), outline=(255, 165, 0), width=5)
-            
-            # Add rays
-            for i in range(0, 360, 30):
-                import math
-                rad = math.radians(i)
-                x1 = 256 + 120 * math.cos(rad)
-                y1 = 256 + 120 * math.sin(rad)
-                x2 = 256 + 160 * math.cos(rad)
-                y2 = 256 + 160 * math.sin(rad)
-                draw.line((x1, y1, x2, y2), fill=(255, 165, 0), width=8)
-            
-            # Add text
-            draw.text((200, 420), f"Waiting for: {prompt[:20]}", fill=(100, 100, 100))
-            draw.text((180, 450), "Click Retry or Edit", fill=(100, 100, 100))
-            
-            # Convert to bytes
-            img_bytes_io = io.BytesIO()
-            img.save(img_bytes_io, format='PNG')
-            img_bytes = img_bytes_io.getvalue()
-            
-            st.session_state.generated_images.append({
-                "prompt": prompt,
-                "image": img_bytes,
-                "timestamp": time.time(),
-                "placeholder": True
-            })
-            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
-            
-            from io import BytesIO
-            st.image(img_bytes, caption=f"Placeholder: {prompt} (Click Retry to generate)", use_container_width=True)
-            
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("🔄 Retry Generation", key=f"retry_gen_{int(time.time())}", use_container_width=True):
-                    return generate_image(prompt)
-            return True
-        
+        # Return empty string so no extra text appears
+        return ""
     except Exception as e:
-        st.error(f"Error: {e}")
-        return False
-        
-def edit_image(edit_instruction):
-    """Edit the last generated image using instruction with retry logic"""
-    if not st.session_state.generated_images:
-        return False, "No image to edit. Generate one first."
-    
-    last_image = st.session_state.generated_images[-1]
-    original_prompt = last_image["prompt"]
-    new_prompt = f"{original_prompt}, {edit_instruction}"
-    
-    try:
-        encoded_prompt = requests.utils.quote(new_prompt)
-        
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-        
-        endpoints = [
-            f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512",
-            f"https://pollinations.ai/p/{encoded_prompt}?width=512&height=512",
-        ]
-        
-        status_placeholder = st.empty()
-        status_placeholder.info("✏️ Editing image... Attempt 1/3")
-        
-        img_bytes = None
-        
-        for url in endpoints:
-            for attempt in range(3):
-                try:
-                    status_placeholder.info(f"✏️ Editing image... Attempt {attempt + 1}/3")
-                    response = requests.get(url, headers=headers, timeout=60)
-                    
-                    if response.status_code == 200 and len(response.content) > 1000:
-                        img_bytes = response.content
-                        break
-                    else:
-                        status_placeholder.warning(f"⚠️ Attempt {attempt + 1} failed. Retrying...")
-                        time.sleep(2)
-                except requests.Timeout:
-                    status_placeholder.warning(f"⏰ Attempt {attempt + 1} timed out. Retrying...")
-                    time.sleep(2)
-                except Exception as e:
-                    status_placeholder.warning(f"⚠️ Attempt {attempt + 1} error: {str(e)[:50]}. Retrying...")
-                    time.sleep(2)
-            
-            if img_bytes:
-                break
-        
-        status_placeholder.empty()
-        
-        if img_bytes:
-            from io import BytesIO
-            
-            st.session_state.generated_images.append({
-                "prompt": new_prompt,
-                "image": img_bytes,
-                "timestamp": time.time(),
-                "edited_from": original_prompt
-            })
-            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
-            
-            img = BytesIO(img_bytes)
-            st.image(img, caption=f"Edited: {new_prompt}", use_container_width=True)
-            return True, new_prompt
-        else:
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                st.warning("⚠️ Service busy. Could not edit image.")
-                if st.button("🔄 Retry Edit", key=f"retry_edit_{int(time.time())}", use_container_width=True):
-                    return edit_image(edit_instruction)
-            return False, "Service busy"
-        
-    except Exception as e:
-        return False, str(e)
-
-def show_image_history():
-    """Display image history in sidebar"""
-    if st.session_state.generated_images:
-        st.markdown("### 📸 Image History")
-        for i, img_data in enumerate(st.session_state.generated_images[-5:]):
-            idx = len(st.session_state.generated_images) - 5 + i
-            if idx >= 0 and img_data.get("image") is not None:
-                from io import BytesIO
-                img = BytesIO(img_data["image"])
-                st.image(img, caption=f"{img_data['prompt'][:50]}...", width=80)
+        return f"❌ Error: {str(e)}"
 
 # ============================================
 # RUN_AGENT FUNCTION
@@ -757,7 +574,7 @@ def run_agent(query):
         st.session_state.last_search_results = None
         st.session_state.last_topic = None
         st.session_state.last_image_prompt = None
-        return "✅ Context cleared!"
+        return "✅ Context cleared! How can I help you today?"
     
     if q in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "hi there", "hello there"]:
         return "Hey there! How can I help you today?"
@@ -827,48 +644,49 @@ def run_agent(query):
         context += get_current_datetime()
     
     elif tool == "generate_image":
-        image_prompt = query
-        command_phrases = [
-            "generate image of", "generate an image of", "generate a image of",
-            "generate image", "generate an image", "create image of", 
-            "create an image of", "draw a", "draw an", "draw",
-            "make an image of", "picture of", "image of"
-        ]
-        for phrase in command_phrases:
-            if phrase in image_prompt.lower():
-                image_prompt = re.sub(re.escape(phrase), "", image_prompt.lower(), flags=re.IGNORECASE).strip()
-                break
-        
-        image_prompt = ' '.join(image_prompt.split())
-        if not image_prompt or len(image_prompt) < 3:
+        with st.spinner("🎨 Generating image..."):
             image_prompt = query
-        
-        st.session_state.last_image_prompt = image_prompt
-        
-        success = generate_image(image_prompt)
-        if success:
-            return ""
-        else:
-            return "❌ Could not generate image. Please try again."
+            command_phrases = [
+                "generate image of", "generate an image of", "generate a image of",
+                "generate image", "generate an image", "generate a image",
+                "create image of", "create an image of", "create a image of",
+                "create image", "create an image", "create a image",
+                "draw a", "draw an", "draw",
+                "make an image of", "make a image of", "make image of",
+                "picture of", "image of"
+            ]
+            for phrase in command_phrases:
+                if phrase in image_prompt.lower():
+                    image_prompt = re.sub(re.escape(phrase), "", image_prompt.lower(), flags=re.IGNORECASE).strip()
+                    break
+            
+            image_prompt = ' '.join(image_prompt.split())
+            if not image_prompt or len(image_prompt) < 3:
+                image_prompt = query
+            
+            st.session_state.last_image_prompt = image_prompt
+            
+            return generate_and_display_image(image_prompt, is_edit=False)
     
     elif tool == "edit_image":
-        if not st.session_state.generated_images:
-            return "❌ No previous image found. Generate an image first."
-        
-        edit_text = query
-        command_words = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]
-        for word in command_words:
-            if word in edit_text.lower():
-                edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
-                break
-        
-        edit_text = ' '.join(edit_text.split())
-        
-        success, new_prompt = edit_image(edit_text)
-        if success:
-            return ""
-        else:
-            return f"❌ Edit failed: {new_prompt}"
+        with st.spinner("🎨 Editing image..."):
+            last_prompt = st.session_state.get("last_image_prompt", "")
+            
+            if not last_prompt:
+                return "❌ No previous image found. Please generate an image first using 'generate image of...'"
+            
+            edit_instruction = query
+            command_words = ["edit image", "change the image", "modify image", "redraw", "make it", "make the", "change the", "edit the", "turn it", "change it to"]
+            for word in command_words:
+                if word in edit_instruction.lower():
+                    edit_instruction = re.sub(re.escape(word), "", edit_instruction.lower(), flags=re.IGNORECASE).strip()
+                    break
+            
+            edit_instruction = ' '.join(edit_instruction.split())
+            new_prompt = f"{last_prompt}, {edit_instruction}"
+            st.session_state.last_image_prompt = new_prompt
+            
+            return generate_and_display_image(new_prompt, is_edit=True)
     
     elif tool == "coding_with_search":
         response = coding_assistant_with_search(query)
@@ -927,8 +745,6 @@ with st.sidebar:
         st.session_state.uploaded_files = {}
         st.session_state.file_context = ""
         st.session_state.last_image_prompt = None
-        st.session_state.generated_images = []
-        st.session_state.current_image_index = -1
         st.rerun()
     
     if st.button("🗑️ Clear Files", use_container_width=True):
@@ -974,15 +790,6 @@ with st.sidebar:
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
-    
-    st.markdown("---")
-    show_image_history()
-    
-    if st.button("🗑️ Clear Image History", use_container_width=True):
-        st.session_state.generated_images = []
-        st.session_state.current_image_index = -1
-        st.success("Image history cleared!")
-        st.rerun()
 
 # ============================================
 # CHAT DISPLAY
