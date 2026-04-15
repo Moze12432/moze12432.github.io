@@ -594,15 +594,16 @@ def evaluate_work(question, file_context):
     messages = [{"role": "system", "content": "You evaluate work."}, {"role": "user", "content": prompt}]
     return clean_answer(llm(messages))
 
+
 # ============================================
-# IMAGE GENERATION FUNCTIONS
+# IMAGE GENERATION FUNCTIONS (LEXICA.ART - FREE)
 # ============================================
 
 def generate_image(prompt):
     """Generate an image using Lexica.art (free, no API key)"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
-        # Lexica.art search endpoint - returns existing images matching the prompt
+        # Search for images matching the prompt
         response = requests.get(
             f"https://lexica.art/api/v1/search?q={encoded_prompt}",
             timeout=30
@@ -610,11 +611,25 @@ def generate_image(prompt):
         if response.status_code == 200:
             data = response.json()
             if data.get("images") and len(data["images"]) > 0:
-                # Return the first matching image URL
+                # Return the image URL from the first result
                 return data["images"][0]["src"]
         return None
     except Exception as e:
         return None
+
+def generate_and_display_image(prompt, is_edit=False):
+    """Generate and display image"""
+    with st.spinner("🎨 Searching for images..."):
+        image_url = generate_image(prompt)
+    
+    if image_url:
+        alt_text = f"AI generated image of {prompt}"
+        if is_edit:
+            return f'🎨 **Edited Image - New Prompt:** "{prompt}"\n\n<img src="{image_url}" alt="{alt_text}" style="max-width: 100%; border-radius: 10px;">\n\n*Image from Lexica.art*'
+        else:
+            return f'🎨 **Generated Image for:** "{prompt}"\n\n<img src="{image_url}" alt="{alt_text}" style="max-width: 100%; border-radius: 10px;">\n\n*Image from Lexica.art*'
+    else:
+        return "❌ Sorry, no images found for that prompt. Try a different description."
         
 def generate_and_display_image(prompt, is_edit=False):
     image_url = generate_image(prompt)
