@@ -518,12 +518,14 @@ def route(query):
     
     if any(x in q for x in ["who is", "tell me about", "what is", "weather", "temperature", "rain", "snow", "news", "headlines"]):
         return "search"
+
+        # Time/Date
+    if any(x in q for x in ["time", "date", "today", "current time", "what day", "today's date"]):
+        return "datetime"
     
     if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
         return "calculator"
     
-    if any(x in q for x in ["time", "date", "today"]):
-        return "datetime"
 
         # Force search for current events, people, politics
     factual_keywords = ["president", "current", "elected", "prime minister", "leader", "ceo of", "who is the"]
@@ -667,6 +669,10 @@ He built me with web search, file analysis, image generation, and coding assista
             context = f"Previous: {st.session_state.last_response[:500]}\n\nContinue."
         else:
             context = get_current_datetime()
+
+        # Handle date/time questions - ALWAYS add context
+    if any(phrase in q for phrase in ["date", "today", "time", "what day", "current date", "current time"]):
+        context += get_current_datetime()
     
     elif tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
         filenames = "\n".join(st.session_state.uploaded_files.keys())
