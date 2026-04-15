@@ -1079,6 +1079,33 @@ for role, msg in st.session_state.chat_history:
 
 query = st.chat_input("Ask me anything... I can check weather, compare files, search the web, and more!")
 
+# Simple floating upload button
+col1, col2, col3 = st.columns([8, 1, 1])
+with col3:
+    uploaded_files = st.file_uploader(
+        "+",
+        type=['pdf', 'docx', 'txt', 'csv', 'json'],
+        accept_multiple_files=True,
+        key="floating_uploader",
+        label_visibility="collapsed",
+        help="Upload files"
+    )
+    
+    if uploaded_files:
+        for file in uploaded_files:
+            if file.name not in st.session_state.uploaded_files:
+                with st.spinner(f"Processing {file.name}..."):
+                    content = process_uploaded_file(file)
+                    if content and not content.startswith("Error"):
+                        st.session_state.uploaded_files[file.name] = content
+                        st.toast(f"✅ Loaded: {file.name}", icon="📎")
+        
+        if st.session_state.uploaded_files:
+            file_context_parts = []
+            for name, content in st.session_state.uploaded_files.items():
+                file_context_parts.append(f"\n{'='*60}\n📄 FILE: {name}\n{'='*60}\n{content}\n")
+            st.session_state.file_context = "\n".join(file_context_parts)
+
 if query:
     st.session_state.chat_history.append(("user", query))
     with st.chat_message("user"):
