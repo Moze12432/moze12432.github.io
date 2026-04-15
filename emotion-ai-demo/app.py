@@ -602,7 +602,7 @@ def generate_image(prompt):
     """Generate an image from text prompt using Pollinations.ai"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
-        # Use the image generation endpoint that returns direct image
+        # This returns a direct image, not a webpage
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
         return image_url
     except Exception as e:
