@@ -527,6 +527,10 @@ def route(query):
         return "search"
 
     # Add after calculator check
+
+    if any(phrase in q for phrase in ["can you", "do you", "are you able", "how to"]):
+    return "reason"  # Let the LLM answer naturally
+    
        # Image generation
     if any(x in q for x in ["generate image", "create image", "draw", "make an image of", "picture of", "image of"]):
         return "generate_image"
@@ -786,6 +790,10 @@ He built me with real-time web search, file analysis, document comparison, image
     
     if q in ["who is your maker", "who created you"]:
         return "I was created by Mukiibi Moses, a Computer Engineering student at Kyungdong University in South Korea."
+
+        # Direct responses for capability questions
+    if q in ["can you generate images", "do you generate images", "can you create images", "can you draw"]:
+        return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
     
     # DIRECT CHECK for image editing (bypass router) - THIS IS KEY FOR UNLIMITED EDITS
     edit_indicators = ["make it", "make the", "turn it", "change it to", "change the", "add a", "add to", "remove", "make the cat", "make the image", "edit the", "modify the"]
