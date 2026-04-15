@@ -549,7 +549,7 @@ def evaluate_work(question, file_context):
 # ============================================
 
 def generate_image(prompt):
-    """Generate a new image from prompt with retry logic"""
+    """Generate a new image from prompt with editable placeholder"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
         
@@ -605,17 +605,57 @@ def generate_image(prompt):
             st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
             return True
         else:
+            # Create a simple colored rectangle placeholder that can be edited
+            from PIL import Image, ImageDraw, ImageFont
+            import io
+            
+            # Create a blank image with text
+            img = Image.new('RGB', (512, 512), color=(255, 200, 100))
+            draw = ImageDraw.Draw(img)
+            
+            # Draw a simple sun shape
+            draw.ellipse((156, 156, 356, 356), fill=(255, 255, 0), outline=(255, 165, 0), width=5)
+            
+            # Add rays
+            for i in range(0, 360, 30):
+                import math
+                rad = math.radians(i)
+                x1 = 256 + 120 * math.cos(rad)
+                y1 = 256 + 120 * math.sin(rad)
+                x2 = 256 + 160 * math.cos(rad)
+                y2 = 256 + 160 * math.sin(rad)
+                draw.line((x1, y1, x2, y2), fill=(255, 165, 0), width=8)
+            
+            # Add text
+            draw.text((200, 420), f"Waiting for: {prompt[:20]}", fill=(100, 100, 100))
+            draw.text((180, 450), "Click Retry or Edit", fill=(100, 100, 100))
+            
+            # Convert to bytes
+            img_bytes_io = io.BytesIO()
+            img.save(img_bytes_io, format='PNG')
+            img_bytes = img_bytes_io.getvalue()
+            
+            st.session_state.generated_images.append({
+                "prompt": prompt,
+                "image": img_bytes,
+                "timestamp": time.time(),
+                "placeholder": True
+            })
+            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
+            
+            from io import BytesIO
+            st.image(img_bytes, caption=f"Placeholder: {prompt} (Click Retry to generate)", use_container_width=True)
+            
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                st.warning("⚠️ Service busy. Could not generate image.")
                 if st.button("🔄 Retry Generation", key=f"retry_gen_{int(time.time())}", use_container_width=True):
                     return generate_image(prompt)
-            return False
+            return True
         
     except Exception as e:
         st.error(f"Error: {e}")
         return False
-
+        
 def edit_image(edit_instruction):
     """Edit the last generated image using instruction with retry logic"""
     if not st.session_state.generated_images:
