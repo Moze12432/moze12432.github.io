@@ -180,19 +180,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # ============================================
-# GROQ CLIENT WITH CONNECTION POOLING
+# GROQ CLIENT
 # ============================================
 
-# Create a session with connection pooling
-session = requests.Session()
-adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=10)
-session.mount('https://', adapter)
+client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
 
-client = Groq(
-    api_key=st.secrets.get("GROQ_API_KEY"),
-    http_client=session
-)
 
 def get_current_datetime():
     tz = pytz.timezone('Asia/Seoul')
@@ -202,6 +196,7 @@ def get_current_datetime():
 • Time: {now.strftime('%I:%M %p')}
 • Day: {now.strftime('%A')}
 • Timezone: Asia/Seoul"""
+
 
 # ============================================
 # LLM FUNCTION WITH MULTIPLE MODEL FALLBACKS (70B PRIORITY)
@@ -235,19 +230,12 @@ def llm_with_fallback(messages, max_retries=2):
                 st.session_state.last_model_used = model
                 return completion.choices[0].message.content.strip()
                 
-            except requests.exceptions.Timeout:
-                wait_time = 2 ** attempt
-                time.sleep(wait_time)
-                last_error = f"Timeout with {model}"
-                continue
-            except requests.exceptions.ConnectionError:
-                wait_time = 2 ** attempt
-                time.sleep(wait_time)
-                last_error = f"Connection error with {model}"
-                continue
             except Exception as e:
-                last_error = f"{model} failed: {str(e)[:50]}"
-                break  # Move to next model
+                last_error = str(e)
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    time.sleep(wait_time)
+                continue
     
     return f"AI service temporarily unavailable. Please try again. Last error: {last_error[:100] if last_error else 'Unknown'}"
 
