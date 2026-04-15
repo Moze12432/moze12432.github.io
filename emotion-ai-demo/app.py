@@ -463,36 +463,89 @@ def extract_urls_from_query(query):
     return re.findall(url_pattern, query)
 
 # ============================================
-# WEATHER FUNCTION
+# WEATHER FUNCTIONS
 # ============================================
 
-def get_weather(location):
-    """Get current weather for a location using wttr.in (free, no API key)"""
+def get_weather_comprehensive(location):
+    """Get comprehensive weather information in one go"""
     try:
-        # Clean location
         location = location.strip().replace(" ", "%20")
         
-        # Use wttr.in API (returns simple text)
+        # Get current conditions
+        current_url = f"https://wttr.in/{location}?format=%C+%t+%w+%h+%H+%l&m"
+        current_response = requests.get(current_url, timeout=10)
+        
+        # Get forecast
+        forecast_url = f"https://wttr.in/{location}?0T&m"
+        forecast_response = requests.get(forecast_url, timeout=10)
+        
+        if current_response.status_code == 200:
+            current_data = current_response.text.strip()
+            
+            # Parse current weather
+            parts = current_data.split()
+            condition = " ".join(parts[:-4]) if len(parts) > 4 else parts[0]
+            temp = parts[-4] if len(parts) >= 4 else "N/A"
+            wind = parts[-3] if len(parts) >= 3 else "N/A"
+            humidity = parts[-2] if len(parts) >= 2 else "N/A"
+            
+            result = f"🌤️ **Weather in {location.title()}**\n\n"
+            result += f"📍 **Location:** {location.title()}\n"
+            result += f"🌡️ **Condition:** {condition}\n"
+            result += f"🌡️ **Temperature:** {temp}\n"
+            result += f"💨 **Wind:** {wind}\n"
+            result += f"💧 **Humidity:** {humidity}\n"
+            
+            # Add forecast if available
+            if forecast_response.status_code == 200:
+                forecast_text = forecast_response.text
+                # Remove ANSI color codes
+                forecast_text = re.sub(r'\x1b\[[0-9;]*m', '', forecast_text)
+                
+                # Extract the forecast summary (first few lines after the current weather)
+                lines = forecast_text.split('\n')
+                forecast_lines = []
+                capture = False
+                for line in lines:
+                    if '┌' in line or '┐' in line or '├' in line or '┤' in line or '└' in line or '┘' in line:
+                        capture = True
+                    if capture and line.strip():
+                        forecast_lines.append(line)
+                    if len(forecast_lines) > 15:
+                        break
+                
+                if forecast_lines:
+                    result += "\n📅 **Forecast:**\n"
+                    result += '\n'.join(forecast_lines[:10])
+            
+            result += "\n\n*Data from wttr.in*"
+            return result
+        return None
+    except Exception as e:
+        return None
+
+def get_weather_simple(location):
+    """Get simple weather information"""
+    try:
+        location = location.strip().replace(" ", "%20")
         url = f"https://wttr.in/{location}?format=%C+%t+%w+%h&m"
         response = requests.get(url, timeout=10)
         
         if response.status_code == 200:
             weather_data = response.text.strip()
             if weather_data and "Unknown" not in weather_data:
-                return weather_data
-        return None
-    except Exception as e:
-        return None
-
-def get_weather_detailed(location):
-    """Get detailed weather using wttr.in API"""
-    try:
-        location = location.strip().replace(" ", "%20")
-        url = f"https://wttr.in/{location}?0T&m"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            return response.text
+                parts = weather_data.split()
+                condition = " ".join(parts[:-3]) if len(parts) > 3 else parts[0]
+                temp = parts[-3] if len(parts) >= 3 else "N/A"
+                wind = parts[-2] if len(parts) >= 2 else "N/A"
+                humidity = parts[-1] if len(parts) >= 1 else "N/A"
+                
+                result = f"🌤️ **Weather in {location.title()}**\n\n"
+                result += f"☁️ **Condition:** {condition}\n"
+                result += f"🌡️ **Temperature:** {temp}\n"
+                result += f"💨 **Wind:** {wind}\n"
+                result += f"💧 **Humidity:** {humidity}\n"
+                return result
         return None
     except Exception as e:
         return None
@@ -859,28 +912,32 @@ def run_agent(query):
         context += get_current_datetime()
 
     elif tool == "weather":
-        with st.spinner("🌤️ Fetching weather..."):
+        with st.spinner("🌤️ Fetching weather data..."):
             # Extract location from query
             location = query
             # Remove weather-related words
-            weather_words = ["weather in", "weather at", "temperature in", "temp in", "what is the weather in", "weather for", "forecast in"]
+            weather_words = ["weather in", "weather at", "temperature in", "temp in", "what is the weather in", "weather for", "forecast in", "weather", "temperature", "forecast"]
             for word in weather_words:
                 if word in location.lower():
                     location = re.sub(re.escape(word), "", location.lower(), flags=re.IGNORECASE).strip()
                     break
             location = location.strip()
             
-            if not location:
-                location = "Lagos"  # Default
+            if not location or location in ["weather", "temperature", "forecast", "now"]:
+                location = "Sokcho"  # Default
             
-            # Get weather
-            weather_info = get_weather(location)
+            # Get comprehensive weather
+            weather_info = get_weather_comprehensive(location)
             
             if weather_info:
-                return f"🌤️ **Current weather in {location.title()}:**\n\n{weather_info}\n\n*Data from wttr.in*"
+                return weather_info
             else:
-                return f"Sorry, I couldn't fetch the weather for {location}. Please check the location name and try again."
-    
+                # Fallback to simple weather
+                weather_info = get_weather_simple(location)
+                if weather_info:
+                    return weather_info
+                else:
+                    return f"❌ Sorry, I couldn't fetch the weather for {location}. Please check the location name and try again."
     elif tool == "generate_image":
         with st.spinner("Generating image..."):
             image_prompt = query
