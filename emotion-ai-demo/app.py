@@ -597,14 +597,13 @@ def evaluate_work(question, file_context):
 # Generate and display IMAGE
 # ============================================
 def generate_and_display_image(prompt, is_edit=False):
-    """Generate image or show emoji fallback"""
+    """Generate image or use reliable fallback"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
         
-        # Show loading message
-        with st.spinner("🎨 Generating image (may take 15-30 seconds)..."):
-            response = requests.get(image_url, timeout=30)
+        # Quick timeout to avoid hanging
+        response = requests.get(image_url, timeout=10)
         
         if response.status_code == 200 and len(response.content) > 5000:
             from io import BytesIO
@@ -612,24 +611,31 @@ def generate_and_display_image(prompt, is_edit=False):
             st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
             return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\""
         else:
-            # Show relevant emoji as fallback
-            emojis = {
-                "sun": "☀️", "smiling sun": "😊☀️", "cat": "🐱", "dog": "🐶",
-                "flower": "🌸", "tree": "🌳", "mountain": "⛰️", "star": "⭐"
+            # Use a reliable stock image URL
+            stock_images = {
+                "sun": "https://cdn.pixabay.com/photo/2017/08/24/15/18/sun-2676960_640.png",
+                "smiling sun": "https://cdn.pixabay.com/photo/2016/10/28/13/09/sun-1778142_640.png",
+                "cat": "https://cdn.pixabay.com/photo/2017/02/20/18/03/cat-2083492_640.jpg",
+                "dog": "https://cdn.pixabay.com/photo/2016/12/13/05/15/puppy-1903313_640.jpg",
+                "flower": "https://cdn.pixabay.com/photo/2015/05/28/14/16/flower-788210_640.jpg",
+                "mountain": "https://cdn.pixabay.com/photo/2015/12/01/20/28/road-1072823_640.jpg",
+                "star": "https://cdn.pixabay.com/photo/2016/01/16/15/01/shooting-star-1143689_640.png"
             }
-            emoji = "🎨"
-            for key, value in emojis.items():
+            
+            # Find matching stock image
+            image_url = "https://cdn.pixabay.com/photo/2017/08/24/15/18/sun-2676960_640.png"
+            for key, url in stock_images.items():
                 if key in prompt.lower():
-                    emoji = value
+                    image_url = url
                     break
             
-            st.markdown(f"# {emoji}")
-            st.info(f"Image generation timed out. Here's a {emoji} representing '{prompt}'")
-            return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\" (showing emoji fallback - service busy)"
+            st.image(image_url, caption=f"Image for: {prompt} (from library)", use_container_width=True)
+            return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\" (AI service busy - showing stock image)"
             
     except Exception as e:
-        return f"❌ Error: {str(e)}"
-        
+        # Ultimate fallback - show emoji
+        st.markdown(f"<h1 style='text-align: center; font-size: 100px;'>☀️</h1>", unsafe_allow_html=True)
+        return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\" (showing emoji - service unavailable)"
 # ============================================
 # RUN_AGENT FUNCTIONS
 # ============================================
