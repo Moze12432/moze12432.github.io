@@ -599,12 +599,20 @@ def evaluate_work(question, file_context):
 # ============================================
 
 def generate_image(prompt):
-    """Generate an image using Pollinations.ai"""
+    """Generate an image using Lexica.art (free, no API key)"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
-        # Try the alternative endpoint
-        image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=1024&response=image"
-        return image_url
+        # Lexica.art search endpoint - returns existing images matching the prompt
+        response = requests.get(
+            f"https://lexica.art/api/v1/search?q={encoded_prompt}",
+            timeout=30
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("images") and len(data["images"]) > 0:
+                # Return the first matching image URL
+                return data["images"][0]["src"]
+        return None
     except Exception as e:
         return None
         
