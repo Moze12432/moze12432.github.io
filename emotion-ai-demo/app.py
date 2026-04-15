@@ -594,48 +594,94 @@ def evaluate_work(question, file_context):
     return clean_answer(llm(messages))
 
 # ============================================
-# Generate and display IMAGE
+# IMAGE GENERATION & EDITING WITH HISTORY
 # ============================================
-def generate_and_display_image(prompt, is_edit=False):
-    """Generate image or use reliable fallback"""
+
+# Store generated images in session state
+if "generated_images" not in st.session_state:
+    st.session_state.generated_images = []  # Store (prompt, image_bytes)
+if "current_image_index" not in st.session_state:
+    st.session_state.current_image_index = -1
+
+def generate_image(prompt):
+    """Generate a new image from prompt"""
     try:
         encoded_prompt = requests.utils.quote(prompt)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512"
         
-        # Quick timeout to avoid hanging
-        response = requests.get(image_url, timeout=10)
+        response = requests.get(image_url, timeout=30)
         
-        if response.status_code == 200 and len(response.content) > 5000:
+        if response.status_code == 200:
             from io import BytesIO
-            img = BytesIO(response.content)
+            img_bytes = response.content
+            
+            # Store in history
+            st.session_state.generated_images.append({
+                "prompt": prompt,
+                "image": img_bytes,
+                "timestamp": time.time()
+            })
+            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
+            
+            # Display the image
+            img = BytesIO(img_bytes)
             st.image(img, caption=f"Generated: {prompt}", use_container_width=True)
-            return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\""
-        else:
-            # Use a reliable stock image URL
-            stock_images = {
-                "sun": "https://cdn.pixabay.com/photo/2017/08/24/15/18/sun-2676960_640.png",
-                "smiling sun": "https://cdn.pixabay.com/photo/2016/10/28/13/09/sun-1778142_640.png",
-                "cat": "https://cdn.pixabay.com/photo/2017/02/20/18/03/cat-2083492_640.jpg",
-                "dog": "https://cdn.pixabay.com/photo/2016/12/13/05/15/puppy-1903313_640.jpg",
-                "flower": "https://cdn.pixabay.com/photo/2015/05/28/14/16/flower-788210_640.jpg",
-                "mountain": "https://cdn.pixabay.com/photo/2015/12/01/20/28/road-1072823_640.jpg",
-                "star": "https://cdn.pixabay.com/photo/2016/01/16/15/01/shooting-star-1143689_640.png"
-            }
-            
-            # Find matching stock image
-            image_url = "https://cdn.pixabay.com/photo/2017/08/24/15/18/sun-2676960_640.png"
-            for key, url in stock_images.items():
-                if key in prompt.lower():
-                    image_url = url
-                    break
-            
-            st.image(image_url, caption=f"Image for: {prompt} (from library)", use_container_width=True)
-            return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\" (AI service busy - showing stock image)"
-            
+            return True
+        return False
     except Exception as e:
-        # Ultimate fallback - show emoji
-        st.markdown(f"<h1 style='text-align: center; font-size: 100px;'>☀️</h1>", unsafe_allow_html=True)
-        return f"🎨 **{'Edited Image' if is_edit else 'Generated Image'} for:** \"{prompt}\" (showing emoji - service unavailable)"
+        st.error(f"Generation error: {e}")
+        return False
+
+def edit_image(edit_instruction):
+    """Edit the last generated image using instruction"""
+    if not st.session_state.generated_images:
+        return False, "No image to edit. Generate one first."
+    
+    last_image = st.session_state.generated_images[-1]
+    original_prompt = last_image["prompt"]
+    
+    # Create new prompt combining original + edit
+    new_prompt = f"{original_prompt}, {edit_instruction}"
+    
+    try:
+        encoded_prompt = requests.utils.quote(new_prompt)
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512"
+        
+        response = requests.get(image_url, timeout=30)
+        
+        if response.status_code == 200:
+            from io import BytesIO
+            img_bytes = response.content
+            
+            # Store as new image
+            st.session_state.generated_images.append({
+                "prompt": new_prompt,
+                "image": img_bytes,
+                "timestamp": time.time(),
+                "edited_from": original_prompt
+            })
+            st.session_state.current_image_index = len(st.session_state.generated_images) - 1
+            
+            # Display the edited image
+            img = BytesIO(img_bytes)
+            st.image(img, caption=f"Edited: {new_prompt}", use_container_width=True)
+            return True, new_prompt
+        return False, "Edit failed"
+    except Exception as e:
+        return False, str(e)
+
+def show_image_history():
+    """Display image history in sidebar"""
+    if st.session_state.generated_images:
+        st.markdown("### 📸 Image History")
+        for i, img_data in enumerate(st.session_state.generated_images[-5:]):
+            idx = len(st.session_state.generated_images) - 5 + i
+            if idx >= 0:
+                from io import BytesIO
+                img = BytesIO(img_data["image"])
+                st.image(img, caption=f"{img_data['prompt'][:50]}...", width=80)
+
+
 # ============================================
 # RUN_AGENT FUNCTIONS
 # ============================================
@@ -725,15 +771,15 @@ He built me with web search, file analysis, image generation, and coding assista
     
     elif tool == "datetime":
         context += get_current_datetime()
-    
+    # In run_agent() function, replace the image handlers:
+
     elif tool == "generate_image":
         with st.spinner("🎨 Generating image..."):
             image_prompt = query
             command_phrases = [
                 "generate image of", "generate an image of", "generate a image of",
-                "generate image", "generate an image",
-                "create image of", "create an image of",
-                "draw a", "draw an", "draw",
+                "generate image", "generate an image", "create image of", 
+                "create an image of", "draw a", "draw an", "draw",
                 "make an image of", "picture of", "image of"
             ]
             for phrase in command_phrases:
@@ -746,15 +792,19 @@ He built me with web search, file analysis, image generation, and coding assista
                 image_prompt = query
             
             st.session_state.last_image_prompt = image_prompt
-            return generate_and_display_image(image_prompt, is_edit=False)
+            
+            success = generate_image(image_prompt)
+            if success:
+                return f"🎨 **Generated Image for:** \"{image_prompt}\"\n\n*You can now edit this image by saying:*\n- 'make it black'\n- 'add a hat'\n- 'make it look angry'"
+            else:
+                return "❌ Sorry, I couldn't generate an image right now. Please try again."
     
     elif tool == "edit_image":
         with st.spinner("🎨 Editing image..."):
-            last_prompt = st.session_state.get("last_image_prompt", "")
-            
-            if not last_prompt:
+            if not st.session_state.generated_images:
                 return "❌ No previous image found. Please generate an image first using 'generate image of...'"
             
+            # Extract edit instruction
             edit_text = query
             command_words = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]
             for word in command_words:
@@ -763,9 +813,12 @@ He built me with web search, file analysis, image generation, and coding assista
                     break
             
             edit_text = ' '.join(edit_text.split())
-            new_prompt = f"{last_prompt}, {edit_text}"
-            st.session_state.last_image_prompt = new_prompt
-            return generate_and_display_image(new_prompt, is_edit=True)
+            
+            success, new_prompt = edit_image(edit_text)
+            if success:
+                return f"🎨 **Edited Image - New Prompt:** \"{new_prompt}\"\n\n*Continue editing with more instructions!*"
+            else:
+                return f"❌ Edit failed: {new_prompt}"
     
     elif tool == "coding_with_search":
         response = coding_assistant_with_search(query)
@@ -928,6 +981,17 @@ with st.sidebar:
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
+    
+    st.markdown("---")
+    show_image_history()
+    
+    if st.button("🗑️ Clear Image History", use_container_width=True):
+        st.session_state.generated_images = []
+        st.session_state.current_image_index = -1
+        st.success("Image history cleared!")
+        st.rerun()
+
+
 
 # ============================================
 # CHAT DISPLAY
