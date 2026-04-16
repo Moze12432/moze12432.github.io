@@ -1039,7 +1039,27 @@ The file will appear as a download button after I generate it!"""
     # ============================================
     # EXCEL/SPREADSHEET GENERATION (.xlsx)
     # ============================================
-    if any(phrase in q for phrase in ["excel", "xlsx", "spreadsheet", "generate an excel", "make an excel", "create an excel", "generate a spreadsheet"]):
+        # ============================================
+    # CHECK FOR "EXCEL" AS VERB (LIFE ADVICE) FIRST
+    # ============================================
+    if any(phrase in q for phrase in ["excel in", "excel at", "how to excel", "excel in life", "excel at work", "excel in school"]):
+        # This is about personal success, not spreadsheets
+        return reason(query, get_current_datetime())
+    
+    # ============================================
+    # EXCEL/SPREADSHEET GENERATION (.xlsx) - ONLY FOR FILE CREATION
+    # ============================================
+    excel_file_keywords = [
+        "excel file", "excel spreadsheet", "excel sheet", "xlsx",
+        "generate an excel", "make an excel", "create an excel", 
+        "generate a spreadsheet", "make a spreadsheet", "create a spreadsheet",
+        "excel about", "spreadsheet about", "excel with data"
+    ]
+    
+    is_excel_file_request = any(phrase in q for phrase in excel_file_keywords)
+    is_file_creation = any(word in q for word in ["generate", "make", "create", "build"]) and "excel" in q and "how to" not in q
+    
+    if (is_excel_file_request or is_file_creation):
         
         # Determine topic
         topic = "Phone_Sales_Report"
@@ -1074,7 +1094,6 @@ The file will appear as a download button after I generate it!"""
                     ["2024-01-09", "Jane Doe", "South", "iPhone 15", 4, 799, 3196],
                     ["2024-01-10", "Alice Brown", "West", "Samsung Galaxy S24", 5, 899, 4495]
                 ]
-                # Add summary row
                 total = sum(row[6] for row in data_rows[1:])
                 data_rows.append(["", "", "", "", "TOTAL:", "", total])
                 
@@ -1096,7 +1115,6 @@ The file will appear as a download button after I generate it!"""
                     ["Deployment", "Release", 45, "Pending"]
                 ]
             
-            # Create REAL Excel file
             excel_data = create_real_excel_file(topic, data_rows)
             
             if excel_data:
@@ -1106,7 +1124,6 @@ The file will appear as a download button after I generate it!"""
                 st.session_state.last_excel_data = data_rows
                 return f"✅ I've created a REAL Excel (.xlsx) file: **{topic}**. Scroll down to download it!"
             else:
-                # Fallback to CSV
                 csv_data = create_csv_from_data(topic, data_rows)
                 if csv_data:
                     st.session_state.csv_data = csv_data
@@ -1115,37 +1132,6 @@ The file will appear as a download button after I generate it!"""
                     return f"⚠️ Excel creation failed, but I've created a CSV file: **{topic}**. Scroll down to download it!"
                 else:
                     return "❌ Sorry, I couldn't create the file. Please try again."
-    
-    # ============================================
-    # CSV GENERATION (explicit csv request)
-    # ============================================
-    if any(phrase in q for phrase in ["generate a csv", "make a csv", "create a csv", "csv file"]):
-        
-        topic = "Phone_Sales_Data"
-        if "about" in q:
-            topic_part = q.split("about")[-1].strip().replace(" ", "_")
-            if topic_part and len(topic_part) > 2:
-                topic = topic_part[:30]
-        
-        with st.spinner(f"📊 Creating CSV file: {topic}..."):
-            data_rows = [
-                ["Date", "Product", "Sales", "Region"],
-                ["2024-01-01", "iPhone 15", 5000, "North"],
-                ["2024-01-02", "Samsung S24", 4500, "South"],
-                ["2024-01-03", "Google Pixel", 3200, "East"],
-                ["2024-01-04", "iPhone 15", 6800, "West"],
-                ["2024-01-05", "Samsung S24", 4100, "North"]
-            ]
-            
-            csv_data = create_csv_from_data(topic, data_rows)
-            
-            if csv_data:
-                st.session_state.csv_data = csv_data
-                st.session_state.csv_topic = topic
-                st.session_state.show_csv_download = True
-                return f"✅ I've created a CSV file: **{topic}**. Scroll down to download it!"
-            else:
-                return "❌ Sorry, I couldn't create the CSV file."
     
     # ============================================
     # DIRECT PPT GENERATION
