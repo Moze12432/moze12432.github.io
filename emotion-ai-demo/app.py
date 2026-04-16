@@ -649,6 +649,17 @@ if "excel_topic" not in st.session_state:
 if "last_document_topic" not in st.session_state:
     st.session_state.last_document_topic = ""
 
+if "last_word_content" not in st.session_state:
+    st.session_state.last_word_content = ""
+if "last_ppt_content" not in st.session_state:
+    st.session_state.last_ppt_content = ""
+if "last_ppt_topic" not in st.session_state:
+    st.session_state.last_ppt_topic = ""
+if "last_excel_topic" not in st.session_state:
+    st.session_state.last_excel_topic = ""
+if "last_excel_data" not in st.session_state:
+    st.session_state.last_excel_data = None
+
 # ============================================
 # SEARCH FUNCTIONS
 # ============================================
@@ -1078,6 +1089,11 @@ def run_agent(query):
         st.session_state.last_search_results = None
         st.session_state.last_topic = None
         st.session_state.last_image_prompt = None
+        st.session_state.last_document_topic = ""
+        st.session_state.last_ppt_topic = ""
+        st.session_state.last_ppt_content = ""
+        st.session_state.last_excel_topic = ""
+        st.session_state.last_excel_data = None
         return "✅ Context cleared! How can I help you today?"
     
     # What is a word? check
@@ -1091,6 +1107,27 @@ To create one, try:
 
 The file will appear as a download button after I generate it!"""
     
+    # Helper function to extract topic from query
+    def extract_topic(query, command_words, default="Topic"):
+        topic = query
+        for word in command_words:
+            if word in topic.lower():
+                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
+                break
+        topic = topic.strip()
+        
+        # Fix bad extractions like "about it" or "it"
+        if topic in ["about it", "it", "about", ""]:
+            # Try to get from last conversation
+            if st.session_state.chat_history:
+                for role, msg in reversed(st.session_state.chat_history):
+                    if role == "user" and len(msg) > 5 and msg.lower() not in ["make it longer", "add more", "expand the document"]:
+                        topic = msg[:50]
+                        break
+            if topic in ["about it", "it", "about", ""]:
+                topic = default
+        return topic
+    
     # ============================================
     # DIRECT PPT GENERATION
     # ============================================
@@ -1099,12 +1136,7 @@ The file will appear as a download button after I generate it!"""
         "generate a ppt", "generate a powerpoint", "build a ppt", "build a powerpoint"
     ]
     if any(phrase in q for phrase in ppt_commands):
-        topic = query
-        for word in ppt_commands:
-            if word in topic.lower():
-                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
-                break
-        topic = topic.strip() or "MozeAI Generated Presentation"
+        topic = extract_topic(query, ppt_commands, "MozeAI Generated Presentation")
         
         with st.spinner(f"📊 Creating PowerPoint presentation about '{topic}'..."):
             content_prompt = f'''Create a PowerPoint presentation about "{topic}" with MULTIPLE SLIDES.
@@ -1129,10 +1161,51 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
             if ppt_bytes:
                 st.session_state.ppt_data = ppt_bytes
                 st.session_state.ppt_topic = topic
+                st.session_state.last_ppt_topic = topic
+                st.session_state.last_ppt_content = ai_content
                 st.session_state.show_ppt_download = True
                 return f"✅ I've created a PowerPoint presentation about **{topic}**. Scroll down to download it!"
             else:
                 return "❌ Sorry, I couldn't create the PowerPoint. Please try again."
+    
+    # ============================================
+    # PPT EDIT COMMANDS - Add more slides
+    # ============================================
+    ppt_edit_commands = ["add more slides", "add a slide", "add another slide", "more slides", "add to the ppt", "add to the powerpoint", "insert slide"]
+    if any(phrase in q for phrase in ppt_edit_commands):
+        last_ppt_topic = st.session_state.get("last_ppt_topic", "")
+        if last_ppt_topic:
+            with st.spinner(f"📊 Adding more slides to presentation about {last_ppt_topic}..."):
+                expansion_prompt = f'''Create 2-3 additional slides for a PowerPoint presentation about "{last_ppt_topic}".
+
+Add these new slides:
+- One slide about related topics or advanced concepts
+- One slide with examples or case studies  
+- One slide with key takeaways or conclusion
+
+Format each slide as:
+SLIDE TITLE: [Title]
+- Bullet point 1
+- Bullet point 2
+- Bullet point 3'''
+                
+                new_slides_content = reason(expansion_prompt, "")
+                
+                existing_content = st.session_state.get("last_ppt_content", "")
+                combined_content = existing_content + "\n\n" + new_slides_content
+                
+                ppt_bytes = create_ppt_from_content(last_ppt_topic, combined_content)
+                
+                if ppt_bytes:
+                    st.session_state.ppt_data = ppt_bytes
+                    st.session_state.ppt_topic = last_ppt_topic
+                    st.session_state.last_ppt_content = combined_content
+                    st.session_state.show_ppt_download = True
+                    return f"✅ I've added more slides to the PowerPoint about **{last_ppt_topic}**. Scroll down to download the updated version!"
+                else:
+                    return "❌ Sorry, I couldn't add slides to the PowerPoint."
+        else:
+            return "I don't see a recent PowerPoint to add slides to. First create one with 'make a ppt about [topic]'"
     
     # ============================================
     # DIRECT WORD GENERATION
@@ -1143,12 +1216,7 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
         "make a document", "create a document"
     ]
     if any(phrase in q for phrase in word_commands):
-        topic = query
-        for word in word_commands:
-            if word in topic.lower():
-                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
-                break
-        topic = topic.strip() or "MozeAI Generated Document"
+        topic = extract_topic(query, word_commands, "MozeAI Generated Document")
         
         # Save the topic for later edits
         st.session_state.last_document_topic = topic
@@ -1162,19 +1230,20 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
             if word_bytes:
                 st.session_state.word_data = word_bytes
                 st.session_state.word_topic = topic
+                st.session_state.last_word_content = ai_content
                 st.session_state.show_word_download = True
                 return f"✅ I've created a Word document about **{topic}**. Scroll down to download it!"
             else:
                 return "❌ Sorry, I couldn't create the Word document. Please try again."
     
     # ============================================
-    # DOCUMENT EDIT COMMANDS - FIX FOR "make it longer"
+    # WORD EDIT COMMANDS - Make it longer
     # ============================================
-    document_edit_commands = ["make it longer", "add more", "expand the document", "make the document longer", "add to the document"]
-    if any(phrase in q for phrase in document_edit_commands):
+    word_edit_commands = ["make it longer", "add more", "expand the document", "make the document longer", "add to the document"]
+    if any(phrase in q for phrase in word_edit_commands):
         last_doc_topic = st.session_state.get("last_document_topic", "")
         if last_doc_topic:
-            with st.spinner(f"📝 Expanding document about {last_doc_topic}..."):
+            with st.spinner(f"📝 Expanding Word document about {last_doc_topic}..."):
                 expansion_prompt = f'''Expand this content about "{last_doc_topic}" by adding 2-3 more detailed sections. Make it significantly longer (at least 500 more words).
 
 Add:
@@ -1187,15 +1256,17 @@ Format with clear headings and bullet points where appropriate.'''
                 
                 expanded_content = reason(expansion_prompt, "")
                 
-                # Create new Word document with expanded content
-                word_bytes = create_word_from_content(last_doc_topic, expanded_content)
+                # Get existing content or create new
+                existing_content = st.session_state.get("last_word_content", "")
+                combined_content = existing_content + "\n\n" + expanded_content if existing_content else expanded_content
+                
+                word_bytes = create_word_from_content(last_doc_topic, combined_content)
                 
                 if word_bytes:
                     st.session_state.word_data = word_bytes
                     st.session_state.word_topic = last_doc_topic
+                    st.session_state.last_word_content = combined_content
                     st.session_state.show_word_download = True
-                    # Keep the same topic for further edits
-                    st.session_state.last_document_topic = last_doc_topic
                     return f"✅ I've expanded the Word document about **{last_doc_topic}** with additional content. Scroll down to download the updated version!"
                 else:
                     return "❌ Sorry, I couldn't expand the document. Please try again."
@@ -1211,12 +1282,9 @@ Format with clear headings and bullet points where appropriate.'''
         "make a csv", "create a csv", "generate a csv"
     ]
     if any(phrase in q for phrase in excel_commands):
-        topic = query
-        for word in excel_commands:
-            if word in topic.lower():
-                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
-                break
-        topic = topic.strip() or "MozeAI Generated Data"
+        topic = extract_topic(query, excel_commands, "MozeAI Generated Data")
+        
+        st.session_state.last_excel_topic = topic
         
         with st.spinner(f"📊 Creating Excel spreadsheet about '{topic}'..."):
             content_prompt = f'Create structured data about "{topic}" in a clear table format. List categories and their corresponding values. Format each line as "Category: Value" or create a simple list of related items.'
@@ -1238,9 +1306,49 @@ Format with clear headings and bullet points where appropriate.'''
                 if excel_bytes:
                     st.session_state.excel_data = excel_bytes
                     st.session_state.excel_topic = topic
+                    st.session_state.last_excel_data = data_rows
                     st.session_state.show_excel_download = True
                     return f"✅ I've created an Excel spreadsheet about **{topic}**. Scroll down to download it!"
             return "❌ Sorry, I couldn't create the Excel file. Please try again with a different topic."
+    
+    # ============================================
+    # EXCEL EDIT COMMANDS - Add more data
+    # ============================================
+    excel_edit_commands = ["add more data", "add a row", "add another", "more rows", "add to the excel", "add to the spreadsheet"]
+    if any(phrase in q for phrase in excel_edit_commands):
+        last_excel_topic = st.session_state.get("last_excel_topic", "")
+        if last_excel_topic:
+            with st.spinner(f"📊 Adding more data to spreadsheet about {last_excel_topic}..."):
+                expansion_prompt = f'''Create 5-10 more data rows about "{last_excel_topic}" in the format "Category: Value" or "Item: Description".
+
+Generate additional relevant data points that would make sense in a spreadsheet about this topic.'''
+                
+                new_data_content = reason(expansion_prompt, "")
+                
+                # Parse existing data
+                existing_data = st.session_state.get("last_excel_data", [["Category", "Information"]])
+                
+                # Parse new data
+                for line in new_data_content.split('\n'):
+                    line = line.strip()
+                    if ':' in line:
+                        key, val = line.split(':', 1)
+                        existing_data.append([key.strip(), val.strip()])
+                    elif line and len(line) > 3 and len(existing_data) < 50:
+                        existing_data.append([line, ""])
+                
+                excel_bytes = create_excel_from_content(last_excel_topic, existing_data)
+                
+                if excel_bytes:
+                    st.session_state.excel_data = excel_bytes
+                    st.session_state.excel_topic = last_excel_topic
+                    st.session_state.last_excel_data = existing_data
+                    st.session_state.show_excel_download = True
+                    return f"✅ I've added more data to the Excel spreadsheet about **{last_excel_topic}**. Scroll down to download the updated version!"
+                else:
+                    return "❌ Sorry, I couldn't add data to the spreadsheet."
+        else:
+            return "I don't see a recent spreadsheet to add data to. First create one with 'make an excel about [topic]'"
     
     # DIRECT RESPONSE FOR CAPABILITY QUESTIONS
     if q in ["can you generate images", "do you generate images", "can you create images", "can you draw", "are you able to generate images"]:
@@ -1248,7 +1356,9 @@ Format with clear headings and bullet points where appropriate.'''
     
     # DIRECT EDIT CHECK (for images only)
     edit_triggers = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove"]
-    if any(phrase in q for phrase in edit_triggers) and st.session_state.get("last_image_prompt"):
+    # Don't trigger if it's a document edit command
+    is_doc_edit = any(phrase in q for phrase in word_edit_commands + ppt_edit_commands + excel_edit_commands)
+    if any(phrase in q for phrase in edit_triggers) and not is_doc_edit and st.session_state.get("last_image_prompt"):
         last_prompt = st.session_state.last_image_prompt
         edit_text = query
         for word in edit_triggers:
