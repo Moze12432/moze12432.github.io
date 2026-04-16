@@ -138,83 +138,38 @@ def create_word_from_content(title, content, filename="document"):
     except Exception as e:
         return None
 
-    # ============================================
-    # CHECK FOR EXCEL/SPREADSHEET COMMANDS
-    # ============================================
-    excel_triggers = [
-        "excel", "spreadsheet", "csv", "generate the excel", "generate excel", 
-        "make an excel", "make a spreadsheet", "create an excel", "create a spreadsheet",
-        "excel file", "spreadsheet file"
-    ]
-    
-    is_excel_request = any(phrase in q for phrase in excel_triggers)
-    
-    if is_excel_request:
-        # Extract topic
-        topic = "Phone Sales Report"
+
+def create_excel_from_content(title, data):
+    """Create an Excel file from data - Using ONLY standard library (no pandas)"""
+    try:
+        from io import BytesIO
+        import struct
         
-        # Look for topic after "about" or "for"
-        if "about" in q:
-            topic_part = q.split("about")[-1].strip()
-            if topic_part and len(topic_part) > 2 and topic_part not in ["it", "the", "a", "an", "file"]:
-                topic = topic_part[:50]
-        elif "for" in q:
-            topic_part = q.split("for")[-1].strip()
-            if topic_part and len(topic_part) > 2 and topic_part not in ["it", "the", "a", "an", "file"]:
-                topic = topic_part[:50]
+        output = BytesIO()
         
-        # If query contains "phone sales", use that as topic
-        if "phone" in q and "sales" in q:
-            topic = "Phone Sales Report"
+        # Create a simple CSV as fallback (more reliable)
+        import csv
         
-        st.session_state.last_excel_topic = topic
-        
-        with st.spinner(f"📊 Creating Excel spreadsheet: {topic}..."):
-            # Create phone sales data directly
-            data_rows = [
-                ["Date", "Sales Rep", "Region", "Phone Model", "Quantity", "Unit Price ($)", "Total Sales ($)"],
-                ["2024-01-01", "John Smith", "North", "iPhone 15 Pro", 5, 999, 4995],
-                ["2024-01-02", "Jane Doe", "South", "Samsung Galaxy S24", 3, 899, 2697],
-                ["2024-01-03", "John Smith", "North", "Google Pixel 8", 4, 699, 2796],
-                ["2024-01-04", "Bob Wilson", "East", "iPhone 15", 6, 799, 4794],
-                ["2024-01-05", "Jane Doe", "South", "Samsung Galaxy S24+", 2, 1099, 2198],
-                ["2024-01-06", "Alice Brown", "West", "iPhone 15 Pro Max", 3, 1199, 3597],
-                ["2024-01-07", "John Smith", "North", "Samsung Galaxy Z Flip5", 2, 999, 1998],
-                ["2024-01-08", "Bob Wilson", "East", "Google Pixel 8 Pro", 3, 899, 2697],
-                ["2024-01-09", "Jane Doe", "South", "iPhone 15", 4, 799, 3196],
-                ["2024-01-10", "Alice Brown", "West", "Samsung Galaxy S24", 5, 899, 4495]
-            ]
+        if isinstance(data, list) and len(data) > 0:
+            csv_output = BytesIO()
+            # Write with UTF-8 BOM for Excel compatibility
+            csv_output.write('\ufeff'.encode('utf-8'))
             
-            # Calculate summary row
-            total_sales = sum(row[6] for row in data_rows[1:])
-            data_rows.append(["", "", "", "", "", "TOTAL:", total_sales])
+            csv_writer = csv.writer(csv_output)
+            for row in data:
+                if isinstance(row, list):
+                    csv_writer.writerow(row)
+                else:
+                    csv_writer.writerow([row])
             
-            excel_bytes = create_excel_from_content(topic, data_rows)
+            csv_output.seek(0)
+            return csv_output
+        else:
+            return None
             
-            if excel_bytes:
-                st.session_state.excel_data = excel_bytes
-                st.session_state.excel_topic = topic
-                st.session_state.last_excel_data = data_rows
-                st.session_state.show_excel_download = True
-                return f"✅ I've created an Excel spreadsheet: **{topic}**. Scroll down to download the file!"
-            else:
-                # Try alternative method - CSV
-                try:
-                    import csv
-                    from io import BytesIO
-                    
-                    csv_output = BytesIO()
-                    csv_writer = csv.writer(csv_output)
-                    for row in data_rows:
-                        csv_writer.writerow(row)
-                    
-                    csv_output.seek(0)
-                    st.session_state.excel_data = csv_output
-                    st.session_state.excel_topic = topic
-                    st.session_state.show_excel_download = True
-                    return f"✅ I've created a CSV file: **{topic}**. Scroll down to download the file!"
-                except:
-                    return "❌ Sorry, I couldn't create the Excel file. Please make sure the required libraries (pandas, openpyxl, xlsxwriter) are installed."
+    except Exception as e:
+        print(f"CSV creation error: {e}")
+        return None
 
 def create_csv_from_content(title, data):
     """Create a CSV file from content"""
@@ -1161,99 +1116,85 @@ The file will appear as a download button after I generate it!"""
         return topic
     
     # ============================================
-    # CHECK FOR EXCEL/SPREADSHEET COMMANDS FIRST (MOST SPECIFIC)
+    # CHECK FOR CSV/EXCEL/SPREADSHEET COMMANDS
     # ============================================
-    excel_triggers = [
-        "excel", "spreadsheet", "csv", "table data", "sales data", 
-        "generate the excel", "generate excel", "make an excel", "make a spreadsheet",
-        "create an excel", "create a spreadsheet", "build an excel", "build a spreadsheet"
-    ]
+    csv_triggers = ["csv", "excel", "spreadsheet", "generate a csv", "generate an excel", "make a csv", "make an excel"]
     
-    is_excel_request = any(phrase in q for phrase in excel_triggers)
+    is_csv_request = any(phrase in q for phrase in csv_triggers)
     
-    if is_excel_request:
-        # Extract topic - look for common patterns
-        topic = "Sales Data"
+    if is_csv_request:
+        # Extract topic
+        topic = "Phone Sales Data"
+        
+        # Look for topic after "about" or "for"
         if "about" in q:
             topic_part = q.split("about")[-1].strip()
-            if topic_part and topic_part not in ["it", "the", "a", "an"]:
+            if topic_part and len(topic_part) > 2 and topic_part not in ["it", "the", "a", "an", "file", "csv", "excel"]:
                 topic = topic_part[:50]
-        elif "for" in q:
-            topic_part = q.split("for")[-1].strip()
-            if topic_part and topic_part not in ["it", "the", "a", "an"]:
-                topic = topic_part[:50]
-        elif len(q.replace("generate", "").replace("excel", "").replace("spreadsheet", "").replace("the", "").strip()) > 3:
-            topic = q.replace("generate", "").replace("excel", "").replace("spreadsheet", "").replace("the", "").replace("file", "").strip()
-            if not topic:
-                topic = "Data Report"
         
-        topic = topic[:50]
+        # Specific topic detection
+        if "phone" in q and "sales" in q:
+            topic = "Phone_Sales_Report"
+        elif "student" in q:
+            topic = "Student_Data"
+        elif "product" in q:
+            topic = "Product_Inventory"
+        
         st.session_state.last_excel_topic = topic
         
-        with st.spinner(f"📊 Creating Excel spreadsheet about '{topic}'..."):
-            # Create structured data directly without LLM to ensure reliability
-            if "sales" in topic.lower() or "sale" in topic.lower():
-                # Generate sales data
+        with st.spinner(f"📊 Creating spreadsheet: {topic}..."):
+            # Create data based on topic
+            if "phone" in topic.lower() or "sales" in topic.lower():
                 data_rows = [
-                    ["Date", "Sales Rep", "Region", "Product", "Sales Amount ($)"],
-                    ["2024-01-01", "John Smith", "North", "Product A", 1250],
-                    ["2024-01-02", "Jane Doe", "South", "Product B", 980],
-                    ["2024-01-03", "John Smith", "North", "Product C", 2100],
-                    ["2024-01-04", "Bob Wilson", "East", "Product A", 750],
-                    ["2024-01-05", "Jane Doe", "South", "Product C", 1850],
-                    ["2024-01-06", "John Smith", "North", "Product B", 1100],
-                    ["2024-01-07", "Alice Brown", "West", "Product A", 925],
-                    ["2024-01-08", "Bob Wilson", "East", "Product B", 1600],
-                    ["2024-01-09", "Jane Doe", "South", "Product A", 1340],
-                    ["2024-01-10", "John Smith", "North", "Product C", 900]
+                    ["Date", "Sales Rep", "Region", "Phone Model", "Quantity", "Unit Price", "Total Sales"],
+                    ["2024-01-01", "John Smith", "North", "iPhone 15 Pro", 5, 999, 4995],
+                    ["2024-01-02", "Jane Doe", "South", "Samsung Galaxy S24", 3, 899, 2697],
+                    ["2024-01-03", "John Smith", "North", "Google Pixel 8", 4, 699, 2796],
+                    ["2024-01-04", "Bob Wilson", "East", "iPhone 15", 6, 799, 4794],
+                    ["2024-01-05", "Jane Doe", "South", "Samsung Galaxy S24+", 2, 1099, 2198],
+                    ["2024-01-06", "Alice Brown", "West", "iPhone 15 Pro Max", 3, 1199, 3597],
+                    ["2024-01-07", "John Smith", "North", "Samsung Galaxy Z Flip5", 2, 999, 1998],
+                    ["2024-01-08", "Bob Wilson", "East", "Google Pixel 8 Pro", 3, 899, 2697],
+                    ["2024-01-09", "Jane Doe", "South", "iPhone 15", 4, 799, 3196],
+                    ["2024-01-10", "Alice Brown", "West", "Samsung Galaxy S24", 5, 899, 4495]
                 ]
-            elif "student" in topic.lower() or "school" in topic.lower():
-                # Generate student data
+                # Calculate total
+                total = sum(row[6] for row in data_rows[1:])
+                data_rows.append(["", "", "", "", "", "TOTAL:", total])
+                
+            elif "student" in topic.lower():
                 data_rows = [
-                    ["Student ID", "Name", "Grade", "Subject", "Score", "Attendance (%)"],
-                    ["S001", "Emma Watson", "10th", "Mathematics", 95, 98],
-                    ["S002", "Liam Chen", "10th", "Science", 88, 95],
-                    ["S003", "Sophia Patel", "11th", "English", 92, 100],
-                    ["S004", "Noah Kim", "9th", "History", 85, 92],
-                    ["S005", "Olivia Jones", "12th", "Physics", 91, 97],
-                    ["S006", "Mason Lee", "11th", "Chemistry", 87, 94],
-                    ["S007", "Isabella Garcia", "10th", "Mathematics", 94, 99],
-                    ["S008", "Ethan Wang", "12th", "Computer Science", 96, 100]
-                ]
-            elif "product" in topic.lower() or "inventory" in topic.lower():
-                # Generate inventory data
-                data_rows = [
-                    ["Product Code", "Product Name", "Category", "Quantity", "Unit Price ($)", "Total Value ($)"],
-                    ["P001", "Laptop Pro", "Electronics", 45, 999, 44955],
-                    ["P002", "Wireless Mouse", "Accessories", 120, 29, 3480],
-                    ["P003", "Mechanical Keyboard", "Accessories", 78, 89, 6942],
-                    ["P004", "USB-C Cable", "Cables", 200, 15, 3000],
-                    ["P005", "Monitor 27\"", "Electronics", 32, 299, 9568],
-                    ["P006", "Webcam HD", "Electronics", 56, 79, 4424],
-                    ["P007", "Laptop Bag", "Accessories", 89, 49, 4361]
+                    ["Student ID", "Name", "Grade", "Subject", "Score", "Attendance"],
+                    ["S001", "Emma Watson", "10th", "Mathematics", 95, "98%"],
+                    ["S002", "Liam Chen", "10th", "Science", 88, "95%"],
+                    ["S003", "Sophia Patel", "11th", "English", 92, "100%"],
+                    ["S004", "Noah Kim", "9th", "History", 85, "92%"],
+                    ["S005", "Olivia Jones", "12th", "Physics", 91, "97%"]
                 ]
             else:
-                # Generic data for any topic
                 data_rows = [
-                    ["Category", "Item", "Value", "Status", "Date Added"],
-                    ["Research", "Topic Analysis", 85, "Completed", "2024-01-15"],
-                    ["Development", "Feature Implementation", 70, "In Progress", "2024-01-16"],
-                    ["Testing", "Quality Assurance", 92, "Completed", "2024-01-17"],
-                    ["Documentation", "User Guide", 60, "In Progress", "2024-01-18"],
-                    ["Deployment", "Production Release", 45, "Pending", "2024-01-19"],
-                    ["Maintenance", "Bug Fixes", 78, "In Progress", "2024-01-20"]
+                    ["Category", "Item", "Value", "Status"],
+                    ["Research", "Market Analysis", 85, "Completed"],
+                    ["Development", "Feature Dev", 70, "In Progress"],
+                    ["Testing", "QA Testing", 92, "Completed"],
+                    ["Deployment", "Release", 45, "Pending"]
                 ]
             
-            excel_bytes = create_excel_from_content(topic, data_rows)
+            csv_bytes = create_excel_from_content(topic, data_rows)
             
-            if excel_bytes:
-                st.session_state.excel_data = excel_bytes
+            if csv_bytes:
+                st.session_state.excel_data = csv_bytes
                 st.session_state.excel_topic = topic
                 st.session_state.last_excel_data = data_rows
                 st.session_state.show_excel_download = True
-                return f"✅ I've created an Excel spreadsheet about **{topic}**. Scroll down to download the file!"
+                
+                # Determine file extension
+                file_ext = "csv"
+                mime_type = "text/csv"
+                
+                return f"✅ I've created a {file_ext.upper()} file: **{topic}**. Scroll down to download the file!"
             else:
-                return "❌ Sorry, I couldn't create the Excel file. Please try again."
+                return "❌ Sorry, I couldn't create the file. Please try again."
     
     # ============================================
     # DIRECT PPT GENERATION
@@ -1398,21 +1339,21 @@ Slide Title
             with st.spinner(f"📊 Adding more data to spreadsheet about {last_excel_topic}..."):
                 # Add a new row with sample data
                 new_row_num = len(last_excel_data)
-                if "sales" in last_excel_topic.lower():
-                    last_excel_data.append([f"2024-01-{10 + new_row_num}", "New Rep", "Central", "Product X", 1500])
+                if "phone" in last_excel_topic.lower() or "sales" in last_excel_topic.lower():
+                    last_excel_data.append([f"2024-01-{10 + new_row_num}", "New Rep", "Central", "New Phone", 3, 799, 2397])
                 else:
                     last_excel_data.append([f"Item {new_row_num}", f"Value {new_row_num * 10}", "Active", "2024-01-20"])
                 
-                excel_bytes = create_excel_from_content(last_excel_topic, last_excel_data)
+                csv_bytes = create_excel_from_content(last_excel_topic, last_excel_data)
                 
-                if excel_bytes:
-                    st.session_state.excel_data = excel_bytes
+                if csv_bytes:
+                    st.session_state.excel_data = csv_bytes
                     st.session_state.excel_topic = last_excel_topic
                     st.session_state.last_excel_data = last_excel_data
                     st.session_state.show_excel_download = True
-                    return f"✅ I've added more data to the Excel spreadsheet about **{last_excel_topic}**. Scroll down to download the updated version!"
+                    return f"✅ I've added more data to the spreadsheet about **{last_excel_topic}**. Scroll down to download the updated version!"
         else:
-            return "I don't see a recent spreadsheet. First create one with 'make an excel about [topic]'"
+            return "I don't see a recent spreadsheet. First create one with 'generate a csv about [topic]'"
     
     # ============================================
     # IMAGE GENERATION
@@ -1427,7 +1368,7 @@ Slide Title
     
     # DIRECT RESPONSES
     if any(phrase in q for phrase in ["who are you", "what are you"]):
-        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses. I can generate Excel spreadsheets, PowerPoint presentations, Word documents, images, and more!"
+        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses. I can generate CSV files, PowerPoint presentations, Word documents, images, and more!"
     
     if any(phrase in q for phrase in ["who created you", "your creator", "mukiibi moses"]):
         return "Mukiibi Moses is my creator, a Computer Engineering student at Kyungdong University in South Korea."
@@ -1597,17 +1538,17 @@ if st.session_state.get("show_word_download", False) and st.session_state.get("w
     st.session_state.show_word_download = False
     st.session_state.word_data = None
 
-# Excel Download
+# CSV/Spreadsheet Download (Updated for CSV files)
 if st.session_state.get("show_excel_download", False) and st.session_state.get("excel_data"):
     st.markdown("---")
-    st.success(f"✅ Excel spreadsheet about **{st.session_state.excel_topic}** is ready!")
+    st.success(f"✅ Spreadsheet **{st.session_state.excel_topic}** is ready!")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.download_button(
-            label="📊 Download Excel Spreadsheet",
+            label="📥 Download CSV File",
             data=st.session_state.excel_data,
-            file_name=f"{st.session_state.excel_topic.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            file_name=f"{st.session_state.excel_topic.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
             use_container_width=True
         )
     st.session_state.show_excel_download = False
