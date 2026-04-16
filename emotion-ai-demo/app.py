@@ -1006,11 +1006,79 @@ def run_agent(query):
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
     
+    # ============================================
+    # DIRECT PPT GENERATION (BEFORE ANYTHING ELSE)
+    # ============================================
+    if "ppt about" in q or "presentation about" in q or q.startswith("make a ppt") or q.startswith("create a ppt") or q.startswith("generate a ppt"):
+        # Extract topic
+        topic = query
+        for word in ["make a ppt", "create a ppt", "generate a ppt", "ppt about", "presentation about", "powerpoint about", "make a presentation", "create presentation", "generate presentation"]:
+            if word in topic.lower():
+                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
+                break
+        topic = topic.strip()
+        if not topic:
+            topic = "MozeAI Generated Presentation"
+        
+        with st.spinner(f"📊 Creating PowerPoint presentation about '{topic}'..."):
+            content_prompt = f'Write detailed content for a PowerPoint presentation about "{topic}". Include a title slide, 5-7 content slides with bullet points, each slide with a clear heading and 3-5 bullet points, and a conclusion slide. Make it informative and well-structured. Format as: SLIDE 1: Title, then bullet points with -'
+            
+            ai_content = reason(content_prompt, "")
+            ppt_bytes = create_ppt_from_content(topic, ai_content)
+            
+            if ppt_bytes:
+                st.download_button(
+                    label="📥 Download PowerPoint Presentation",
+                    data=ppt_bytes,
+                    file_name=f"{topic.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    use_container_width=True
+                )
+                return f"✅ I've created a PowerPoint presentation about **{topic}**. Click the button above to download it!"
+            else:
+                return "❌ Sorry, I couldn't create the PowerPoint. Please try again."
+    
+    # ============================================
+    # DIRECT WORD GENERATION
+    # ============================================
+    if "word about" in q or "document about" in q or q.startswith("make a word") or q.startswith("create a word") or q.startswith("generate a word"):
+        # Extract topic
+        topic = query
+        for word in ["make a word", "create a word", "generate a word", "word about", "document about", "make a doc", "create a doc", "word document about"]:
+            if word in topic.lower():
+                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
+                break
+        topic = topic.strip()
+        if not topic:
+            topic = "MozeAI Generated Document"
+        
+        with st.spinner(f"📝 Creating Word document about '{topic}'..."):
+            content_prompt = f'Write detailed content for a Word document about "{topic}". Include an engaging title, an introduction paragraph, 3-5 main sections with detailed information, and a conclusion. Make it comprehensive and well-organized, around 500-800 words.'
+            
+            ai_content = reason(content_prompt, "")
+            word_bytes = create_word_from_content(topic, ai_content)
+            
+            if word_bytes:
+                st.download_button(
+                    label="📥 Download Word Document",
+                    data=word_bytes,
+                    file_name=f"{topic.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
+                return f"✅ I've created a Word document about **{topic}**. Click the button above to download it!"
+            else:
+                return "❌ Sorry, I couldn't create the Word document. Please try again."
+    
+    # ============================================
     # DIRECT RESPONSE FOR CAPABILITY QUESTIONS
+    # ============================================
     if q in ["can you generate images", "do you generate images", "can you create images", "can you draw", "are you able to generate images"]:
         return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
     
+    # ============================================
     # DIRECT EDIT CHECK - MUST BE BEFORE ROUTER
+    # ============================================
     edit_triggers = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove"]
     if any(phrase in q for phrase in edit_triggers) and st.session_state.get("last_image_prompt"):
         last_prompt = st.session_state.last_image_prompt
@@ -1025,7 +1093,9 @@ def run_agent(query):
         with st.spinner("Editing image..."):
             return generate_and_display_image(new_prompt, is_edit=True)
     
+    # ============================================
     # DIRECT RESPONSES
+    # ============================================
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
         return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can search the web, analyze files, generate images, and help with coding. What can I do for you?"
     
@@ -1230,7 +1300,6 @@ def run_agent(query):
         store_memory(answer)
     
     return answer
-
 # ============================================
 # UI - MAIN DISPLAY
 # ============================================
