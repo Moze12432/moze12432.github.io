@@ -1080,8 +1080,19 @@ def run_agent(query):
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
     
+    # What is a word? check
+    if q == "what is a word" or q == "what is a word?":
+        return """A **Word document** (.docx) is a file format created by Microsoft Word. In this context, when I say "make a word file" or "create a word document", I mean generating a downloadable .docx file that you can open with Microsoft Word, Google Docs, or other word processors.
+
+To create one, try:
+- "make a word about dogs"
+- "create a word document about Python programming"
+- "generate a word file about climate change"
+
+The file will appear as a download button after I generate it!"""
+    
     # ============================================
-    # DIRECT PPT GENERATION - ONLY FOR COMMANDS
+    # DIRECT PPT GENERATION
     # ============================================
     ppt_commands = [
         "make a ppt", "make a powerpoint", "create a ppt", "create a powerpoint",
@@ -1124,7 +1135,7 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
                 return "❌ Sorry, I couldn't create the PowerPoint. Please try again."
     
     # ============================================
-    # DIRECT WORD GENERATION - ONLY FOR COMMANDS
+    # DIRECT WORD GENERATION
     # ============================================
     word_commands = [
         "make a word", "make a doc", "create a word", "create a doc",
@@ -1139,6 +1150,9 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
                 break
         topic = topic.strip() or "MozeAI Generated Document"
         
+        # Save the topic for later edits
+        st.session_state.last_document_topic = topic
+        
         with st.spinner(f"📝 Creating Word document about '{topic}'..."):
             content_prompt = f'Write detailed content for a Word document about "{topic}". Include an engaging title, an introduction paragraph, 3-5 main sections with detailed information, and a conclusion. Make it comprehensive and well-organized, around 500-800 words.'
             
@@ -1152,20 +1166,16 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
                 return f"✅ I've created a Word document about **{topic}**. Scroll down to download it!"
             else:
                 return "❌ Sorry, I couldn't create the Word document. Please try again."
-
-    # Add this after the "DIRECT RESPONSE FOR CAPABILITY QUESTIONS" section
-# and BEFORE the "DIRECT EDIT CHECK" section:
-
-# ============================================
-# DOCUMENT EDIT COMMANDS - FIX FOR "make it longer" etc.
-# ============================================
-document_edit_commands = ["make it longer", "add more", "expand the document", "make the document longer", "add to the document"]
-if any(phrase in q for phrase in document_edit_commands):
-    # Check if we have a recent document topic
-    last_doc_topic = st.session_state.get("last_document_topic", "")
-    if last_doc_topic:
-        with st.spinner(f"📝 Expanding document about {last_doc_topic}..."):
-            expansion_prompt = f'''Expand this content about "{last_doc_topic}" by adding 2-3 more detailed sections. Make it significantly longer (at least 500 more words).
+    
+    # ============================================
+    # DOCUMENT EDIT COMMANDS - FIX FOR "make it longer"
+    # ============================================
+    document_edit_commands = ["make it longer", "add more", "expand the document", "make the document longer", "add to the document"]
+    if any(phrase in q for phrase in document_edit_commands):
+        last_doc_topic = st.session_state.get("last_document_topic", "")
+        if last_doc_topic:
+            with st.spinner(f"📝 Expanding document about {last_doc_topic}..."):
+                expansion_prompt = f'''Expand this content about "{last_doc_topic}" by adding 2-3 more detailed sections. Make it significantly longer (at least 500 more words).
 
 Add:
 - Deeper analysis or examples
@@ -1174,26 +1184,26 @@ Add:
 - A conclusion section
 
 Format with clear headings and bullet points where appropriate.'''
-            
-            expanded_content = reason(expansion_prompt, "")
-            
-            # Create new Word document with expanded content
-            word_bytes = create_word_from_content(last_doc_topic, expanded_content)
-            
-            if word_bytes:
-                st.session_state.word_data = word_bytes
-                st.session_state.word_topic = last_doc_topic
-                st.session_state.show_word_download = True
-                st.session_state.last_document_topic = last_doc_topic
-                st.session_state.last_document_topic = topic
-                return f"✅ I've expanded the Word document about **{last_doc_topic}** with additional content. Scroll down to download the updated version!"
-            else:
-                return "❌ Sorry, I couldn't expand the document. Please try again."
-    else:
-        return "I don't see a recent document to expand. First create a Word document with 'create a word document about [topic]' or 'make a word about [topic]'"
+                
+                expanded_content = reason(expansion_prompt, "")
+                
+                # Create new Word document with expanded content
+                word_bytes = create_word_from_content(last_doc_topic, expanded_content)
+                
+                if word_bytes:
+                    st.session_state.word_data = word_bytes
+                    st.session_state.word_topic = last_doc_topic
+                    st.session_state.show_word_download = True
+                    # Keep the same topic for further edits
+                    st.session_state.last_document_topic = last_doc_topic
+                    return f"✅ I've expanded the Word document about **{last_doc_topic}** with additional content. Scroll down to download the updated version!"
+                else:
+                    return "❌ Sorry, I couldn't expand the document. Please try again."
+        else:
+            return "I don't see a recent document to expand. First create a Word document with 'create a word document about [topic]' or 'make a word about [topic]'"
     
     # ============================================
-    # DIRECT EXCEL GENERATION - ONLY FOR COMMANDS
+    # DIRECT EXCEL GENERATION
     # ============================================
     excel_commands = [
         "make an excel", "make a spreadsheet", "create an excel", "create a spreadsheet",
@@ -1236,7 +1246,7 @@ Format with clear headings and bullet points where appropriate.'''
     if q in ["can you generate images", "do you generate images", "can you create images", "can you draw", "are you able to generate images"]:
         return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
     
-    # DIRECT EDIT CHECK
+    # DIRECT EDIT CHECK (for images only)
     edit_triggers = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove"]
     if any(phrase in q for phrase in edit_triggers) and st.session_state.get("last_image_prompt"):
         last_prompt = st.session_state.last_image_prompt
@@ -1373,75 +1383,6 @@ Format with clear headings and bullet points where appropriate.'''
         st.session_state.last_response = response
         store_memory(response)
         return response
-    
-    elif tool == "create_ppt":
-        with st.spinner("📊 Creating PowerPoint presentation..."):
-            topic = query
-            for word in ["make a ppt", "create a ppt", "generate ppt", "powerpoint", "make a presentation", "create presentation", "about"]:
-                if word in topic.lower():
-                    topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
-                    break
-            topic = topic.strip() or "MozeAI Generated Presentation"
-            
-            content_prompt = f'Write detailed content for a PowerPoint presentation about "{topic}". Include a title slide, 5-7 content slides with bullet points.'
-            ai_content = reason(content_prompt, "")
-            ppt_bytes = create_ppt_from_content(topic, ai_content)
-            
-            if ppt_bytes:
-                st.session_state.ppt_data = ppt_bytes
-                st.session_state.ppt_topic = topic
-                st.session_state.show_ppt_download = True
-                return f"✅ I've created a PowerPoint presentation about **{topic}**. Scroll down to download it!"
-            else:
-                return "❌ Sorry, I couldn't create the PowerPoint."
-    
-    elif tool == "create_word":
-        with st.spinner("📝 Creating Word document..."):
-            topic = query
-            for word in ["make a word", "create a word", "generate word", "word document", "make a doc", "create doc", "about"]:
-                if word in topic.lower():
-                    topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
-                    break
-            topic = topic.strip() or "MozeAI Generated Document"
-            
-            content_prompt = f'Write detailed content for a Word document about "{topic}". Include title, introduction, main sections, and conclusion.'
-            ai_content = reason(content_prompt, "")
-            word_bytes = create_word_from_content(topic, ai_content)
-            
-            if word_bytes:
-                st.session_state.word_data = word_bytes
-                st.session_state.word_topic = topic
-                st.session_state.show_word_download = True
-                return f"✅ I've created a Word document about **{topic}**. Scroll down to download it!"
-            else:
-                return "❌ Sorry, I couldn't create the Word document."
-    
-    elif tool == "create_excel":
-        with st.spinner("📊 Creating Excel spreadsheet..."):
-            topic = query
-            for word in ["make an excel", "create an excel", "generate excel", "excel about", "spreadsheet about"]:
-                if word in topic.lower():
-                    topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
-                    break
-            topic = topic.strip() or "MozeAI Generated Data"
-            
-            content_prompt = f'Generate structured data about "{topic}" in a table format.'
-            ai_content = reason(content_prompt, "")
-            
-            data_rows = []
-            for line in ai_content.split('\n'):
-                if ':' in line:
-                    key, val = line.split(':', 1)
-                    data_rows.append([key.strip(), val.strip()])
-            
-            if data_rows:
-                excel_bytes = create_excel_from_content(topic, data_rows)
-                if excel_bytes:
-                    st.session_state.excel_data = excel_bytes
-                    st.session_state.excel_topic = topic
-                    st.session_state.show_excel_download = True
-                    return f"✅ I've created an Excel spreadsheet about **{topic}**. Scroll down to download it!"
-            return "❌ Sorry, I couldn't create the Excel file."
     
     elif tool == "export_chat":
         export_content = export_chat_history()
