@@ -55,7 +55,7 @@ def create_ppt_from_content(title, content, filename="presentation"):
             if not line:
                 continue
             
-            # Check if this line looks like a slide title (short, ends with colon, or all caps, or starts with number)
+            # Check if this line looks like a slide title
             is_title = False
             if len(line) < 60 and (line.endswith(':') or line.isupper() or re.match(r'^\d+\.', line) or line[0].isupper() and len(line) < 40):
                 is_title = True
@@ -63,7 +63,6 @@ def create_ppt_from_content(title, content, filename="presentation"):
             if is_title:
                 # Create new slide for this title
                 current_slide = prs.slides.add_slide(content_slide_layout)
-                # Remove trailing colon from title
                 clean_title = line.rstrip(':')
                 current_slide.shapes.title.text = clean_title[:100]
                 content_box = current_slide.placeholders[1]
@@ -94,17 +93,6 @@ def create_ppt_from_content(title, content, filename="presentation"):
             content_box = slide.placeholders[1]
             text_frame = content_box.text_frame
             text_frame.text = content[:500]
-        
-        # Also split by double newlines as fallback
-        if len(prs.slides) <= 2:
-            paragraphs = content.split('\n\n')
-            for i, para in enumerate(paragraphs):
-                if para.strip() and len(para) > 20:
-                    slide = prs.slides.add_slide(content_slide_layout)
-                    slide.shapes.title.text = f"Slide {i + 2}"
-                    content_box = slide.placeholders[1]
-                    text_frame = content_box.text_frame
-                    text_frame.text = para[:400]
         
         ppt_bytes = io.BytesIO()
         prs.save(ppt_bytes)
@@ -138,81 +126,71 @@ def create_word_from_content(title, content, filename="document"):
     except Exception as e:
         return None
 
-
-def create_excel_from_content(title, data):
-    """Create an Excel file from data - Using ONLY standard library (no pandas)"""
+def create_real_excel_file(title, data_rows):
+    """Create a REAL .xlsx Excel file with proper formatting"""
     try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
         from io import BytesIO
-        import struct
         
-        output = BytesIO()
+        wb = Workbook()
+        ws = wb.active
+        ws.title = title[:31].replace('/', '_').replace('\\', '_')
         
-        # Create a simple CSV as fallback (more reliable)
-        import csv
-        
-        if isinstance(data, list) and len(data) > 0:
-            csv_output = BytesIO()
-            # Write with UTF-8 BOM for Excel compatibility
-            csv_output.write('\ufeff'.encode('utf-8'))
-            
-            csv_writer = csv.writer(csv_output)
-            for row in data:
-                if isinstance(row, list):
-                    csv_writer.writerow(row)
+        # Write data to worksheet
+        for row_idx, row in enumerate(data_rows, 1):
+            for col_idx, value in enumerate(row, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                
+                # Style header row
+                if row_idx == 1:
+                    cell.font = Font(bold=True, color="FFFFFF")
+                    cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
                 else:
-                    csv_writer.writerow([row])
-            
-            csv_output.seek(0)
-            return csv_output
-        else:
-            return None
-            
+                    cell.alignment = Alignment(horizontal="left", vertical="center")
+        
+        # Auto-adjust column widths
+        for col in ws.columns:
+            max_length = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[col_letter].width = adjusted_width
+        
+        # Save to bytes
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+        
     except Exception as e:
-        print(f"CSV creation error: {e}")
+        print(f"Excel creation error: {e}")
         return None
 
-def create_csv_from_content(title, data):
-    """Create a CSV file from content"""
+def create_csv_from_data(title, data_rows):
+    """Create a CSV file from data rows - Fallback"""
     try:
-        import pandas as pd
         from io import BytesIO
+        import csv
         
         output = BytesIO()
+        output.write('\ufeff'.encode('utf-8'))
         
-        if isinstance(data, list) and len(data) > 0:
-            if isinstance(data[0], list):
-                df = pd.DataFrame(data[1:], columns=data[0] if len(data) > 1 else None)
-            else:
-                df = pd.DataFrame(data, columns=['Information'])
-        elif isinstance(data, dict):
-            df = pd.DataFrame(list(data.items()), columns=['Category', 'Value'])
-        else:
-            lines = str(data).split('\n')
-            df = pd.DataFrame(lines, columns=['Content'])
+        writer = csv.writer(output)
+        for row in data_rows:
+            writer.writerow(row)
         
-        df.to_csv(output, index=False, encoding='utf-8')
         output.seek(0)
         return output
     except Exception as e:
         print(f"CSV creation error: {e}")
-        return None
-
-def create_markdown_from_content(title, content, filename="document"):
-    """Create a Markdown document from content"""
-    try:
-        markdown_content = f"""# {title}
-
-*Generated by MozeAI on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
-
----
-
-{content}
-
----
-*This document was automatically generated by MozeAI*
-"""
-        return markdown_content.encode('utf-8')
-    except Exception as e:
         return None
 
 def export_chat_history():
@@ -231,47 +209,6 @@ def export_chat_history():
         export_content += "---\n\n"
     
     return export_content
-
-def show_download_buttons(title, content):
-    """Show download buttons for different formats"""
-    if not content:
-        return
-    
-    st.markdown("### 📄 Download Conversation")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        ppt_bytes = create_ppt_from_content(title, content)
-        if ppt_bytes:
-            st.download_button(
-                label="📊 Download as PPT",
-                data=ppt_bytes,
-                file_name=f"{title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                key="download_ppt"
-            )
-    
-    with col2:
-        word_bytes = create_word_from_content(title, content)
-        if word_bytes:
-            st.download_button(
-                label="📝 Download as Word",
-                data=word_bytes,
-                file_name=f"{title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key="download_word"
-            )
-    
-    with col3:
-        md_bytes = create_markdown_from_content(title, content)
-        if md_bytes:
-            st.download_button(
-                label="📄 Download as Text",
-                data=md_bytes,
-                file_name=f"{title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.md",
-                mime="text/markdown",
-                key="download_md"
-            )
 
 # ============================================
 # FILE PROCESSING FUNCTIONS
@@ -632,21 +569,22 @@ if "excel_data" not in st.session_state:
     st.session_state.excel_data = None
 if "excel_topic" not in st.session_state:
     st.session_state.excel_topic = ""
+if "show_csv_download" not in st.session_state:
+    st.session_state.show_csv_download = False
+if "csv_data" not in st.session_state:
+    st.session_state.csv_data = None
+if "csv_topic" not in st.session_state:
+    st.session_state.csv_topic = ""
 if "last_document_topic" not in st.session_state:
     st.session_state.last_document_topic = ""
-
-if "last_word_content" not in st.session_state:
-    st.session_state.last_word_content = ""
-if "last_ppt_content" not in st.session_state:
-    st.session_state.last_ppt_content = ""
 if "last_ppt_topic" not in st.session_state:
     st.session_state.last_ppt_topic = ""
+if "last_ppt_content" not in st.session_state:
+    st.session_state.last_ppt_content = ""
 if "last_excel_topic" not in st.session_state:
     st.session_state.last_excel_topic = ""
 if "last_excel_data" not in st.session_state:
     st.session_state.last_excel_data = None
-
-
 
 # ============================================
 # SEARCH FUNCTIONS
@@ -1082,6 +1020,10 @@ def run_agent(query):
         st.session_state.last_ppt_content = ""
         st.session_state.last_excel_topic = ""
         st.session_state.last_excel_data = None
+        st.session_state.show_csv_download = False
+        st.session_state.csv_data = None
+        st.session_state.show_excel_download = False
+        st.session_state.excel_data = None
         return "✅ Context cleared! How can I help you today?"
     
     # What is a word? check
@@ -1094,55 +1036,29 @@ To create one, try:
 
 The file will appear as a download button after I generate it!"""
     
-    # Helper function to extract topic from query
-    def extract_topic(query, command_words, default="Topic"):
-        topic = query
-        for word in command_words:
-            if word in topic.lower():
-                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
-                break
-        topic = topic.strip()
-        
-        # Fix bad extractions like "about it" or "it"
-        if topic in ["about it", "it", "about", "", "file", "the file", "a file"]:
-            # Try to get from last conversation
-            if st.session_state.chat_history:
-                for role, msg in reversed(st.session_state.chat_history):
-                    if role == "user" and len(msg) > 5 and msg.lower() not in ["make it longer", "add more", "expand the document", "generate the excel", "generate the excel file", "spreadsheet"]:
-                        topic = msg[:50]
-                        break
-            if topic in ["about it", "it", "about", "", "file", "the file", "a file"]:
-                topic = default
-        return topic
-    
     # ============================================
-    # CHECK FOR CSV/EXCEL/SPREADSHEET COMMANDS
+    # EXCEL/SPREADSHEET GENERATION (.xlsx)
     # ============================================
-    csv_triggers = ["csv", "excel", "spreadsheet", "generate a csv", "generate an excel", "make a csv", "make an excel"]
-    
-    is_csv_request = any(phrase in q for phrase in csv_triggers)
-    
-    if is_csv_request:
-        # Extract topic
-        topic = "Phone Sales Data"
+    if any(phrase in q for phrase in ["excel", "xlsx", "spreadsheet", "generate an excel", "make an excel", "create an excel", "generate a spreadsheet"]):
         
-        # Look for topic after "about" or "for"
-        if "about" in q:
-            topic_part = q.split("about")[-1].strip()
-            if topic_part and len(topic_part) > 2 and topic_part not in ["it", "the", "a", "an", "file", "csv", "excel"]:
-                topic = topic_part[:50]
-        
-        # Specific topic detection
-        if "phone" in q and "sales" in q:
+        # Determine topic
+        topic = "Phone_Sales_Report"
+        if "phone sales" in q:
             topic = "Phone_Sales_Report"
         elif "student" in q:
             topic = "Student_Data"
         elif "product" in q:
             topic = "Product_Inventory"
+        else:
+            if "about" in q:
+                topic_part = q.split("about")[-1].strip().replace(" ", "_")
+                if topic_part and len(topic_part) > 2 and topic_part not in ["it", "the", "a", "an"]:
+                    topic = topic_part[:30]
         
         st.session_state.last_excel_topic = topic
         
-        with st.spinner(f"📊 Creating spreadsheet: {topic}..."):
+        with st.spinner(f"📊 Creating Excel (.xlsx) file: {topic}..."):
+            
             # Create data based on topic
             if "phone" in topic.lower() or "sales" in topic.lower():
                 data_rows = [
@@ -1158,9 +1074,9 @@ The file will appear as a download button after I generate it!"""
                     ["2024-01-09", "Jane Doe", "South", "iPhone 15", 4, 799, 3196],
                     ["2024-01-10", "Alice Brown", "West", "Samsung Galaxy S24", 5, 899, 4495]
                 ]
-                # Calculate total
+                # Add summary row
                 total = sum(row[6] for row in data_rows[1:])
-                data_rows.append(["", "", "", "", "", "TOTAL:", total])
+                data_rows.append(["", "", "", "", "TOTAL:", "", total])
                 
             elif "student" in topic.lower():
                 data_rows = [
@@ -1180,21 +1096,56 @@ The file will appear as a download button after I generate it!"""
                     ["Deployment", "Release", 45, "Pending"]
                 ]
             
-            csv_bytes = create_excel_from_content(topic, data_rows)
+            # Create REAL Excel file
+            excel_data = create_real_excel_file(topic, data_rows)
             
-            if csv_bytes:
-                st.session_state.excel_data = csv_bytes
+            if excel_data:
+                st.session_state.excel_data = excel_data
                 st.session_state.excel_topic = topic
-                st.session_state.last_excel_data = data_rows
                 st.session_state.show_excel_download = True
-                
-                # Determine file extension
-                file_ext = "csv"
-                mime_type = "text/csv"
-                
-                return f"✅ I've created a {file_ext.upper()} file: **{topic}**. Scroll down to download the file!"
+                st.session_state.last_excel_data = data_rows
+                return f"✅ I've created a REAL Excel (.xlsx) file: **{topic}**. Scroll down to download it!"
             else:
-                return "❌ Sorry, I couldn't create the file. Please try again."
+                # Fallback to CSV
+                csv_data = create_csv_from_data(topic, data_rows)
+                if csv_data:
+                    st.session_state.csv_data = csv_data
+                    st.session_state.csv_topic = topic
+                    st.session_state.show_csv_download = True
+                    return f"⚠️ Excel creation failed, but I've created a CSV file: **{topic}**. Scroll down to download it!"
+                else:
+                    return "❌ Sorry, I couldn't create the file. Please try again."
+    
+    # ============================================
+    # CSV GENERATION (explicit csv request)
+    # ============================================
+    if any(phrase in q for phrase in ["generate a csv", "make a csv", "create a csv", "csv file"]):
+        
+        topic = "Phone_Sales_Data"
+        if "about" in q:
+            topic_part = q.split("about")[-1].strip().replace(" ", "_")
+            if topic_part and len(topic_part) > 2:
+                topic = topic_part[:30]
+        
+        with st.spinner(f"📊 Creating CSV file: {topic}..."):
+            data_rows = [
+                ["Date", "Product", "Sales", "Region"],
+                ["2024-01-01", "iPhone 15", 5000, "North"],
+                ["2024-01-02", "Samsung S24", 4500, "South"],
+                ["2024-01-03", "Google Pixel", 3200, "East"],
+                ["2024-01-04", "iPhone 15", 6800, "West"],
+                ["2024-01-05", "Samsung S24", 4100, "North"]
+            ]
+            
+            csv_data = create_csv_from_data(topic, data_rows)
+            
+            if csv_data:
+                st.session_state.csv_data = csv_data
+                st.session_state.csv_topic = topic
+                st.session_state.show_csv_download = True
+                return f"✅ I've created a CSV file: **{topic}**. Scroll down to download it!"
+            else:
+                return "❌ Sorry, I couldn't create the CSV file."
     
     # ============================================
     # DIRECT PPT GENERATION
@@ -1204,12 +1155,20 @@ The file will appear as a download button after I generate it!"""
         "generate a ppt", "generate a powerpoint", "build a ppt", "build a powerpoint"
     ]
     if any(phrase in q for phrase in ppt_commands):
-        topic = extract_topic(query, ppt_commands, "MozeAI Generated Presentation")
+        topic = query
+        for word in ppt_commands:
+            if word in topic.lower():
+                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
+                break
+        topic = topic.strip() or "MozeAI Generated Presentation"
+        
+        if topic in ["about it", "it", "about"]:
+            topic = "Presentation"
         
         with st.spinner(f"📊 Creating PowerPoint presentation about '{topic}'..."):
-            content_prompt = f'''Create ONLY the slide content for a PowerPoint presentation about "{topic}". Do NOT include any explanations or introductory text.
+            content_prompt = f'''Create a PowerPoint presentation about "{topic}" with MULTIPLE SLIDES.
 
-Format EXACTLY as:
+Format your response as:
 
 Introduction to {topic}
 - First main point
@@ -1226,22 +1185,12 @@ Benefits/Importance
 - Benefit 2
 - Benefit 3
 
-Examples/Applications
-- Example 1
-- Example 2
-
 Conclusion
 - Key takeaway 1
 - Key takeaway 2
 - Key takeaway 3'''
             
-            messages = [
-                {"role": "system", "content": "You are a PowerPoint content generator. Return ONLY the slide content in the requested format. No greetings, no explanations."},
-                {"role": "user", "content": content_prompt}
-            ]
-            ai_content = llm(messages)
-            ai_content = re.sub(r'^.*?(?=Introduction|Slide|Title|Key Features|Benefits|Examples|Conclusion)', '', ai_content, flags=re.DOTALL)
-            
+            ai_content = reason(content_prompt, "")
             ppt_bytes = create_ppt_from_content(topic, ai_content)
             
             if ppt_bytes:
@@ -1255,49 +1204,30 @@ Conclusion
                 return "❌ Sorry, I couldn't create the PowerPoint. Please try again."
     
     # ============================================
-    # PPT EDIT COMMANDS
-    # ============================================
-    ppt_edit_commands = ["add more slides", "add a slide", "add another slide", "more slides", "add to the ppt"]
-    if any(phrase in q for phrase in ppt_edit_commands):
-        last_ppt_topic = st.session_state.get("last_ppt_topic", "")
-        if last_ppt_topic:
-            with st.spinner(f"📊 Adding more slides to presentation about {last_ppt_topic}..."):
-                expansion_prompt = f'''Create 2-3 additional slides for a PowerPoint presentation about "{last_ppt_topic}".
-
-Format each slide as:
-Slide Title
-- Bullet point 1
-- Bullet point 2
-- Bullet point 3'''
-                
-                new_slides_content = llm([{"role": "user", "content": expansion_prompt}])
-                existing_content = st.session_state.get("last_ppt_content", "")
-                combined_content = existing_content + "\n\n" + new_slides_content
-                ppt_bytes = create_ppt_from_content(last_ppt_topic, combined_content)
-                
-                if ppt_bytes:
-                    st.session_state.ppt_data = ppt_bytes
-                    st.session_state.ppt_topic = last_ppt_topic
-                    st.session_state.last_ppt_content = combined_content
-                    st.session_state.show_ppt_download = True
-                    return f"✅ I've added more slides to the PowerPoint about **{last_ppt_topic}**. Scroll down to download the updated version!"
-        else:
-            return "I don't see a recent PowerPoint. First create one with 'make a ppt about [topic]'"
-    
-    # ============================================
     # DIRECT WORD GENERATION
     # ============================================
     word_commands = [
         "make a word", "make a doc", "create a word", "create a doc",
-        "generate a word", "generate a doc", "make a document", "create a document"
+        "generate a word", "generate a doc", "build a word", "build a doc",
+        "make a document", "create a document"
     ]
     if any(phrase in q for phrase in word_commands):
-        topic = extract_topic(query, word_commands, "MozeAI Generated Document")
+        topic = query
+        for word in word_commands:
+            if word in topic.lower():
+                topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
+                break
+        topic = topic.strip() or "MozeAI Generated Document"
+        
+        if topic in ["about it", "it", "about"]:
+            topic = "Document"
+        
         st.session_state.last_document_topic = topic
         
         with st.spinner(f"📝 Creating Word document about '{topic}'..."):
-            content_prompt = f'Write detailed content for a Word document about "{topic}". Include title, introduction, 3-5 main sections, and conclusion. Around 500 words.'
-            ai_content = llm([{"role": "user", "content": content_prompt}])
+            content_prompt = f'Write detailed content for a Word document about "{topic}". Include an engaging title, an introduction paragraph, 3-5 main sections with detailed information, and a conclusion. Make it comprehensive and well-organized, around 500-800 words.'
+            
+            ai_content = reason(content_prompt, "")
             word_bytes = create_word_from_content(topic, ai_content)
             
             if word_bytes:
@@ -1306,54 +1236,7 @@ Slide Title
                 st.session_state.show_word_download = True
                 return f"✅ I've created a Word document about **{topic}**. Scroll down to download it!"
             else:
-                return "❌ Sorry, I couldn't create the Word document."
-    
-    # ============================================
-    # WORD EDIT COMMANDS
-    # ============================================
-    word_edit_commands = ["make it longer", "expand the document", "make the document longer", "add to the document"]
-    if any(phrase in q for phrase in word_edit_commands):
-        last_doc_topic = st.session_state.get("last_document_topic", "")
-        if last_doc_topic:
-            with st.spinner(f"📝 Expanding Word document about {last_doc_topic}..."):
-                expansion_prompt = f'Expand this content about "{last_doc_topic}" by adding 2-3 more detailed sections. Make it longer.'
-                expanded_content = llm([{"role": "user", "content": expansion_prompt}])
-                word_bytes = create_word_from_content(last_doc_topic, expanded_content)
-                
-                if word_bytes:
-                    st.session_state.word_data = word_bytes
-                    st.session_state.word_topic = last_doc_topic
-                    st.session_state.show_word_download = True
-                    return f"✅ I've expanded the Word document about **{last_doc_topic}**. Scroll down to download the updated version!"
-        else:
-            return "I don't see a recent document. First create one with 'make a word about [topic]'"
-    
-    # ============================================
-    # EXCEL EDIT COMMANDS
-    # ============================================
-    excel_edit_commands = ["add more data", "add a row", "more rows", "add to the excel", "add to the spreadsheet"]
-    if any(phrase in q for phrase in excel_edit_commands):
-        last_excel_topic = st.session_state.get("last_excel_topic", "")
-        last_excel_data = st.session_state.get("last_excel_data", None)
-        if last_excel_topic and last_excel_data:
-            with st.spinner(f"📊 Adding more data to spreadsheet about {last_excel_topic}..."):
-                # Add a new row with sample data
-                new_row_num = len(last_excel_data)
-                if "phone" in last_excel_topic.lower() or "sales" in last_excel_topic.lower():
-                    last_excel_data.append([f"2024-01-{10 + new_row_num}", "New Rep", "Central", "New Phone", 3, 799, 2397])
-                else:
-                    last_excel_data.append([f"Item {new_row_num}", f"Value {new_row_num * 10}", "Active", "2024-01-20"])
-                
-                csv_bytes = create_excel_from_content(last_excel_topic, last_excel_data)
-                
-                if csv_bytes:
-                    st.session_state.excel_data = csv_bytes
-                    st.session_state.excel_topic = last_excel_topic
-                    st.session_state.last_excel_data = last_excel_data
-                    st.session_state.show_excel_download = True
-                    return f"✅ I've added more data to the spreadsheet about **{last_excel_topic}**. Scroll down to download the updated version!"
-        else:
-            return "I don't see a recent spreadsheet. First create one with 'generate a csv about [topic]'"
+                return "❌ Sorry, I couldn't create the Word document. Please try again."
     
     # ============================================
     # IMAGE GENERATION
@@ -1368,7 +1251,7 @@ Slide Title
     
     # DIRECT RESPONSES
     if any(phrase in q for phrase in ["who are you", "what are you"]):
-        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses. I can generate CSV files, PowerPoint presentations, Word documents, images, and more!"
+        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses. I can generate Excel files, PowerPoint presentations, Word documents, images, and more!"
     
     if any(phrase in q for phrase in ["who created you", "your creator", "mukiibi moses"]):
         return "Mukiibi Moses is my creator, a Computer Engineering student at Kyungdong University in South Korea."
@@ -1411,6 +1294,7 @@ with st.sidebar:
             st.session_state.show_ppt_download = False
             st.session_state.show_word_download = False
             st.session_state.show_excel_download = False
+            st.session_state.show_csv_download = False
             st.session_state.is_resetting = False
             st.success("New chat started!")
             st.rerun()
@@ -1456,7 +1340,8 @@ with st.sidebar:
     st.markdown("### 📄 Document Generation")
     st.markdown("**PPT:** `make a ppt about AI`")
     st.markdown("**Word:** `create a word document about Python`")
-    st.markdown("**Excel:** `make an excel about sales data`")
+    st.markdown("**Excel:** `generate an excel about phone sales`")
+    st.markdown("**CSV:** `generate a csv about data`")
     st.markdown("---")
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
@@ -1538,18 +1423,38 @@ if st.session_state.get("show_word_download", False) and st.session_state.get("w
     st.session_state.show_word_download = False
     st.session_state.word_data = None
 
-# CSV/Spreadsheet Download (Updated for CSV files)
+# REAL Excel Download (.xlsx)
 if st.session_state.get("show_excel_download", False) and st.session_state.get("excel_data"):
     st.markdown("---")
-    st.success(f"✅ Spreadsheet **{st.session_state.excel_topic}** is ready!")
+    st.success(f"✅ Excel (.xlsx) file **{st.session_state.excel_topic}** is ready!")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.download_button(
+            label="📊 Download Excel File (.xlsx)",
+            data=st.session_state.excel_data,
+            file_name=f"{st.session_state.excel_topic}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="excel_download_btn"
+        )
+    st.session_state.show_excel_download = False
+    st.session_state.excel_data = None
+
+# CSV Download (fallback)
+if st.session_state.get("show_csv_download", False) and st.session_state.get("csv_data"):
+    st.markdown("---")
+    st.info(f"📄 CSV file **{st.session_state.csv_topic}** is ready!")
+    
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.download_button(
             label="📥 Download CSV File",
-            data=st.session_state.excel_data,
-            file_name=f"{st.session_state.excel_topic.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            data=st.session_state.csv_data,
+            file_name=f"{st.session_state.csv_topic}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=True,
+            key="csv_download_btn"
         )
-    st.session_state.show_excel_download = False
-    st.session_state.excel_data = None
+    st.session_state.show_csv_download = False
+    st.session_state.csv_data = None
