@@ -892,16 +892,6 @@ Generate the best possible code now:
 def route(query):
     q = query.lower()
     
-    # Document generation detection
-    if any(x in q for x in ["ppt", "powerpoint", "presentation"]):
-        return "create_ppt"
-    
-    if any(x in q for x in ["word", "doc", "document"]):
-        return "create_word"
-    
-    if any(x in q for x in ["excel", "spreadsheet", "xlsx", "csv", "table", "data"]):
-        return "create_excel"
-    
     if any(x in q for x in ["export chat", "save chat", "download chat", "export conversation"]):
         return "export_chat"
     
@@ -1088,22 +1078,32 @@ def run_agent(query):
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
     
+     reset_phrases = ["leave the document", "clear context", "forget the file", "start fresh", "clear files", "new chat"]
+    if any(phrase in q for phrase in reset_phrases):
+        st.session_state.file_context = ""
+        st.session_state.uploaded_files = {}
+        st.session_state.last_search_query = None
+        st.session_state.last_search_results = None
+        st.session_state.last_topic = None
+        st.session_state.last_image_prompt = None
+        return "✅ Context cleared! How can I help you today?"
+    
     # ============================================
-    # DIRECT PPT GENERATION
+    # DIRECT PPT GENERATION - ONLY FOR COMMANDS
     # ============================================
-        # ============================================
-    # DIRECT PPT GENERATION
-    # ============================================
-    if any(phrase in q for phrase in ["ppt about", "presentation about", "make a ppt", "create a ppt", "generate a ppt", "powerpoint about"]):
+    ppt_commands = [
+        "make a ppt", "make a powerpoint", "create a ppt", "create a powerpoint",
+        "generate a ppt", "generate a powerpoint", "build a ppt", "build a powerpoint"
+    ]
+    if any(phrase in q for phrase in ppt_commands):
         topic = query
-        for word in ["make a ppt", "create a ppt", "generate a ppt", "ppt about", "presentation about", "powerpoint about", "make a presentation", "create presentation"]:
+        for word in ppt_commands:
             if word in topic.lower():
                 topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
                 break
         topic = topic.strip() or "MozeAI Generated Presentation"
         
         with st.spinner(f"📊 Creating PowerPoint presentation about '{topic}'..."):
-            # Better prompt that encourages slide separation
             content_prompt = f'''Create a PowerPoint presentation about "{topic}" with MULTIPLE SLIDES.
 
 Format your response as:
@@ -1118,39 +1118,30 @@ SLIDE 2 TITLE: Key Aspect 1
 - Another important point
 - Supporting information
 
-SLIDE 3 TITLE: Key Aspect 2
-- Important fact
-- Another key point
-- Additional detail
-
-SLIDE 4 TITLE: Conclusion
-- Summary point 1
-- Summary point 2
-- Final thoughts
-
 Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
             
             ai_content = reason(content_prompt, "")
-            
-            # Also add a note to help with parsing
-            ai_content = "SLIDE 1 TITLE: Introduction\n- " + ai_content if "SLIDE" not in ai_content.upper() else ai_content
-            
             ppt_bytes = create_ppt_from_content(topic, ai_content)
             
             if ppt_bytes:
                 st.session_state.ppt_data = ppt_bytes
                 st.session_state.ppt_topic = topic
                 st.session_state.show_ppt_download = True
-                return f"✅ I've created a PowerPoint presentation about **{topic}** with multiple slides. Scroll down to download it!"
+                return f"✅ I've created a PowerPoint presentation about **{topic}**. Scroll down to download it!"
             else:
                 return "❌ Sorry, I couldn't create the PowerPoint. Please try again."
-                
+    
     # ============================================
-    # DIRECT WORD GENERATION
+    # DIRECT WORD GENERATION - ONLY FOR COMMANDS
     # ============================================
-    if any(phrase in q for phrase in ["word about", "document about", "make a word", "create a word", "generate a word", "doc about"]):
+    word_commands = [
+        "make a word", "make a doc", "create a word", "create a doc",
+        "generate a word", "generate a doc", "build a word", "build a doc",
+        "make a document", "create a document"
+    ]
+    if any(phrase in q for phrase in word_commands):
         topic = query
-        for word in ["make a word", "create a word", "generate a word", "word about", "document about", "make a doc", "create a doc", "doc about"]:
+        for word in word_commands:
             if word in topic.lower():
                 topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
                 break
@@ -1171,11 +1162,16 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
                 return "❌ Sorry, I couldn't create the Word document. Please try again."
     
     # ============================================
-    # DIRECT EXCEL GENERATION
+    # DIRECT EXCEL GENERATION - ONLY FOR COMMANDS
     # ============================================
-    if any(phrase in q for phrase in ["excel about", "spreadsheet about", "csv about", "make an excel", "create an excel", "generate excel", "table about", "data about"]):
+    excel_commands = [
+        "make an excel", "make a spreadsheet", "create an excel", "create a spreadsheet",
+        "generate an excel", "generate a spreadsheet", "build an excel", "build a spreadsheet",
+        "make a csv", "create a csv", "generate a csv"
+    ]
+    if any(phrase in q for phrase in excel_commands):
         topic = query
-        for word in ["make an excel", "create an excel", "generate excel", "excel about", "spreadsheet about", "csv about", "table about", "data about"]:
+        for word in excel_commands:
             if word in topic.lower():
                 topic = re.sub(re.escape(word), "", topic.lower(), flags=re.IGNORECASE).strip()
                 break
