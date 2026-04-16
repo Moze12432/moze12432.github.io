@@ -1078,16 +1078,6 @@ def run_agent(query):
         st.session_state.last_image_prompt = None
         return "✅ Context cleared! How can I help you today?"
     
-     reset_phrases = ["leave the document", "clear context", "forget the file", "start fresh", "clear files", "new chat"]
-    if any(phrase in q for phrase in reset_phrases):
-        st.session_state.file_context = ""
-        st.session_state.uploaded_files = {}
-        st.session_state.last_search_query = None
-        st.session_state.last_search_results = None
-        st.session_state.last_topic = None
-        st.session_state.last_image_prompt = None
-        return "✅ Context cleared! How can I help you today?"
-    
     # ============================================
     # DIRECT PPT GENERATION - ONLY FOR COMMANDS
     # ============================================
