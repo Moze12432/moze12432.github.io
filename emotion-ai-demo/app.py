@@ -646,6 +646,8 @@ if "excel_data" not in st.session_state:
     st.session_state.excel_data = None
 if "excel_topic" not in st.session_state:
     st.session_state.excel_topic = ""
+if "last_document_topic" not in st.session_state:
+    st.session_state.last_document_topic = ""
 
 # ============================================
 # SEARCH FUNCTIONS
@@ -1150,6 +1152,45 @@ Create 4-6 slides with clear headings and 3-5 bullet points per slide.'''
                 return f"✅ I've created a Word document about **{topic}**. Scroll down to download it!"
             else:
                 return "❌ Sorry, I couldn't create the Word document. Please try again."
+
+    # Add this after the "DIRECT RESPONSE FOR CAPABILITY QUESTIONS" section
+# and BEFORE the "DIRECT EDIT CHECK" section:
+
+# ============================================
+# DOCUMENT EDIT COMMANDS - FIX FOR "make it longer" etc.
+# ============================================
+document_edit_commands = ["make it longer", "add more", "expand the document", "make the document longer", "add to the document"]
+if any(phrase in q for phrase in document_edit_commands):
+    # Check if we have a recent document topic
+    last_doc_topic = st.session_state.get("last_document_topic", "")
+    if last_doc_topic:
+        with st.spinner(f"📝 Expanding document about {last_doc_topic}..."):
+            expansion_prompt = f'''Expand this content about "{last_doc_topic}" by adding 2-3 more detailed sections. Make it significantly longer (at least 500 more words).
+
+Add:
+- Deeper analysis or examples
+- Related subtopics
+- Practical applications or case studies
+- A conclusion section
+
+Format with clear headings and bullet points where appropriate.'''
+            
+            expanded_content = reason(expansion_prompt, "")
+            
+            # Create new Word document with expanded content
+            word_bytes = create_word_from_content(last_doc_topic, expanded_content)
+            
+            if word_bytes:
+                st.session_state.word_data = word_bytes
+                st.session_state.word_topic = last_doc_topic
+                st.session_state.show_word_download = True
+                st.session_state.last_document_topic = last_doc_topic
+                st.session_state.last_document_topic = topic
+                return f"✅ I've expanded the Word document about **{last_doc_topic}** with additional content. Scroll down to download the updated version!"
+            else:
+                return "❌ Sorry, I couldn't expand the document. Please try again."
+    else:
+        return "I don't see a recent document to expand. First create a Word document with 'create a word document about [topic]' or 'make a word about [topic]'"
     
     # ============================================
     # DIRECT EXCEL GENERATION - ONLY FOR COMMANDS
