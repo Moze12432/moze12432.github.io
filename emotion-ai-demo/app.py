@@ -1473,8 +1473,7 @@ with st.sidebar:
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
     st.markdown("**University:** Kyungdong University, South Korea")
-    if st.session_state.last_model_used:
-        st.caption(f"Model: {st.session_state.last_model_used}")
+   
 
     st.markdown("---")
     st.markdown("### 📄 Export Options")
