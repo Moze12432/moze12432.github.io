@@ -13,7 +13,7 @@
 ## Tech Stack
 
 - Streamlit for UI
-- Groq LLM (Llama 3.1 8B)
+- Groq LLM models and fall back for reliability 
 - Pollinations.ai for image generation
 - BeautifulSoup for web scraping
 
