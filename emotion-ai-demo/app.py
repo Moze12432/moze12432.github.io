@@ -194,19 +194,30 @@ def create_csv_from_data(title, data_rows):
         return None
 
 def export_chat_history():
-    """Export the entire chat history"""
+    """Export the entire chat history as a readable .txt file"""
     if not st.session_state.chat_history:
         return None
     
-    export_content = "# Chat History with MozeAI\n\n"
-    export_content += f"*Exported on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n\n---\n\n"
+    # Create a clean, readable text format
+    export_content = "=" * 70 + "\n"
+    export_content += "CHAT HISTORY WITH MOZEAI\n"
+    export_content += f"Exported on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    export_content += "=" * 70 + "\n\n"
     
-    for role, msg in st.session_state.chat_history:
+    for idx, (role, msg) in enumerate(st.session_state.chat_history, 1):
         if role == "user":
-            export_content += f"## 👤 User:\n{msg}\n\n"
+            export_content += f"[{idx}] 👤 USER:\n"
+            export_content += "-" * 40 + "\n"
+            export_content += f"{msg}\n\n"
         else:
-            export_content += f"## 🤖 MozeAI:\n{msg}\n\n"
-        export_content += "---\n\n"
+            export_content += f"[{idx}] 🤖 MOZEAI:\n"
+            export_content += "-" * 40 + "\n"
+            export_content += f"{msg}\n\n"
+    
+    export_content += "=" * 70 + "\n"
+    export_content += "END OF CHAT HISTORY\n"
+    export_content += f"Total messages: {len(st.session_state.chat_history)}\n"
+    export_content += "=" * 70
     
     return export_content
 
@@ -1482,13 +1493,13 @@ with st.sidebar:
         export_content = export_chat_history()
         if export_content:
             st.download_button(
-                label="📥 Download",
+                label="📥 Download (.txt)",
                 data=export_content,
-                file_name=f"chat_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-                mime="text/markdown",
+                file_name=f"chat_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
                 key="export_download"
             )
-            st.success("Chat history ready for download!")
+            st.success("Chat history ready as .txt!")
 
 # ============================================
 # CHAT DISPLAY
