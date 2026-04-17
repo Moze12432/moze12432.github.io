@@ -600,7 +600,7 @@ YOUR CAPABILITIES:
    - PowerPoint presentations (.pptx)
    - Word documents (.docx)
    - Excel spreadsheets (.xlsx)
-   - CSV files (.csv)
+  
 
 ================================================================================
 CRITICAL RULES TO FOLLOW:
