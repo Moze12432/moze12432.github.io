@@ -1,81 +1,170 @@
-<section class="mozeai-section">
-  <style>
-    .mozeai-section {
-      max-width: 800px;
-      margin: 40px auto;
-      padding: 30px;
-      background: #ffffff;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-    }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MozeAI - Multi-Modal AI Assistant</title>
+  <meta name="description" content="MozeAI is a multi-modal AI assistant with real-time web search, document analysis, and image generation.">
 
-    .mozeai-section h2 {
-      font-size: 28px;
-      margin-bottom: 10px;
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f7fb;
       color: #222;
     }
 
-    .mozeai-section h3 {
-      margin-top: 25px;
-      color: #444;
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      padding: 40px 20px;
     }
 
-    .mozeai-section p {
-      color: #555;
+    h1, h2, h3 {
       margin-bottom: 15px;
     }
 
-    .mozeai-section ul {
-      padding-left: 20px;
+    p {
+      color: #555;
+      line-height: 1.6;
     }
 
-    .mozeai-section li {
-      margin-bottom: 10px;
-      color: #444;
+    /* HERO */
+    .hero {
+      text-align: center;
+      padding: 80px 20px 60px;
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      color: white;
     }
 
-    .mozeai-btn {
+    .hero h1 {
+      font-size: 42px;
+    }
+
+    .hero p {
+      color: #e0e7ff;
+      max-width: 600px;
+      margin: 20px auto;
+    }
+
+    .btn {
       display: inline-block;
       margin-top: 20px;
-      padding: 12px 20px;
-      background: #2563eb;
-      color: white;
-      text-decoration: none;
+      padding: 14px 24px;
+      background: white;
+      color: #2563eb;
       border-radius: 8px;
+      text-decoration: none;
       font-weight: bold;
       transition: 0.3s;
     }
 
-    .mozeai-btn:hover {
-      background: #1e40af;
+    .btn:hover {
+      background: #e0e7ff;
+    }
+
+    /* FEATURES */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 40px;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+
+    /* DEMO */
+    .demo {
+      text-align: center;
+      margin-top: 60px;
+    }
+
+    .demo iframe {
+      width: 100%;
+      height: 500px;
+      border-radius: 12px;
+      border: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    /* FOOTER */
+    .footer {
+      text-align: center;
+      padding: 30px;
+      margin-top: 60px;
+      background: #111827;
+      color: #aaa;
+      font-size: 14px;
+    }
+
+    .footer strong {
+      color: #fff;
     }
   </style>
+</head>
 
-  <h2>MozeAI – Multi-Modal Intelligent Assistant</h2>
+<body>
 
-  <p>
-  MozeAI is a next-generation multi-modal AI assistant designed to simplify how users interact with digital information. It integrates real-time web search, document analysis, and image generation into a single, unified platform, enabling users to access, understand, and create content more efficiently.
-  </p>
+  <!-- HERO -->
+  <section class="hero">
+    <h1>MozeAI</h1>
+    <p>
+      A powerful multi-modal AI assistant with real-time web search, document analysis, and image generation — all in one intelligent system.
+    </p>
+    <a href="https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/" target="_blank" class="btn">
+      Try MozeAI →
+    </a>
+  </section>
 
-  <p>
-  Built using modern artificial intelligence techniques, MozeAI leverages retrieval-augmented generation (RAG) and cross-encoder reranking to improve the accuracy and relevance of responses. This architecture allows the system to retrieve high-quality information from multiple sources and refine it intelligently, delivering context-aware and up-to-date results.
-  </p>
+  <!-- ABOUT -->
+  <div class="container">
+    <h2>What is MozeAI?</h2>
+    <p>
+      MozeAI is a next-generation AI assistant designed to simplify how users interact with information. It integrates multiple advanced capabilities into a single platform, allowing users to search, analyze, and generate content seamlessly. Built using retrieval-augmented generation (RAG) and intelligent reranking, MozeAI delivers accurate, context-aware, and up-to-date responses.
+    </p>
 
-  <h3>Key Features</h3>
-  <ul>
-    <li><strong>Real-Time Web Search:</strong> Retrieve current information instantly.</li>
-    <li><strong>Document Analysis:</strong> Extract insights from PDFs and text files.</li>
-    <li><strong>Image Generation & Editing:</strong> Create and refine visuals using AI.</li>
-    <li><strong>Advanced AI Pipeline:</strong> RAG-based retrieval with intelligent reranking.</li>
-  </ul>
+    <!-- FEATURES -->
+    <div class="features">
+      <div class="card">
+        <h3>Real-Time Web Search</h3>
+        <p>Access current information instantly from the web.</p>
+      </div>
 
-  <p>
-  MozeAI is built for students, researchers, and professionals who need a powerful and versatile AI assistant for real-world tasks. By combining multiple capabilities into one system, it reduces the need to switch between tools and improves overall productivity.
-  </p>
+      <div class="card">
+        <h3>Document Intelligence</h3>
+        <p>Understand and extract insights from PDFs and text files.</p>
+      </div>
 
-  <a href="https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/" target="_blank" class="mozeai-btn">
-    Try MozeAI Live →
-  </a>
-</section>
+      <div class="card">
+        <h3>Image Generation</h3>
+        <p>Create and edit visuals using advanced AI models.</p>
+      </div>
+
+      <div class="card">
+        <h3>Smart AI Pipeline</h3>
+        <p>RAG + reranking ensures accurate and relevant responses.</p>
+      </div>
+    </div>
+
+    <!-- DEMO -->
+    <div class="demo">
+      <h2>Live Demo</h2>
+      <p>Try MozeAI directly below:</p>
+
+      <iframe src="https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/"></iframe>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <p>
+      © 2026 <strong>MozeAI</strong> — Built by Mukiibi Moses  
+    </p>
+  </div>
+
+</body>
+</html>
