@@ -1,8 +1,8 @@
-import tflite_runtime.interpreter as tflite
+import tensorflow as tf
 
 def load_detector():
 
-    interpreter = tflite.Interpreter(
+    interpreter = tf.lite.Interpreter(
         model_path="models/deepfake_detector.tflite"
     )
 
