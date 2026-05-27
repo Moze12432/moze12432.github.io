@@ -22,7 +22,7 @@ def predict_image(interpreter, image_path):
 
     output_details = interpreter.get_output_details()
 
-    # Handle quantized input
+    # Quantization handling
     input_scale, input_zero_point = input_details[0]['quantization']
 
     if input_scale > 0:
@@ -33,7 +33,7 @@ def predict_image(interpreter, image_path):
             input_details[0]['dtype']
         )
 
-    # Set tensor
+    # Set input tensor
     interpreter.set_tensor(
         input_details[0]['index'],
         image_array
@@ -42,12 +42,12 @@ def predict_image(interpreter, image_path):
     # Run inference
     interpreter.invoke()
 
-    # Get output
+    # Get prediction
     prediction = interpreter.get_tensor(
         output_details[0]['index']
     )
 
-    # Handle quantized output
+    # Dequantize output
     output_scale, output_zero_point = output_details[0]['quantization']
 
     if output_scale > 0:
