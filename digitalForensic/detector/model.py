@@ -1,11 +1,8 @@
-import tensorflow as tf
+import onnxruntime as ort
 
-def load_detector():
+MODEL_PATH = "models/deepfake_detector.onnx"
 
-    interpreter = tf.lite.Interpreter(
-        model_path="models/deepfake_detector.tflite"
-    )
+session = ort.InferenceSession(MODEL_PATH)
 
-    interpreter.allocate_tensors()
-
-    return interpreter
+def load_model():
+    return session
