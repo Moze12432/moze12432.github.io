@@ -1,12 +1,7 @@
 streamlit
-torch
-torchvision
-timm
-opencv-python
+tensorflow-cpu
+opencv-python-headless
 pillow
 numpy
-pandas
 matplotlib
 scikit-learn
-transformers
-grad-cam
