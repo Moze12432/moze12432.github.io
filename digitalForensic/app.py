@@ -3,9 +3,14 @@ from PIL import Image
 import os
 
 from forensic.ela import perform_ela
+from detector.model import load_model
+from detector.predict import predict_image
 
 # Create uploads directory if it doesn't exist
 os.makedirs("uploads", exist_ok=True)
+
+# Load AI model
+model = load_model()
 
 # Streamlit page settings
 st.set_page_config(
@@ -18,7 +23,7 @@ st.title("AI-Based Fake Image Detection System")
 
 st.write(
     "Upload an image for digital forensic analysis using "
-    "Error Level Analysis (ELA)."
+    "AI detection and Error Level Analysis (ELA)."
 )
 
 # Upload image
@@ -42,12 +47,13 @@ if uploaded_file is not None:
     # Open original image
     image = Image.open(upload_path)
 
-    # Create 2 columns
+    # Create columns
     col1, col2 = st.columns(2)
 
     # Show original image
     with col1:
         st.subheader("Original Image")
+
         st.image(
             image,
             use_container_width=True
@@ -56,13 +62,35 @@ if uploaded_file is not None:
     # Perform ELA
     ela_image = perform_ela(upload_path)
 
-    # Show ELA image
+    # Show ELA result
     with col2:
         st.subheader("ELA Analysis")
+
         st.image(
             ela_image,
             use_container_width=True
         )
 
-    # Success message
-    st.success("ELA forensic analysis completed successfully.")
+    # AI Prediction
+    label, confidence = predict_image(
+        model,
+        upload_path
+    )
+
+    st.divider()
+
+    st.subheader("AI Detection Result")
+
+    if label == "FAKE":
+
+        st.error(
+            f"Prediction: {label} "
+            f"({confidence:.2f}% confidence)"
+        )
+
+    else:
+
+        st.success(
+            f"Prediction: {label} "
+            f"({confidence:.2f}% confidence)"
+        )
