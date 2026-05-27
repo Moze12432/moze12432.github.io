@@ -1,6 +1,8 @@
+import os
 import onnxruntime as ort
 
-MODEL_PATH = "models/deepfake_detector.onnx"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "models", "deepfake_detector.onnx")
 
 session = ort.InferenceSession(MODEL_PATH)
 
