@@ -10,7 +10,7 @@ from detector.predict import predict_image
 os.makedirs("uploads", exist_ok=True)
 
 # Load AI model
-model = load_model()
+processor, model = load_model()
 
 # Streamlit page settings
 st.set_page_config(
@@ -73,6 +73,7 @@ if uploaded_file is not None:
 
     # AI Prediction
     label, confidence = predict_image(
+        processor,
         model,
         upload_path
     )
