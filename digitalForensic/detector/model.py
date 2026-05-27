@@ -1,14 +1,11 @@
-from transformers import AutoImageProcessor
-from transformers import AutoModelForImageClassification
+import tensorflow as tf
 
-def load_model():
+def load_detector():
 
-    processor = AutoImageProcessor.from_pretrained(
-        "prithivMLmods/Deep-Fake-Detector-Model"
+    interpreter = tf.lite.Interpreter(
+        model_path="models/deepfake_detector.tflite"
     )
 
-    model = AutoModelForImageClassification.from_pretrained(
-        "prithivMLmods/Deep-Fake-Detector-Model"
-    )
+    interpreter.allocate_tensors()
 
-    return processor, model
+    return interpreter
