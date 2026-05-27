@@ -1,13 +1,14 @@
-import timm
-import torch
+from transformers import AutoImageProcessor
+from transformers import AutoModelForImageClassification
 
 def load_model():
 
-    model = timm.create_model(
-        "efficientnet_b0",
-        pretrained=True
+    processor = AutoImageProcessor.from_pretrained(
+        "prithivMLmods/Deep-Fake-Detector-Model"
     )
 
-    model.eval()
+    model = AutoModelForImageClassification.from_pretrained(
+        "prithivMLmods/Deep-Fake-Detector-Model"
+    )
 
-    return model
+    return processor, model
