@@ -1,32 +1,29 @@
 from PIL import Image
 import torch
-from torchvision import transforms
 
-# ImageNet labels
-LABELS = [
-    "REAL",
-    "FAKE"
-]
-
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-])
-
-def predict_image(model, image_path):
+def predict_image(processor, model, image_path):
 
     image = Image.open(image_path).convert("RGB")
 
-    tensor = transform(image).unsqueeze(0)
+    inputs = processor(
+        images=image,
+        return_tensors="pt"
+    )
 
     with torch.no_grad():
-        outputs = model(tensor)
+        outputs = model(**inputs)
 
-    probabilities = torch.softmax(outputs[0], dim=0)
+    logits = outputs.logits
 
-    confidence, predicted = torch.max(probabilities, 0)
+    predicted_class = logits.argmax(-1).item()
 
-    # Temporary fake mapping
-    label = "FAKE" if predicted.item() % 2 == 0 else "REAL"
+    confidence = torch.softmax(
+        logits,
+        dim=1
+    )[0][predicted_class].item()
 
-    return label, confidence.item() * 100
+    labels = ["REAL", "FAKE"]
+
+    label = labels[predicted_class]
+
+    return label, confidence * 100
