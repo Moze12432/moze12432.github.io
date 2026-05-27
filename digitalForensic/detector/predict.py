@@ -1,29 +1,47 @@
-from PIL import Image
-import torch
+import numpy as np
 
-def predict_image(processor, model, image_path):
+from PIL import Image
+
+def predict_image(interpreter, image_path):
 
     image = Image.open(image_path).convert("RGB")
 
-    inputs = processor(
-        images=image,
-        return_tensors="pt"
+    image = image.resize((224, 224))
+
+    image_array = np.array(image).astype(np.float32)
+
+    image_array = image_array / 255.0
+
+    image_array = np.expand_dims(
+        image_array,
+        axis=0
     )
 
-    with torch.no_grad():
-        outputs = model(**inputs)
+    # Input/output details
+    input_details = interpreter.get_input_details()
 
-    logits = outputs.logits
+    output_details = interpreter.get_output_details()
 
-    predicted_class = logits.argmax(-1).item()
+    # Set input tensor
+    interpreter.set_tensor(
+        input_details[0]['index'],
+        image_array
+    )
 
-    confidence = torch.softmax(
-        logits,
-        dim=1
-    )[0][predicted_class].item()
+    # Run inference
+    interpreter.invoke()
 
-    labels = ["REAL", "FAKE"]
+    # Get prediction
+    prediction = interpreter.get_tensor(
+        output_details[0]['index']
+    )[0][0]
 
-    label = labels[predicted_class]
+    confidence = float(prediction) * 100
 
-    return label, confidence * 100
+    if prediction >= 0.5:
+        label = "FAKE"
+    else:
+        label = "REAL"
+        confidence = 100 - confidence
+
+    return label, confidence
