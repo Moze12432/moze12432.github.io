@@ -3,36 +3,35 @@ from PIL import Image
 import os
 
 from forensic.ela import perform_ela
-from detector.model import load_model
+from detector.model import load_detector
 from detector.predict import predict_image
 
-# Create uploads directory if it doesn't exist
+# Create uploads directory
 os.makedirs("uploads", exist_ok=True)
 
-# Load AI model
-processor, model = load_model()
+# Load TFLite model
+model = load_detector()
 
-# Streamlit page settings
+# Streamlit page config
 st.set_page_config(
     page_title="Deepfake Forensics AI",
     layout="wide"
 )
 
-# App title
+# Title
 st.title("AI-Based Fake Image Detection System")
 
 st.write(
-    "Upload an image for digital forensic analysis using "
-    "AI detection and Error Level Analysis (ELA)."
+    "Upload an image for AI-powered digital forensic analysis."
 )
 
-# Upload image
+# Upload section
 uploaded_file = st.file_uploader(
     "Choose an image",
     type=["jpg", "jpeg", "png"]
 )
 
-# If image uploaded
+# If uploaded
 if uploaded_file is not None:
 
     # Save uploaded image
@@ -44,14 +43,15 @@ if uploaded_file is not None:
     with open(upload_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-    # Open original image
+    # Open image
     image = Image.open(upload_path)
 
     # Create columns
     col1, col2 = st.columns(2)
 
-    # Show original image
+    # Original image
     with col1:
+
         st.subheader("Original Image")
 
         st.image(
@@ -59,11 +59,11 @@ if uploaded_file is not None:
             use_container_width=True
         )
 
-    # Perform ELA
+    # ELA analysis
     ela_image = perform_ela(upload_path)
 
-    # Show ELA result
     with col2:
+
         st.subheader("ELA Analysis")
 
         st.image(
@@ -71,15 +71,16 @@ if uploaded_file is not None:
             use_container_width=True
         )
 
-    # AI Prediction
+    # Divider
+    st.divider()
+
+    # AI prediction
     label, confidence = predict_image(
-        processor,
         model,
         upload_path
     )
 
-    st.divider()
-
+    # Display result
     st.subheader("AI Detection Result")
 
     if label == "FAKE":
@@ -95,3 +96,25 @@ if uploaded_file is not None:
             f"Prediction: {label} "
             f"({confidence:.2f}% confidence)"
         )
+
+    # Confidence bar
+    st.progress(
+        min(int(confidence), 100)
+    )
+
+    # Final forensic summary
+    st.subheader("Forensic Summary")
+
+    st.write(
+        f"""
+        The uploaded image was analyzed using:
+        - Error Level Analysis (ELA)
+        - AI-based Deepfake Detection
+        - TensorFlow Lite Inference
+
+        Final Prediction:
+        **{label}**
+        with confidence score of
+        **{confidence:.2f}%**
+        """
+    )
