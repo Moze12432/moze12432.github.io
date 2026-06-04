@@ -269,7 +269,6 @@ class ClaudeUI:
             with st.chat_message(msg.role, avatar="👤" if msg.role == "user" else "🤖"):
                 st.markdown(msg.content)
         
-        # Artifacts panel
         if conv.artifacts:
             with st.expander(f"📎 Artifacts ({len(conv.artifacts)})", expanded=False):
                 for art in conv.artifacts[-5:]:
@@ -281,14 +280,12 @@ class ClaudeUI:
                             st.session_state.current_artifact = art
                             st.rerun()
         
-        # File upload
         uploaded = st.file_uploader("Attach file", type=['pdf', 'docx', 'txt'], label_visibility="collapsed")
-        if uploaded and uploaded.name not in [f.name for f in st.session_state.uploaded_files]:
+        if uploaded and uploaded.name not in [f.get("name", "") for f in st.session_state.uploaded_files]:
             content = self.doc_processor.extract_text_from_file(uploaded)
             st.session_state.uploaded_files.append({"name": uploaded.name, "content": content})
             st.success(f"✅ Attached: {uploaded.name}")
         
-        # Chat input
         prompt = st.chat_input("Message Claude...", disabled=st.session_state.is_processing)
         if prompt:
             self.add_message("user", prompt)
@@ -302,7 +299,6 @@ class ClaudeUI:
         st.session_state.is_processing = True
         conv = self.get_current_conversation()
         
-        # Build context
         context = ""
         if st.session_state.current_document:
             context += f"\n\nCurrent document:\n{st.session_state.current_document}\n"
@@ -332,14 +328,12 @@ class ClaudeUI:
             with st.chat_message("assistant", avatar="🤖"):
                 st.markdown(streaming_text)
             
-            # Create artifact for long responses
             if len(streaming_text) > 800:
                 artifact = self.add_artifact(f"Response: {prompt[:30]}...", streaming_text)
                 st.info(f"📎 Saved as artifact: {artifact.title}")
             
             self.add_message("assistant", streaming_text)
             
-            # Update document if edit request
             if any(kw in prompt.lower() for kw in ["edit", "rewrite", "improve", "fix"]) and len(streaming_text) > 100:
                 st.session_state.current_document = streaming_text
                 st.success("✅ Document updated")
@@ -354,13 +348,13 @@ class ClaudeUI:
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            if st.button("🔍 Analyze", use_container_width=True) and st.session_state.current_document:
+            if st.button("🔍 Analyze", use_container_width=True) and st.session_state.current_document and st.session_state.router:
                 with st.spinner("Analyzing..."):
                     analysis = self.doc_processor.analyze_document(st.session_state.current_document, st.session_state.router)
                     self.add_message("assistant", f"**Analysis:**\n\n{analysis}")
                     st.rerun()
         with col2:
-            if st.button("✨ Improve", use_container_width=True) and st.session_state.current_document:
+            if st.button("✨ Improve", use_container_width=True) and st.session_state.current_document and st.session_state.router:
                 with st.spinner("Improving..."):
                     improved = self.doc_processor.edit_document(
                         st.session_state.current_document, "Improve writing quality and fix grammar", st.session_state.router
@@ -368,7 +362,7 @@ class ClaudeUI:
                     st.session_state.current_document = improved
                     st.rerun()
         with col3:
-            if st.button("📝 Summarize", use_container_width=True) and st.session_state.current_document:
+            if st.button("📝 Summarize", use_container_width=True) and st.session_state.current_document and st.session_state.router:
                 with st.spinner("Summarizing..."):
                     summary = self.doc_processor.edit_document(
                         st.session_state.current_document, "Summarize this document concisely", st.session_state.router
@@ -398,13 +392,13 @@ class ClaudeUI:
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔍 Analyze", use_container_width=True) and code:
+            if st.button("🔍 Analyze", use_container_width=True) and code and st.session_state.router:
                 with st.spinner("Analyzing..."):
                     analysis = self.code_interpreter.analyze_code(code, language, st.session_state.router)
                     self.add_message("assistant", f"**Code Analysis:**\n\n{analysis}")
                     st.rerun()
         with col2:
-            if st.button("💡 Explain", use_container_width=True) and code:
+            if st.button("💡 Explain", use_container_width=True) and code and st.session_state.router:
                 with st.spinner("Explaining..."):
                     explanation = st.session_state.router.chat([
                         {"role": "user", "content": f"Explain this {language} code line by line:\n```{language}\n{code}\n```"}
@@ -415,7 +409,7 @@ class ClaudeUI:
         st.markdown("---")
         st.markdown("### Generate Code")
         description = st.text_area("Describe what you want", height=100, placeholder="Example: A function to fetch data from an API")
-        if st.button("✨ Generate", type="primary", use_container_width=True) and description:
+        if st.button("✨ Generate", type="primary", use_container_width=True) and description and st.session_state.router:
             with st.spinner("Generating..."):
                 generated = self.code_interpreter.generate_code(description, language, st.session_state.router)
                 artifact = self.add_artifact(f"Code: {description[:30]}...", generated, ArtifactType.CODE)
@@ -514,11 +508,20 @@ def main():
         st.session_state.router = ClaudeRouter(api_key)
     
     if not api_key:
-        st.error("""
-        ### GROQ_API_KEY Required
-        
-        Please set your Groq API key.
-        
-        **Get key:** [Groq Console](https://console.groq.com)
-        
-        **Local:** Create `.streamlit/secrets.toml` with:
+        st.error("GROQ_API_KEY Required. Please set your Groq API key.")
+        key_input = st.text_input("Enter API key:", type="password")
+        if key_input:
+            st.session_state.router = ClaudeRouter(key_input)
+            st.rerun()
+        return
+    
+    # Process pending messages
+    conv = ui.get_current_conversation()
+    if conv.messages and conv.messages[-1].role == "user":
+        if len(conv.messages) == 1 or conv.messages[-2].role != "assistant":
+            ui.process_message(conv.messages[-1].content)
+    
+    ui.render()
+
+if __name__ == "__main__":
+    main()
