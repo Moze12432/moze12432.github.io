@@ -2536,7 +2536,7 @@ def _sidebar_chat_tools():
 
     st.markdown('<div class="sec-label" style="margin-top:14px">Custom instruction</div>', unsafe_allow_html=True)
     custom = st.text_area(
-        "", placeholder="e.g. Rewrite for a 10-year-old…",
+        "Custom instruction", placeholder="e.g. Rewrite for a 10-year-old…",
         height=72, key="custom_instr", label_visibility="collapsed",
     )
     if st.button("Apply", use_container_width=True, type="primary", key="apply_custom"):
@@ -2548,7 +2548,8 @@ def _sidebar_chat_tools():
 
     if core:
         meta = st.session_state.workspace.current_document["metadata"]
-        lm = st.session_state.get("last_model_used", MODEL_PRIORITY[0])
+        # Bug fix: .get() returns None when key exists but value is None
+        lm = st.session_state.last_model_used or MODEL_PRIORITY[0]
         is_primary = lm == MODEL_PRIORITY[0]
         dot_bg = "#4caf50" if is_primary else "#ff9800"
         lm_short = lm.replace("-versatile", "")
@@ -2568,7 +2569,7 @@ def _sidebar_chat_tools():
 def _sidebar_files():
     st.markdown('<div class="sec-label">Upload files</div>', unsafe_allow_html=True)
     uploaded = st.file_uploader(
-        "", type=["pdf", "docx", "txt", "csv", "json"],
+        "Upload files", type=["pdf", "docx", "txt", "csv", "json"],
         accept_multiple_files=True, key="file_uploader",
         label_visibility="collapsed",
     )
@@ -2588,7 +2589,7 @@ def _sidebar_files():
         st.markdown('<div class="sec-label" style="margin-top:10px">Reference in next edit</div>',
                     unsafe_allow_html=True)
         st.multiselect(
-            "", options=all_files, default=[],
+            "Reference files", options=all_files, default=[],
             key="selected_ref_files", label_visibility="collapsed",
         )
         sel = st.session_state.get("selected_ref_files", [])
@@ -2729,7 +2730,7 @@ def render_document_editor():
     col_title, col_btns = st.columns([3, 2])
     with col_title:
         new_title = st.text_input(
-            "", value=workspace.current_document["title"],
+            "Document title", value=workspace.current_document["title"],
             key="doc_title", placeholder="Document title…",
             label_visibility="collapsed",
         )
@@ -2762,7 +2763,7 @@ def render_document_editor():
                 st.rerun()
 
     content = st.text_area(
-        "", value=workspace.current_document["content"],
+        "Document content", value=workspace.current_document["content"],
         height=340, key="doc_editor",
         placeholder="Start writing, or paste your document here…",
         label_visibility="collapsed",
