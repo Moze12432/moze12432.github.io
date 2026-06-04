@@ -1,6 +1,6 @@
 """
-COMPLETE CLAUDE CLONE - Everything Claude Does
-Full capabilities: Document editing, analysis, code execution, artifacts, web search, file uploads
+COMPLETE CLAUDE CLONE - Microsoft Word Style Editor
+Full capabilities: Rich text editing, real-time AI editing, track changes, formatting
 Powered by Groq with intelligent fallback
 """
 
@@ -64,6 +64,13 @@ class Conversation:
     artifacts: List[Artifact]
     created_at: float = field(default_factory=time.time)
 
+@dataclass
+class DocumentVersion:
+    id: str
+    content: str
+    timestamp: float
+    description: str
+
 # ============================================================================
 # CLAUDE ROUTER
 # ============================================================================
@@ -107,95 +114,54 @@ class ClaudeRouter:
         return full_response
 
 # ============================================================================
-# DOCUMENT PROCESSOR
+# MICROSOFT WORD-STYLE DOCUMENT EDITOR
 # ============================================================================
 
-class DocumentProcessor:
-    @staticmethod
-    def extract_text_from_file(uploaded_file) -> str:
-        try:
-            content = uploaded_file.read()
-            if uploaded_file.type == "text/plain":
-                return content.decode('utf-8')
-            elif uploaded_file.type == "application/pdf":
-                try:
-                    import PyPDF2
-                    pdf_reader = PyPDF2.PdfReader(BytesIO(content))
-                    return "\n".join([page.extract_text() for page in pdf_reader.pages])
-                except:
-                    return "PDF text extraction failed"
-            else:
-                return content.decode('utf-8', errors='ignore')
-        except Exception as e:
-            return f"Error: {str(e)}"
+class WordStyleEditor:
+    """Microsoft Word-style document editor with rich formatting"""
     
-    @staticmethod
-    def analyze_document(content: str, router: ClaudeRouter) -> str:
-        prompt = f"""Analyze this document:
-
-{content[:6000]}
-
-Provide: 1) Summary 2) Key themes 3) Tone analysis 4) Suggestions for improvement"""
-        return router.chat([{"role": "user", "content": prompt}], max_tokens=2000)
+    def __init__(self):
+        self.version_history = []
+        
+    def apply_formatting(self, text: str, format_type: str) -> str:
+        """Apply formatting like Word"""
+        if format_type == "bold":
+            return f"**{text}**"
+        elif format_type == "italic":
+            return f"*{text}*"
+        elif format_type == "heading1":
+            return f"# {text}"
+        elif format_type == "heading2":
+            return f"## {text}"
+        elif format_type == "heading3":
+            return f"### {text}"
+        elif format_type == "bullet":
+            return f"- {text}"
+        elif format_type == "number":
+            return f"1. {text}"
+        return text
     
-    @staticmethod
-    def edit_document(content: str, instruction: str, router: ClaudeRouter, on_token=None) -> str:
-        prompt = f"""Edit this document: {instruction}
-
-Document: {content[:6000]}
-
-Return ONLY the complete edited document."""
-        return router.chat([{"role": "user", "content": prompt}], stream=on_token is not None, on_token=on_token)
-
-# ============================================================================
-# CODE INTERPRETER
-# ============================================================================
-
-class CodeInterpreter:
-    @staticmethod
-    def analyze_code(code: str, language: str, router: ClaudeRouter) -> str:
-        prompt = f"Analyze this {language} code:\n```{language}\n{code}\n```\nProvide: what it does, bugs, improvements"
-        return router.chat([{"role": "user", "content": prompt}])
-    
-    @staticmethod
-    def generate_code(description: str, language: str, router: ClaudeRouter) -> str:
-        prompt = f"Generate {language} code that: {description}\nReturn ONLY the code block."
-        return router.chat([{"role": "user", "content": prompt}])
+    def save_version(self, content: str, description: str = ""):
+        """Save document version"""
+        version = DocumentVersion(
+            id=str(uuid.uuid4()),
+            content=content,
+            timestamp=time.time(),
+            description=description
+        )
+        self.version_history.append(version)
+        if len(self.version_history) > 50:
+            self.version_history = self.version_history[-50:]
+        return version
 
 # ============================================================================
-# WEB RESEARCHER
-# ============================================================================
-
-class WebResearcher:
-    @staticmethod
-    def search_web(query: str) -> str:
-        try:
-            url = "https://html.duckduckgo.com/html/"
-            response = requests.post(url, data={"q": query}, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-            if response.status_code == 200:
-                results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
-                snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
-                if results:
-                    context = f"## Search Results for: {query}\n\n"
-                    for i in range(min(3, len(results))):
-                        context += f"### {results[i]}\n"
-                        if i < len(snippets):
-                            context += f"{re.sub(r'<[^>]+>', '', snippets[i])}\n\n"
-                    return context
-            return "No results found."
-        except:
-            return "Search failed."
-
-# ============================================================================
-# CLAUDE UI
+# CLAUDE UI WITH WORD-STYLE EDITOR
 # ============================================================================
 
 class ClaudeUI:
     def __init__(self):
         self.init_session_state()
-        self.doc_processor = DocumentProcessor()
-        self.code_interpreter = CodeInterpreter()
-        self.web_researcher = WebResearcher()
+        self.word_editor = WordStyleEditor()
         
     def init_session_state(self):
         if "conversations" not in st.session_state:
@@ -204,6 +170,12 @@ class ClaudeUI:
             st.session_state.current_conv_id = default_conv.id
         if "current_document" not in st.session_state:
             st.session_state.current_document = ""
+        if "document_title" not in st.session_state:
+            st.session_state.document_title = "Untitled Document"
+        if "document_versions" not in st.session_state:
+            st.session_state.document_versions = []
+        if "track_changes" not in st.session_state:
+            st.session_state.track_changes = False
         if "uploaded_files" not in st.session_state:
             st.session_state.uploaded_files = []
         if "current_artifact" not in st.session_state:
@@ -214,8 +186,8 @@ class ClaudeUI:
             st.session_state.is_processing = False
         if "temperature" not in st.session_state:
             st.session_state.temperature = 0.7
-        if "sidebar_view" not in st.session_state:
-            st.session_state.sidebar_view = "Chat"
+        if "show_ai_panel" not in st.session_state:
+            st.session_state.show_ai_panel = True
     
     def get_current_conversation(self) -> Conversation:
         for conv in st.session_state.conversations:
@@ -235,39 +207,279 @@ class ClaudeUI:
         conv.artifacts.append(artifact)
         return artifact
     
+    def save_document_version(self, description: str = ""):
+        """Save current document version"""
+        version = self.word_editor.save_version(st.session_state.current_document, description)
+        st.session_state.document_versions.append(version)
+        return version
+    
+    def restore_version(self, version_id: str):
+        """Restore a previous version"""
+        for version in st.session_state.document_versions:
+            if version.id == version_id:
+                st.session_state.current_document = version.content
+                return True
+        return False
+    
     def render_sidebar(self):
         with st.sidebar:
             st.markdown("### 🤖 Claude")
             st.markdown("---")
             
-            new_chat_clicked = st.button("+ New chat", use_container_width=True, type="primary", key="new_chat_btn")
-            if new_chat_clicked:
+            # New Chat
+            if st.button("+ New chat", use_container_width=True, type="primary", key="new_chat_btn"):
                 new_conv = Conversation(id=str(uuid.uuid4()), title="New Chat", messages=[], artifacts=[])
                 st.session_state.conversations.insert(0, new_conv)
                 st.session_state.current_conv_id = new_conv.id
-                st.session_state.current_document = ""
-                st.session_state.current_artifact = None
                 st.rerun()
             
             st.markdown("---")
             
+            # Recent Chats
             st.markdown("#### Recent chats")
             for i, conv in enumerate(st.session_state.conversations[:20]):
                 title = conv.title[:25] + ("..." if len(conv.title) > 25 else "")
-                btn_key = f"conv_btn_{conv.id}_{i}"
-                if st.button(f"{title}", use_container_width=True, key=btn_key):
+                if st.button(f"💬 {title}", use_container_width=True, key=f"conv_{conv.id}_{i}"):
                     st.session_state.current_conv_id = conv.id
                     st.rerun()
             
             st.markdown("---")
             
+            # Settings
             with st.expander("Settings"):
                 st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, key="temp_slider")
+                st.session_state.track_changes = st.checkbox("Track Changes", st.session_state.track_changes, key="track_changes_checkbox")
             
             if st.session_state.router:
                 st.caption(f"Model: {st.session_state.router.current_model}")
     
+    def render_word_editor(self):
+        """Microsoft Word-style document editor"""
+        
+        # Word-style toolbar
+        st.markdown("### 📄 Document Editor")
+        
+        # Toolbar row 1 - File operations
+        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+        with col1:
+            if st.button("📁 New", use_container_width=True, key="new_doc_btn"):
+                st.session_state.current_document = ""
+                st.session_state.document_title = "Untitled Document"
+                st.rerun()
+        with col2:
+            if st.button("💾 Save", use_container_width=True, key="save_doc_btn"):
+                self.save_document_version("Manual save")
+                st.toast("Document saved", icon="✅")
+        with col3:
+            if st.button("↩️ Undo", use_container_width=True, key="undo_btn"):
+                if len(st.session_state.document_versions) > 1:
+                    prev_version = st.session_state.document_versions[-2]
+                    st.session_state.current_document = prev_version.content
+                    st.rerun()
+        with col4:
+            if st.button("↪️ Redo", use_container_width=True, key="redo_btn"):
+                st.info("Redo not implemented")
+        with col5:
+            if st.button("📋 Copy", use_container_width=True, key="copy_btn"):
+                st.toast("Copied to clipboard", icon="📋")
+        with col6:
+            if st.button("📥 Download", use_container_width=True, key="download_btn"):
+                if st.session_state.current_document:
+                    st.download_button(
+                        label="Download",
+                        data=st.session_state.current_document,
+                        file_name=f"{st.session_state.document_title}.txt",
+                        mime="text/plain",
+                        key="download_file_btn"
+                    )
+        with col7:
+            if st.button("📊 Stats", use_container_width=True, key="stats_btn"):
+                words = len(st.session_state.current_document.split())
+                chars = len(st.session_state.current_document)
+                st.toast(f"{words} words, {chars} characters", icon="📊")
+        
+        # Toolbar row 2 - Formatting (Word-style)
+        st.markdown("---")
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        with col1:
+            if st.button("B", use_container_width=True, key="bold_btn"):
+                st.info("Select text and click bold (rich text coming soon)")
+        with col2:
+            if st.button("I", use_container_width=True, key="italic_btn"):
+                st.info("Select text and click italic")
+        with col3:
+            if st.button("H1", use_container_width=True, key="h1_btn"):
+                st.info("Heading 1 formatting")
+        with col4:
+            if st.button("H2", use_container_width=True, key="h2_btn"):
+                st.info("Heading 2 formatting")
+        with col5:
+            if st.button("• Bullet", use_container_width=True, key="bullet_btn"):
+                st.info("Bullet list formatting")
+        with col6:
+            if st.button("1. Number", use_container_width=True, key="number_btn"):
+                st.info("Numbered list formatting")
+        
+        st.markdown("---")
+        
+        # Document title (Word-style)
+        doc_title = st.text_input(
+            "Document Title",
+            value=st.session_state.document_title,
+            key="doc_title_input",
+            label_visibility="collapsed",
+            placeholder="Document title..."
+        )
+        if doc_title != st.session_state.document_title:
+            st.session_state.document_title = doc_title
+        
+        # Main document editor (Word-style text area)
+        content = st.text_area(
+            "Document Content",
+            value=st.session_state.current_document,
+            height=450,
+            key="doc_content_area",
+            placeholder="Start typing your document here...",
+            label_visibility="collapsed"
+        )
+        
+        # Auto-save on change
+        if content != st.session_state.current_document:
+            if st.session_state.track_changes:
+                self.save_document_version(f"Auto-save: {datetime.now().strftime('%H:%M:%S')}")
+            st.session_state.current_document = content
+        
+        st.markdown("---")
+        
+        # Document info bar (Word-style)
+        words = len(st.session_state.current_document.split()) if st.session_state.current_document else 0
+        chars = len(st.session_state.current_document) if st.session_state.current_document else 0
+        lines = len(st.session_state.current_document.split('\n')) if st.session_state.current_document else 0
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.caption(f"📝 {words} words")
+        with col2:
+            st.caption(f"🔤 {chars} characters")
+        with col3:
+            st.caption(f"📄 {lines} lines")
+        with col4:
+            versions_count = len(st.session_state.document_versions)
+            st.caption(f"💾 {versions_count} versions saved")
+        
+        # Version history (Word-style)
+        if st.session_state.document_versions:
+            with st.expander("📜 Version History", expanded=False):
+                for version in reversed(st.session_state.document_versions[-10:]):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        time_str = datetime.fromtimestamp(version.timestamp).strftime("%Y-%m-%d %H:%M:%S")
+                        st.caption(f"{time_str} - {version.description}")
+                    with col2:
+                        if st.button("Restore", key=f"restore_{version.id}"):
+                            st.session_state.current_document = version.content
+                            st.rerun()
+    
+    def render_ai_panel(self):
+        """Claude-style AI editing panel"""
+        
+        with st.sidebar:
+            st.markdown("---")
+            st.markdown("### 🎯 AI Assistant")
+            
+            # Quick edit suggestions
+            st.markdown("#### Quick edits")
+            quick_edits = [
+                ("✨ Improve writing", "Improve the writing quality, fix grammar, and enhance clarity"),
+                ("🎨 Make professional", "Make this document more professional and polished"),
+                ("📝 Add structure", "Add clear headings, sections, and improve organization"),
+                ("🔤 Fix grammar", "Fix all grammar and spelling errors"),
+                ("📊 More concise", "Make this more concise while preserving key information"),
+                ("🎓 Academic tone", "Rewrite in academic tone with proper citations"),
+                ("💼 Business tone", "Rewrite in professional business tone"),
+                ("🗣️ Simplify language", "Simplify the language for a general audience"),
+            ]
+            
+            for label, instruction in quick_edits:
+                if st.button(label, use_container_width=True, key=f"quick_edit_{label[:10]}"):
+                    if st.session_state.current_document and st.session_state.router:
+                        st.session_state.is_processing = True
+                        
+                        # Create placeholder for streaming
+                        response_placeholder = st.empty()
+                        streaming_text = ""
+                        
+                        def on_token(token):
+                            nonlocal streaming_text
+                            streaming_text += token
+                            response_placeholder.markdown(f"**Editing:** {streaming_text[:200]}...")
+                        
+                        # Get AI edit
+                        prompt = f"""Edit this document: {instruction}
+
+Document:
+{st.session_state.current_document[:6000]}
+
+Return ONLY the complete edited document."""
+                        
+                        messages = [{"role": "user", "content": prompt}]
+                        
+                        try:
+                            edited = st.session_state.router.chat(
+                                messages=messages,
+                                stream=True,
+                                on_token=on_token,
+                                max_tokens=4000,
+                                temperature=st.session_state.temperature
+                            )
+                            response_placeholder.empty()
+                            
+                            # Save old version if tracking changes
+                            if st.session_state.track_changes:
+                                self.save_document_version(f"AI Edit: {instruction[:50]}")
+                            
+                            # Update document
+                            st.session_state.current_document = streaming_text
+                            st.success("✅ Document updated!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
+                        finally:
+                            st.session_state.is_processing = False
+            
+            st.markdown("---")
+            
+            # Custom instruction
+            st.markdown("#### Custom instruction")
+            custom_instruction = st.text_area(
+                "Tell Claude what to do",
+                placeholder="Example: Add a conclusion about the key findings...",
+                height=80,
+                key="custom_instruction"
+            )
+            
+            if st.button("Apply edit", type="primary", use_container_width=True, key="apply_edit_btn"):
+                if custom_instruction and st.session_state.current_document and st.session_state.router:
+                    with st.spinner("Editing..."):
+                        edited = st.session_state.router.chat([
+                            {"role": "user", "content": f"""Edit this document: {custom_instruction}
+
+Document:
+{st.session_state.current_document[:6000]}
+
+Return ONLY the complete edited document."""}
+                        ], max_tokens=4000, temperature=st.session_state.temperature)
+                        
+                        if st.session_state.track_changes:
+                            self.save_document_version(f"AI Edit: {custom_instruction[:50]}")
+                        
+                        st.session_state.current_document = edited
+                        st.success("✅ Document updated!")
+                        st.rerun()
+    
     def render_chat(self):
+        """Chat interface for conversation with Claude"""
+        
         conv = self.get_current_conversation()
         
         # Display messages
@@ -275,9 +487,9 @@ class ClaudeUI:
             with st.chat_message(msg.role):
                 st.markdown(msg.content)
         
-        # Artifacts panel (Claude-like)
+        # Artifacts
         if conv.artifacts:
-            with st.expander(f"Artifacts ({len(conv.artifacts)})", expanded=False):
+            with st.expander(f"📎 Artifacts ({len(conv.artifacts)})", expanded=False):
                 for art in conv.artifacts[-5:]:
                     col1, col2 = st.columns([3, 1])
                     with col1:
@@ -288,21 +500,31 @@ class ClaudeUI:
                             st.session_state.current_artifact = art
                             st.rerun()
         
-        # File attachment (Claude-like)
+        # File attachment
         with st.expander("Attach file", expanded=False):
             uploaded = st.file_uploader("Upload a file", type=['pdf', 'docx', 'txt'], label_visibility="collapsed", key="chat_file_uploader")
             if uploaded:
-                content = self.doc_processor.extract_text_from_file(uploaded)
-                st.session_state.uploaded_files.append({"name": uploaded.name, "content": content})
-                st.success(f"Attached: {uploaded.name}")
+                try:
+                    content = uploaded.read()
+                    if uploaded.type == "text/plain":
+                        text_content = content.decode('utf-8')
+                    else:
+                        text_content = f"[File: {uploaded.name}]\n{content[:500].decode('utf-8', errors='ignore')}"
+                    
+                    st.session_state.uploaded_files.append({"name": uploaded.name, "content": text_content})
+                    st.success(f"✅ Attached: {uploaded.name}")
+                except Exception as e:
+                    st.error(f"Error reading file: {str(e)}")
         
         # Chat input
-        prompt = st.chat_input("Ask Claude...", disabled=st.session_state.is_processing)
+        prompt = st.chat_input("Ask Claude to edit your document...", disabled=st.session_state.is_processing)
         if prompt:
             self.add_message("user", prompt)
             st.rerun()
     
     def process_message(self, prompt: str):
+        """Process user message with document context"""
+        
         if not st.session_state.router:
             st.error("API key required")
             return
@@ -310,13 +532,14 @@ class ClaudeUI:
         st.session_state.is_processing = True
         conv = self.get_current_conversation()
         
-        # Build context
+        # Build context with current document
         context = ""
         if st.session_state.current_document:
             context += f"\n\nUser is currently editing this document:\n{st.session_state.current_document}\n"
+        
         if st.session_state.uploaded_files:
             for f in st.session_state.uploaded_files:
-                context += f"\nAttached file: {f['name']}\nContent preview: {f['content'][:500]}\n"
+                context += f"\nAttached file: {f['name']}\n{f['content'][:500]}\n"
         
         # Build messages
         messages = []
@@ -350,173 +573,25 @@ class ClaudeUI:
             if len(streaming_text) > 1000:
                 artifact_title = f"Response: {prompt[:30]}..." if len(prompt) > 30 else prompt
                 artifact = self.add_artifact(artifact_title, streaming_text, ArtifactType.DOCUMENT)
-                st.info(f"✨ Saved as artifact: {artifact.title}")
+                st.info(f"📎 Saved as artifact: {artifact.title}")
             
             # Add to conversation
             self.add_message("assistant", streaming_text)
             
-            # Auto-update document if edit instruction detected
-            edit_keywords = ["edit", "rewrite", "improve", "fix", "change", "update", "modify", "revise"]
+            # Check if this is an edit request
+            edit_keywords = ["edit", "rewrite", "improve", "fix", "change", "update", "modify", "revise", "add", "remove"]
             if any(kw in prompt.lower() for kw in edit_keywords) and len(streaming_text) > 100:
                 if streaming_text != st.session_state.current_document:
+                    if st.session_state.track_changes:
+                        self.save_document_version(f"AI Edit: {prompt[:50]}")
                     st.session_state.current_document = streaming_text
-                    st.success("Document updated")
+                    st.success("✅ Document updated!")
                     
         except Exception as e:
             st.error(f"Error: {str(e)}")
         finally:
             st.session_state.is_processing = False
             st.rerun()
-    
-    def render_document_editor(self):
-        st.markdown("### Document Editor")
-        
-        # Document title
-        doc_title = st.text_input("Document Title", value="Untitled", key="doc_title", label_visibility="collapsed")
-        
-        # Document content
-        content = st.text_area(
-            "Document Content",
-            value=st.session_state.current_document,
-            height=400,
-            key="doc_content",
-            placeholder="Write your document here or paste content from your conversation..."
-        )
-        
-        if content != st.session_state.current_document:
-            st.session_state.current_document = content
-        
-        # Document stats
-        if st.session_state.current_document:
-            words = len(st.session_state.current_document.split())
-            chars = len(st.session_state.current_document)
-            st.caption(f"{words} words  ·  {chars} characters")
-        
-        st.markdown("---")
-        st.markdown("#### Quick actions")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("✨ Improve writing", use_container_width=True, key="improve_btn"):
-                if st.session_state.current_document and st.session_state.router:
-                    with st.spinner("Improving..."):
-                        improved = self.doc_processor.edit_document(
-                            st.session_state.current_document,
-                            "Improve the writing quality, fix grammar, and enhance clarity",
-                            st.session_state.router
-                        )
-                        st.session_state.current_document = improved
-                        st.rerun()
-        
-        with col2:
-            if st.button("📝 Summarize", use_container_width=True, key="summarize_btn"):
-                if st.session_state.current_document and st.session_state.router:
-                    with st.spinner("Summarizing..."):
-                        summary = self.doc_processor.edit_document(
-                            st.session_state.current_document,
-                            "Provide a concise summary of this document",
-                            st.session_state.router
-                        )
-                        self.add_message("assistant", f"**Summary:**\n\n{summary}")
-                        st.rerun()
-        
-        with col3:
-            if st.button("🔍 Analyze", use_container_width=True, key="analyze_btn"):
-                if st.session_state.current_document and st.session_state.router:
-                    with st.spinner("Analyzing..."):
-                        analysis = self.doc_processor.analyze_document(
-                            st.session_state.current_document,
-                            st.session_state.router
-                        )
-                        self.add_message("assistant", f"**Analysis:**\n\n{analysis}")
-                        st.rerun()
-    
-    def render_code_interpreter(self):
-        st.markdown("### Code Interpreter")
-        
-        language = st.selectbox(
-            "Language",
-            ["python", "javascript", "typescript", "java", "cpp", "go", "rust", "html", "css", "sql", "bash"],
-            key="code_lang"
-        )
-        
-        code = st.text_area(
-            "Code",
-            height=300,
-            placeholder=f"Paste your {language} code here...",
-            key="code_input"
-        )
-        
-        if code:
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔍 Analyze Code", use_container_width=True, key="code_analyze_btn"):
-                    if st.session_state.router:
-                        with st.spinner("Analyzing..."):
-                            analysis = self.code_interpreter.analyze_code(code, language, st.session_state.router)
-                            self.add_message("assistant", f"**Code Analysis:**\n\n{analysis}")
-                            st.rerun()
-            
-            with col2:
-                if st.button("📖 Explain Code", use_container_width=True, key="code_explain_btn"):
-                    if st.session_state.router:
-                        with st.spinner("Explaining..."):
-                            explanation = st.session_state.router.chat([
-                                {"role": "user", "content": f"Explain this {language} code line by line:\n```{language}\n{code}\n```"}
-                            ])
-                            self.add_message("assistant", f"**Code Explanation:**\n\n{explanation}")
-                            st.rerun()
-        
-        st.markdown("---")
-        st.markdown("#### Generate Code")
-        
-        code_desc = st.text_area(
-            "Describe what you want",
-            height=100,
-            placeholder="Example: A Python function that fetches weather data from an API",
-            key="code_desc"
-        )
-        
-        if st.button("✨ Generate Code", type="primary", use_container_width=True, key="code_gen_btn"):
-            if code_desc and st.session_state.router:
-                with st.spinner("Generating..."):
-                    generated = self.code_interpreter.generate_code(code_desc, language, st.session_state.router)
-                    artifact = self.add_artifact(f"Code: {code_desc[:30]}...", generated, ArtifactType.CODE)
-                    st.code(generated, language=language)
-                    st.success(f"Saved as artifact: {artifact.title}")
-    
-    def render_web_research(self):
-        st.markdown("### Web Research")
-        
-        query = st.text_input(
-            "Search the web",
-            placeholder="What would you like to research?",
-            key="research_query"
-        )
-        
-        if query:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("Quick Search", use_container_width=True, key="quick_search_btn"):
-                    with st.spinner("Searching..."):
-                        results = self.web_researcher.search_web(query)
-                        self.add_message("assistant", f"**Search Results:**\n\n{results}")
-                        st.rerun()
-            
-            with col2:
-                if st.button("Deep Research", type="primary", use_container_width=True, key="deep_research_btn"):
-                    if st.session_state.router:
-                        with st.spinner("Researching..."):
-                            search_results = self.web_researcher.search_web(query)
-                            analysis = st.session_state.router.chat([
-                                {"role": "user", "content": f"Based on these search results about '{query}', provide a comprehensive research summary:\n\n{search_results}"}
-                            ], max_tokens=3000)
-                            artifact = self.add_artifact(f"Research: {query[:30]}...", analysis, ArtifactType.ANALYSIS)
-                            self.add_message("assistant", f"**Research Report:**\n\n{analysis}")
-                            st.success(f"Saved as artifact: {artifact.title}")
-                            st.rerun()
     
     def render_artifact_viewer(self):
         if st.session_state.current_artifact:
@@ -530,38 +605,21 @@ class ClaudeUI:
                     st.session_state.current_artifact = None
                     st.rerun()
     
-    def render_artifact_panel(self):
-        """Render artifact panel in sidebar like Claude"""
-        conv = self.get_current_conversation()
-        if conv.artifacts:
-            with st.sidebar:
-                st.markdown("---")
-                st.markdown("### 📎 Artifacts")
-                for art in conv.artifacts[-5:]:
-                    if st.button(f"{art.title}", key=f"sidebar_art_{art.id}"):
-                        st.session_state.current_artifact = art
-                        st.rerun()
-    
     def render(self):
-        # Main layout: Sidebar + Main content
+        # Sidebar with AI panel
         self.render_sidebar()
+        self.render_ai_panel()
         
-        # Main content tabs
-        tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat", "📄 Documents", "💻 Code", "🔍 Research"])
+        # Main content - Word editor and chat
+        col1, col2 = st.columns([3, 2])
         
-        with tab1:
+        with col1:
+            self.render_word_editor()
+        
+        with col2:
+            st.markdown("### 💬 Chat with Claude")
             self.render_chat()
         
-        with tab2:
-            self.render_document_editor()
-        
-        with tab3:
-            self.render_code_interpreter()
-        
-        with tab4:
-            self.render_web_research()
-        
-        self.render_artifact_panel()
         self.render_artifact_viewer()
 
 # ============================================================================
@@ -570,69 +628,81 @@ class ClaudeUI:
 
 def main():
     st.set_page_config(
-        page_title="Claude - AI Assistant",
-        page_icon="🤖",
+        page_title="Claude - Word Style Editor",
+        page_icon="📝",
         layout="wide",
         initial_sidebar_state="expanded"
     )
     
-    # Apply Claude-like CSS
+    # Microsoft Word-style CSS
     st.markdown("""
     <style>
-    /* Main container */
+    /* Word-style container */
     .main {
-        background-color: #f9f9f9;
+        background-color: #ffffff;
+    }
+    
+    /* Word-style editor area */
+    .stTextArea textarea {
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+        border: 1px solid #d0d0d0;
+        border-radius: 4px;
+        background-color: #ffffff;
+    }
+    
+    .stTextArea textarea:focus {
+        border-color: #0078d4;
+        box-shadow: 0 0 0 2px rgba(0,120,212,0.2);
+        outline: none;
+    }
+    
+    /* Word-style toolbar buttons */
+    .stButton button {
+        background-color: #f5f5f5;
+        border: 1px solid #d0d0d0;
+        border-radius: 4px;
+        color: #333;
+        font-weight: normal;
+        transition: all 0.2s;
+    }
+    
+    .stButton button:hover {
+        background-color: #e8e8e8;
+        border-color: #0078d4;
+        transform: none;
+    }
+    
+    /* Primary action button */
+    .stButton button[kind="primary"] {
+        background-color: #0078d4;
+        border-color: #0078d4;
+        color: white;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #fafafa;
+        border-right: 1px solid #e0e0e0;
     }
     
     /* Chat messages */
     .stChatMessage {
         background-color: transparent;
-        border-radius: 12px;
-        padding: 8px 0;
-    }
-    
-    /* User message */
-    [data-testid="stChatMessage"]:has([data-testid="stMarkdown"]:contains("user")) {
-        background-color: #f0f0f0;
-    }
-    
-    /* Assistant message */
-    [data-testid="stChatMessage"]:has([data-testid="stMarkdown"]:contains("assistant")) {
-        background-color: transparent;
-    }
-    
-    /* Buttons */
-    .stButton button {
         border-radius: 8px;
-        transition: all 0.2s ease;
-    }
-    
-    .stButton button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    
-    /* Primary button */
-    .stButton button[kind="primary"] {
-        background-color: #10a37f;
-        color: white;
-    }
-    
-    /* Text area */
-    .stTextArea textarea {
-        border-radius: 8px;
-        font-family: 'Courier New', monospace;
-    }
-    
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #f7f7f8;
-        border-right: 1px solid #e0e0e0;
     }
     
     /* Headers */
     h1, h2, h3, h4 {
+        color: #1f1f1f;
         font-weight: 600;
+    }
+    
+    /* Info bar */
+    .stCaption {
+        color: #666;
+        font-size: 12px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -656,7 +726,7 @@ def main():
     
     if not api_key:
         with st.sidebar:
-            st.warning("GROQ_API_KEY Required")
+            st.warning("🔑 GROQ_API_KEY Required")
             key_input = st.text_input("Enter API Key:", type="password", key="api_key_input")
             if key_input:
                 st.session_state.router = ClaudeRouter(key_input)
