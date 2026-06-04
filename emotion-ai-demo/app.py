@@ -2242,14 +2242,14 @@ def render_document_explorer():
         all_files = list(st.session_state.uploaded_files.keys())
         if all_files:
             st.markdown("**📎 Reference in next edit**")
-            selected = st.multiselect(
+            st.multiselect(
                 "Select files to inject",
                 options=all_files,
                 default=[],
                 key="selected_ref_files",
                 label_visibility="collapsed"
             )
-            st.session_state.selected_ref_files = selected
+            selected = st.session_state.get("selected_ref_files", [])
             if selected:
                 st.caption(f"✅ {len(selected)} file(s) will be injected into the edit prompt")
         
