@@ -2004,769 +2004,1059 @@ def handle_document_command(command: str) -> str:
 # FIX #2: CLARIFICATION DIALOG COMPONENT
 # ============================================================================
 
+# UI written below
+
+# ============================================================================
+# CLARIFICATION DIALOG
+# ============================================================================
+
 def render_clarification_dialog():
-    """FIX #2: Show clarification questions when instruction is ambiguous"""
     pending = st.session_state.get("pending_clarification")
     if not pending:
         return
-    
-    st.warning("🤔 I need a bit more info to edit your document precisely:")
-    
-    with st.container():
-        st.markdown(f"**Your instruction:** _{pending['instruction']}_")
-        
-        answers = {}
-        for i, question in enumerate(pending["questions"]):
-            answer = st.text_input(f"Q{i+1}: {question}", key=f"clarif_q_{i}")
-            answers[question] = answer
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ Proceed with clarification", use_container_width=True, type="primary"):
-                # Build enriched instruction
-                clarifications = "; ".join([f"{q}: {a}" for q, a in answers.items() if a])
-                enriched = f"{pending['instruction']}. Clarifications: {clarifications}"
-                st.session_state.pending_clarification = None
-                
-                # Now execute with enriched instruction
-                with st.spinner("Applying edit..."):
-                    result = handle_intelligent_edit(enriched)
-                    if result and result.successful:
-                        st.success("✅ Done!")
-                        st.rerun()
-        
-        with col2:
-            if st.button("⏭️ Skip & proceed anyway", use_container_width=True):
-                st.session_state.pending_clarification = None
-                with st.spinner("Applying edit..."):
-                    result = handle_intelligent_edit(pending["instruction"])
-                    if result and result.successful:
-                        st.rerun()
+    st.markdown(
+        '<div class="clarif-box">'
+        f'<div class="clarif-title">I need a bit more detail</div>'
+        f'<div class="clarif-sub">Instruction: <em>{pending["instruction"]}</em></div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    answers = {}
+    for i, question in enumerate(pending["questions"]):
+        answer = st.text_input(question, key=f"clarif_q_{i}", placeholder="Your answer…")
+        answers[question] = answer
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        if st.button("Continue with this context", use_container_width=True, type="primary"):
+            clarifications = "; ".join([f"{q}: {a}" for q, a in answers.items() if a])
+            enriched = f"{pending['instruction']}. Clarifications: {clarifications}"
+            st.session_state.pending_clarification = None
+            with st.spinner(""):
+                result = handle_intelligent_edit(enriched)
+                if result and result.successful:
+                    st.rerun()
+    with col2:
+        if st.button("Skip", use_container_width=True):
+            st.session_state.pending_clarification = None
+            with st.spinner(""):
+                result = handle_intelligent_edit(pending["instruction"])
+                if result and result.successful:
+                    st.rerun()
 
 
 # ============================================================================
-# FIX #4: FILE SUGGESTIONS BANNER
+# FILE SUGGESTIONS BANNER
 # ============================================================================
 
 def render_file_suggestions():
-    """FIX #4: Show cross-reference suggestions from uploaded files"""
     suggestions = st.session_state.get("pending_file_suggestions", [])
     if not suggestions:
         return
-    
-    with st.expander("💡 File Reference Opportunities", expanded=True):
-        for suggestion in suggestions[:3]:
-            st.info(
-                f"📎 **{suggestion['file']}** — "
-                f"matches terms in your document: `{'`, `'.join(suggestion['matched_terms'][:3])}`\n\n"
-                f"{suggestion['suggestion']}"
-            )
-        if st.button("✖ Dismiss", key="dismiss_file_suggestions"):
-            st.session_state.pending_file_suggestions = []
-            st.rerun()
+    items = "".join(
+        f'<div class="file-sug-item">📎 <strong>{s["file"]}</strong> — '
+        f'{", ".join(s["matched_terms"][:3])}</div>'
+        for s in suggestions[:3]
+    )
+    st.markdown(
+        f'<div class="file-sug-banner">'
+        f'<span class="file-sug-head">💡 File references available</span>{items}</div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("Dismiss", key="dismiss_file_suggestions"):
+        st.session_state.pending_file_suggestions = []
+        st.rerun()
 
 
 # ============================================================================
-# ITEM 4: SMART ROLLBACK / UNDO BY INTENT
+# SMART ROLLBACK
 # ============================================================================
 
 def smart_rollback(target_description: str = "") -> bool:
-    """
-    Item 4: Rollback to the best matching version by intent keyword.
-    If no keyword given, rolls back one version.
-    """
     workspace = st.session_state.workspace
     versions = workspace.version_history
     if not versions:
         return False
-
     if not target_description:
-        # Simple one-step undo: restore second-to-last "After:" version
         after_versions = [v for v in versions if v["description"].startswith("After:")]
         if len(after_versions) >= 2:
             workspace.restore_version(after_versions[-2]["id"])
             return True
         return False
-
-    # Keyword search across version descriptions
     keyword = target_description.lower()
-    best = None
     for v in reversed(versions):
         if keyword in v["description"].lower():
-            best = v
-            break
-
-    if best:
-        workspace.restore_version(best["id"])
-        return True
+            workspace.restore_version(v["id"])
+            return True
     return False
 
 
 # ============================================================================
-# ITEM 5: CONVERSATION DASHBOARD
-# ============================================================================
-
-def render_conversation_dashboard():
-    """Item 5: Expandable timeline of turns + word-count evolution"""
-    core = st.session_state.get("intelligence_core")
-    if not core:
-        return
-    conv = core["conversation_manager"]
-    if not conv.turns:
-        st.caption("No conversation yet — start editing to see the timeline.")
-        return
-
-    evolution = conv.get_document_evolution()
-    total_edits = conv.cumulative_edits["total_edits"]
-    intent = conv.intent_summary or "Not summarized yet"
-
-    st.markdown(f"**Session intent:** _{intent}_")
-    st.caption(f"Total edits: {total_edits} | Turns: {len(evolution)}")
-
-    for i, turn in enumerate(evolution, 1):
-        changes = turn.get("changes", {})
-        net = changes.get("net_change", 0)
-        old_wc = turn["document_state"].get("word_count", 0)
-        new_wc = changes.get("new_word_count", old_wc + net)
-        arrow = "📈" if net > 0 else ("📉" if net < 0 else "➡️")
-        label = turn["query"][:45] + ("…" if len(turn["query"]) > 45 else "")
-        st.markdown(
-            f"**{i}.** {arrow} _{label}_  \n"
-            f"<span style='color:#888;font-size:12px'>{old_wc} → {new_wc} words ({net:+d})</span>",
-            unsafe_allow_html=True
-        )
-
-    # Smart rollback controls
-    st.markdown("---")
-    st.markdown("**↩ Undo / Rollback**")
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        rollback_kw = st.text_input("Roll back to edit containing…", placeholder="e.g. 'formal'",
-                                     key="rollback_kw", label_visibility="collapsed")
-    with col_b:
-        if st.button("↩ Undo", use_container_width=True):
-            keyword = rollback_kw.strip() if rollback_kw.strip() else ""
-            if smart_rollback(keyword):
-                st.success("✅ Rolled back!")
-                st.rerun()
-            else:
-                st.warning("No matching version found.")
-
-
-# ============================================================================
-# ITEM 7: EDIT PLAN DISPLAY
+# EDIT PLAN DISPLAY
 # ============================================================================
 
 def render_edit_plan(plan) -> None:
-    """Item 7: Show the AI's edit plan as an expandable checklist in chat"""
     if not plan:
         return
-    with st.expander("🗺️ Edit Plan", expanded=False):
+    with st.expander("View edit plan", expanded=False):
         st.markdown(f"**Strategy:** {plan.strategy}")
         for step in plan.steps:
-            st.markdown(f"- ☑ {step}")
-        if plan.constraints:
-            st.markdown("**Constraints:** " + " · ".join(plan.constraints))
+            st.markdown(f"- {step}")
         if plan.rationale:
-            st.caption(f"Rationale: {plan.rationale}")
+            st.caption(plan.rationale)
 
 
 # ============================================================================
-# ITEM 8: CUMULATIVE TIMELINE IN SIDEBAR
+# CONVERSATION DASHBOARD
 # ============================================================================
 
-def render_cumulative_timeline():
-    """Item 8: Compact edit timeline for sidebar display"""
+def render_conversation_dashboard():
     core = st.session_state.get("intelligence_core")
     if not core:
         return
     conv = core["conversation_manager"]
     if not conv.turns:
+        st.caption("No edits yet.")
+        return
+    evolution = conv.get_document_evolution()
+    intent = conv.intent_summary or ""
+    if intent:
+        st.caption(f"Goal: {intent}")
+    for i, turn in enumerate(evolution[-6:], 1):
+        changes = turn.get("changes", {})
+        net = changes.get("net_change", 0)
+        color = "#2e7d32" if net >= 0 else "#c62828"
+        label = turn["query"][:38] + ("…" if len(turn["query"]) > 38 else "")
+        st.markdown(
+            f"<div class='timeline-row'><span class='tl-num'>{i}</span>"
+            f"<span class='tl-label'>{label}</span>"
+            f"<span class='tl-delta' style='color:{color}'>{net:+d}w</span></div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("---")
+    col_a, col_b = st.columns([3, 1])
+    with col_a:
+        rollback_kw = st.text_input(
+            "Rollback keyword", placeholder="e.g. formal", key="rollback_kw",
+            label_visibility="collapsed"
+        )
+    with col_b:
+        if st.button("Undo", use_container_width=True, help="Undo / rollback"):
+            kw = rollback_kw.strip() if rollback_kw.strip() else ""
+            if smart_rollback(kw):
+                st.success("Rolled back")
+                st.rerun()
+            else:
+                st.warning("Nothing found")
+
+
+# ============================================================================
+# SESSION STATE INIT
+# ============================================================================
+
+def init_session_state():
+    if "workspace" not in st.session_state:
+        st.session_state.workspace = DocumentWorkspace()
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    if "uploaded_files" not in st.session_state:
+        st.session_state.uploaded_files = {}
+    if "show_ppt_download" not in st.session_state:
+        st.session_state.show_ppt_download = False
+        st.session_state.ppt_data = None
+        st.session_state.ppt_topic = ""
+    if "show_word_download" not in st.session_state:
+        st.session_state.show_word_download = False
+        st.session_state.word_data = None
+        st.session_state.word_topic = ""
+    if "show_excel_download" not in st.session_state:
+        st.session_state.show_excel_download = False
+        st.session_state.excel_data = None
+        st.session_state.excel_topic = ""
+    if "intelligence_core" not in st.session_state:
+        st.session_state.intelligence_core = None
+    if "doc_profile_cache" not in st.session_state:
+        st.session_state.doc_profile_cache = None
+    if "last_model_used" not in st.session_state:
+        st.session_state.last_model_used = None
+    if "last_analysis" not in st.session_state:
+        st.session_state.last_analysis = None
+    if "pending_clarification" not in st.session_state:
+        st.session_state.pending_clarification = None
+    if "pending_file_suggestions" not in st.session_state:
+        st.session_state.pending_file_suggestions = []
+    if "selected_ref_files" not in st.session_state:
+        st.session_state.selected_ref_files = []
+    if "artifact" not in st.session_state:
+        st.session_state.artifact = None
+    if "sidebar_view" not in st.session_state:
+        st.session_state.sidebar_view = "chat"
+
+
+# ============================================================================
+# CSS — Claude-inspired dark design system
+# ============================================================================
+
+def apply_custom_css():
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono&display=swap');
+
+    :root {
+        --bg:           #212121;
+        --bg-sidebar:   #171717;
+        --bg-input:     #2f2f2f;
+        --bg-card:      #2a2a2a;
+        --bg-artifact:  #1a1a1a;
+        --border:       #383838;
+        --border-light: #484848;
+        --text:         #ececec;
+        --text-muted:   #9a9a9a;
+        --text-dim:     #555;
+        --accent:       #cc785c;
+        --accent-soft:  rgba(204,120,92,0.14);
+        --radius:       12px;
+        --radius-sm:    8px;
+        --font:         'DM Sans', 'ui-sans-serif', system-ui, sans-serif;
+        --font-mono:    'DM Mono', 'ui-monospace', monospace;
+    }
+
+    html, body,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"] {
+        background: var(--bg) !important;
+        color: var(--text) !important;
+        font-family: var(--font) !important;
+    }
+
+    #MainMenu, footer, header,
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="collapsedControl"] { display: none !important; }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background: var(--bg-sidebar) !important;
+        border-right: 1px solid var(--border) !important;
+    }
+    [data-testid="stSidebar"] > div { padding: 0 !important; }
+
+    /* Sidebar logo */
+    .sb-logo {
+        display: flex; align-items: center; gap: 10px;
+        padding: 18px 16px 14px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 4px;
+    }
+    .sb-logo-icon {
+        width: 30px; height: 30px; background: var(--accent);
+        border-radius: 7px; display: flex; align-items: center;
+        justify-content: center; font-size: 15px; font-weight: 700; color: #fff;
+        flex-shrink: 0;
+    }
+    .sb-logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
+
+    /* Stat rows */
+    .stat-row {
+        display: flex; justify-content: space-between;
+        padding: 5px 0; border-bottom: 1px solid var(--border);
+        font-size: 12px;
+    }
+    .stat-key { color: var(--text-dim); }
+    .stat-val { color: var(--text-muted); font-weight: 500; }
+    .model-dot { width: 6px; height: 6px; border-radius: 50%;
+        display: inline-block; margin-right: 4px; }
+
+    /* Timeline */
+    .timeline-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 4px 0; font-size: 12px;
+    }
+    .tl-num  { color: var(--text-dim); font-size: 10.5px; width: 14px; flex-shrink: 0; }
+    .tl-label { color: var(--text-muted); flex: 1; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap; }
+    .tl-delta { font-size: 11px; font-weight: 600; flex-shrink: 0; }
+
+    /* Section labels */
+    .sec-label {
+        font-size: 10.5px; font-weight: 600; color: var(--text-dim);
+        text-transform: uppercase; letter-spacing: .6px;
+        padding: 12px 0 5px;
+    }
+
+    /* Artifact panel */
+    .artifact-panel {
+        background: var(--bg-artifact); border: 1px solid var(--border);
+        border-radius: var(--radius); overflow: hidden; margin-bottom: 16px;
+        animation: fadeUp .2s ease;
+    }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+    .artifact-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; border-bottom: 1px solid var(--border);
+        background: var(--bg-card);
+    }
+    .artifact-badge {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 12px; font-weight: 600; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: .5px;
+    }
+    .artifact-icon {
+        width: 22px; height: 22px; border-radius: 5px;
+        display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    .art-word  { background: #1565c0; }
+    .art-pptx  { background: #b71c1c; }
+    .art-excel { background: #1b5e20; }
+    .artifact-title { font-size: 13px; font-weight: 500; color: var(--text); }
+    .artifact-preview {
+        padding: 14px 16px; font-family: var(--font-mono); font-size: 12.5px;
+        color: var(--text-muted); max-height: 180px; overflow-y: auto;
+        white-space: pre-wrap; line-height: 1.6;
+    }
+    .artifact-preview::-webkit-scrollbar { width: 3px; }
+    .artifact-preview::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* Edit result card */
+    .edit-card {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+        padding: 12px 14px; margin: 10px 0;
+    }
+    .edit-card-title {
+        font-weight: 600; color: var(--text); margin-bottom: 10px;
+        font-size: 13px;
+    }
+    .edit-stats { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
+    .edit-stat { display: flex; flex-direction: column; gap: 1px; }
+    .edit-stat-val {
+        font-size: 17px; font-weight: 700; color: var(--text);
+        font-variant-numeric: tabular-nums;
+    }
+    .esv-green { color: #4caf50; }
+    .esv-red   { color: #ef5350; }
+    .edit-stat-label { font-size: 10px; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: .5px; }
+    .edit-reason { color: var(--text-muted); font-size: 12.5px;
+        line-height: 1.5; margin-bottom: 6px; }
+    .edit-meta { color: var(--text-dim); font-size: 11px; }
+
+    /* Clarification */
+    .clarif-box {
+        background: var(--bg-card); border: 1px solid var(--border-light);
+        border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;
+    }
+    .clarif-title { font-weight: 600; font-size: 13.5px; color: var(--text); margin-bottom: 4px; }
+    .clarif-sub   { font-size: 12.5px; color: var(--text-muted); }
+
+    /* File suggestion */
+    .file-sug-banner {
+        background: var(--accent-soft); border: 1px solid rgba(204,120,92,.3);
+        border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 12px;
+    }
+    .file-sug-head { font-weight: 600; color: var(--text); display: block; margin-bottom: 5px; }
+    .file-sug-item { color: var(--text-muted); margin-bottom: 3px; font-size: 12.5px; }
+
+    /* Footnote */
+    .footnote { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+    /* Welcome screen */
+    .welcome-icon {
+        width: 56px; height: 56px; background: var(--accent);
+        border-radius: 14px; display: inline-flex; align-items: center;
+        justify-content: center; font-size: 26px; font-weight: 700;
+        color: #fff; margin-bottom: 18px;
+    }
+
+    /* ── Streamlit overrides ── */
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stTextInput"] input {
+        background: var(--bg-input) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius-sm) !important;
+        color: var(--text) !important;
+        font-family: var(--font) !important;
+        font-size: 14px !important;
+    }
+    [data-testid="stTextArea"] textarea:focus,
+    [data-testid="stTextInput"] input:focus {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 2px var(--accent-soft) !important;
+        outline: none !important;
+    }
+    [data-testid="stChatInput"] {
+        background: var(--bg-input) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius) !important;
+    }
+    [data-testid="stChatInput"]:focus-within {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 2px var(--accent-soft) !important;
+    }
+    [data-testid="stChatInput"] textarea {
+        background: transparent !important;
+        color: var(--text) !important;
+        font-family: var(--font) !important;
+        font-size: 14px !important;
+    }
+    [data-testid="stChatMessage"] {
+        background: none !important; border: none !important; padding: 2px 0 !important;
+    }
+    .stButton > button {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        color: var(--text) !important;
+        border-radius: var(--radius-sm) !important;
+        font-family: var(--font) !important;
+        font-size: 13px !important; font-weight: 500 !important;
+        transition: background .15s, border-color .15s !important;
+        padding: 6px 12px !important;
+    }
+    .stButton > button:hover {
+        background: rgba(255,255,255,.08) !important;
+        border-color: var(--border-light) !important;
+    }
+    .stButton > button[kind="primary"] {
+        background: var(--accent) !important;
+        border-color: var(--accent) !important;
+        color: #fff !important;
+    }
+    .stButton > button[kind="primary"]:hover { background: #b86b4f !important; }
+    .stDownloadButton > button {
+        background: var(--accent) !important; border: none !important;
+        color: #fff !important; border-radius: var(--radius-sm) !important;
+        font-family: var(--font) !important; font-weight: 600 !important;
+        font-size: 13px !important; padding: 8px 18px !important;
+        width: 100% !important; transition: background .15s !important;
+    }
+    .stDownloadButton > button:hover { background: #b86b4f !important; }
+    [data-testid="stExpander"] {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius-sm) !important;
+    }
+    [data-testid="stExpander"] summary {
+        color: var(--text-muted) !important; font-size: 13px !important;
+    }
+    [data-testid="stMetric"] {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius-sm) !important;
+        padding: 10px !important;
+    }
+    [data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-size: 11px !important; }
+    [data-testid="stMetricValue"] { color: var(--text) !important; font-size: 20px !important; }
+    [data-testid="stAlert"] {
+        background: var(--bg-card) !important;
+        border-radius: var(--radius-sm) !important; font-size: 13px !important;
+    }
+    [data-testid="stMultiSelect"] div[data-baseweb="select"] {
+        background: var(--bg-input) !important; border-color: var(--border) !important;
+    }
+    [data-testid="stFileUploader"] {
+        background: var(--bg-card) !important;
+        border: 1px dashed var(--border) !important;
+        border-radius: var(--radius-sm) !important;
+    }
+    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ============================================================================
+# SIDEBAR
+# ============================================================================
+
+def render_sidebar():
+    with st.sidebar:
+        st.markdown(
+            '<div class="sb-logo">'
+            '<div class="sb-logo-icon">M</div>'
+            '<div class="sb-logo-name">MozeAI</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        if st.button("＋  New document", key="new_doc_btn", use_container_width=True):
+            st.session_state.workspace.current_document["content"] = ""
+            st.session_state.workspace.current_document["title"] = "Untitled"
+            st.session_state.workspace.save_version("New document")
+            st.session_state.chat_history = []
+            st.session_state.artifact = None
+            st.session_state.intelligence_core["conversation_manager"].clear()
+            st.rerun()
+
+        view = st.radio(
+            "nav", ["Chat", "Files", "History"],
+            key="sidebar_view_radio",
+            label_visibility="collapsed",
+            horizontal=True,
+        )
+
+        if view == "Chat":
+            _sidebar_chat_tools()
+        elif view == "Files":
+            _sidebar_files()
+        else:
+            _sidebar_history()
+
+
+def _sidebar_chat_tools():
+    core = st.session_state.get("intelligence_core")
+
+    # Intent banner
+    if core:
+        conv = core["conversation_manager"]
+        if conv.turns:
+            intent = conv.intent_summary or ""
+            if intent:
+                st.markdown(
+                    f'<div style="font-size:12px;color:var(--text-muted);background:var(--bg-card);'
+                    f'border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:6px 0 10px;">'
+                    f'🎯 {intent}</div>',
+                    unsafe_allow_html=True,
+                )
+
+    st.markdown('<div class="sec-label">Quick edits</div>', unsafe_allow_html=True)
+    quick = [
+        ("✨ Improve writing",  "improve this document"),
+        ("🎓 Make academic",    "make this academic"),
+        ("📝 Summarise",        "summarize this document"),
+        ("🔧 Fix grammar",      "fix grammar"),
+        ("📢 Make persuasive",  "make this persuasive"),
+        ("🪄 Simplify",         "simplify this document"),
+    ]
+    for label, instr in quick:
+        if st.button(label, use_container_width=True, key=f"qa_{label[:8]}"):
+            with st.spinner(""):
+                result = handle_intelligent_edit(instr)
+                if result and result.successful:
+                    st.rerun()
+
+    st.markdown('<div class="sec-label" style="margin-top:14px">Custom instruction</div>', unsafe_allow_html=True)
+    custom = st.text_area(
+        "", placeholder="e.g. Rewrite for a 10-year-old…",
+        height=72, key="custom_instr", label_visibility="collapsed",
+    )
+    if st.button("Apply", use_container_width=True, type="primary", key="apply_custom"):
+        if custom.strip():
+            with st.spinner(""):
+                result = handle_intelligent_edit(custom.strip())
+                if result and result.successful:
+                    st.rerun()
+
+    if core:
+        meta = st.session_state.workspace.current_document["metadata"]
+        lm = st.session_state.get("last_model_used", MODEL_PRIORITY[0])
+        is_primary = lm == MODEL_PRIORITY[0]
+        dot_bg = "#4caf50" if is_primary else "#ff9800"
+        lm_short = lm.replace("-versatile", "")
+        st.markdown(
+            f'<div style="margin-top:16px">'
+            f'<div class="stat-row"><span class="stat-key">Words</span>'
+            f'<span class="stat-val">{meta["word_count"]}</span></div>'
+            f'<div class="stat-row"><span class="stat-key">Versions</span>'
+            f'<span class="stat-val">{len(st.session_state.workspace.version_history)}</span></div>'
+            f'<div class="stat-row"><span class="stat-key">Model</span>'
+            f'<span class="stat-val"><span class="model-dot" style="background:{dot_bg}"></span>{lm_short}</span></div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+
+def _sidebar_files():
+    st.markdown('<div class="sec-label">Upload files</div>', unsafe_allow_html=True)
+    uploaded = st.file_uploader(
+        "", type=["pdf", "docx", "txt", "csv", "json"],
+        accept_multiple_files=True, key="file_uploader",
+        label_visibility="collapsed",
+    )
+    if uploaded:
+        for file in uploaded:
+            if file.name not in st.session_state.uploaded_files:
+                content = process_uploaded_file(file)
+                if content and not content.startswith("Error"):
+                    st.session_state.uploaded_files[file.name] = content
+                    st.session_state.intelligence_core["file_accumulator"].add_file(
+                        file.name, file.type, content, {}
+                    )
+                    st.toast(f"Loaded {file.name}", icon="✅")
+
+    all_files = list(st.session_state.uploaded_files.keys())
+    if all_files:
+        st.markdown('<div class="sec-label" style="margin-top:10px">Reference in next edit</div>',
+                    unsafe_allow_html=True)
+        st.multiselect(
+            "", options=all_files, default=[],
+            key="selected_ref_files", label_visibility="collapsed",
+        )
+        sel = st.session_state.get("selected_ref_files", [])
+        if sel:
+            st.caption(f"{len(sel)} file(s) selected")
+    else:
+        st.markdown(
+            '<div style="color:var(--text-dim);font-size:12.5px;text-align:center;padding:24px 0;">'
+            'No files uploaded yet</div>',
+            unsafe_allow_html=True,
+        )
+
+
+def _sidebar_history():
+    st.markdown('<div class="sec-label">Edit timeline</div>', unsafe_allow_html=True)
+    render_conversation_dashboard()
+
+    versions = st.session_state.workspace.version_history
+    if versions:
+        st.markdown('<div class="sec-label" style="margin-top:12px">Version history</div>',
+                    unsafe_allow_html=True)
+        for v in reversed(versions[-8:]):
+            desc = v["description"][:38]
+            wc = v["metadata"].get("word_count", 0)
+            st.markdown(
+                f'<div style="padding:5px 0;border-bottom:1px solid var(--border);'
+                f'font-size:12px;color:var(--text-muted);display:flex;'
+                f'justify-content:space-between;">'
+                f'<span>{desc}</span><span style="color:var(--text-dim)">{wc}w</span></div>',
+                unsafe_allow_html=True,
+            )
+
+
+# ============================================================================
+# ARTIFACT PANEL  — shows generated docs like Claude's artifact pane
+# ============================================================================
+
+def render_artifact_panel():
+    artifact = st.session_state.get("artifact")
+    if not artifact:
         return
 
-    st.markdown("**📅 Edit Timeline**")
-    for i, turn in enumerate(conv.turns[-5:], 1):
-        changes = turn.edits_made
-        net = changes.get("net_change", 0)
-        label = turn.user_query[:30] + ("…" if len(turn.user_query) > 30 else "")
-        color = "#4CAF50" if net >= 0 else "#f44336"
-        st.markdown(
-            f"<small>{i}. {label} "
-            f"<span style='color:{color};font-weight:bold'>{net:+d}w</span></small>",
-            unsafe_allow_html=True
+    type_conf = {
+        "word":  ("📄", "art-word",  "Word Document"),
+        "pptx":  ("📊", "art-pptx",  "PowerPoint"),
+        "excel": ("📈", "art-excel", "Spreadsheet"),
+    }
+    icon, css_cls, type_label = type_conf.get(
+        artifact["type"], ("📄", "art-word", "Document")
+    )
+
+    preview_safe = (
+        artifact.get("preview", "")
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")[:600]
+    )
+
+    st.markdown(
+        f'<div class="artifact-panel">'
+        f'  <div class="artifact-header">'
+        f'    <div class="artifact-badge">'
+        f'      <div class="artifact-icon {css_cls}">{icon}</div>'
+        f'      <span>{type_label}</span>'
+        f'    </div>'
+        f'    <div class="artifact-title">{artifact["title"]}</div>'
+        f'  </div>'
+        f'  <div class="artifact-preview">{preview_safe}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    col_dl, col_close = st.columns([4, 1])
+    with col_dl:
+        st.download_button(
+            f"⬇  Download {artifact['title']}",
+            data=artifact["bytes"],
+            file_name=artifact["filename"],
+            mime=artifact["mime"],
+            use_container_width=True,
         )
+    with col_close:
+        if st.button("✕", use_container_width=True, key="close_artifact",
+                     help="Close"):
+            st.session_state.artifact = None
+            st.rerun()
+
+
+def _maybe_show_artifact(response):
+    """Convert pending download state into a rich artifact card."""
+    if st.session_state.get("show_word_download") and st.session_state.get("word_data"):
+        data  = st.session_state.word_data
+        topic = st.session_state.word_topic
+        try:
+            from docx import Document as _D
+            buf = data if hasattr(data, "read") else BytesIO(data)
+            doc = _D(buf)
+            preview = "\n".join(p.text for p in doc.paragraphs if p.text.strip())[:600]
+        except Exception:
+            preview = f"Word document: {topic}"
+        st.session_state.artifact = {
+            "type": "word", "title": f"{topic}.docx",
+            "filename": f"{topic}.docx",
+            "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "bytes": st.session_state.word_data, "preview": preview,
+        }
+        st.session_state.show_word_download = False
+
+    elif st.session_state.get("show_ppt_download") and st.session_state.get("ppt_data"):
+        topic = st.session_state.ppt_topic
+        st.session_state.artifact = {
+            "type": "pptx", "title": f"{topic}.pptx",
+            "filename": f"{topic}.pptx",
+            "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "bytes": st.session_state.ppt_data,
+            "preview": f"PowerPoint: {topic}\nGenerated by MozeAI.",
+        }
+        st.session_state.show_ppt_download = False
+
+    elif st.session_state.get("show_excel_download") and st.session_state.get("excel_data"):
+        topic = st.session_state.excel_topic
+        st.session_state.artifact = {
+            "type": "excel", "title": f"{topic}.xlsx",
+            "filename": f"{topic}.xlsx",
+            "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "bytes": st.session_state.excel_data,
+            "preview": f"Excel spreadsheet: {topic}\nCreated by MozeAI.",
+        }
+        st.session_state.show_excel_download = False
 
 
 # ============================================================================
-# UI COMPONENTS
+# DOCUMENT EDITOR
 # ============================================================================
-
-def render_document_explorer():
-    with st.sidebar:
-        st.markdown("### 📁 Document Explorer")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📄 New", use_container_width=True):
-                st.session_state.workspace.current_document["content"] = ""
-                st.session_state.workspace.current_document["title"] = "Untitled Document"
-                st.session_state.workspace.save_version("New document")
-                st.rerun()
-        
-        with col2:
-            if st.button("💾 Save", use_container_width=True):
-                st.session_state.workspace.save_version("Manual save")
-                st.success("Saved!")
-        
-        st.markdown("---")
-        
-        uploaded_files = st.file_uploader(
-            "Upload files",
-            type=['pdf', 'docx', 'txt', 'csv', 'json'],
-            accept_multiple_files=True,
-            key="file_uploader"
-        )
-        
-        if uploaded_files:
-            for file in uploaded_files:
-                if file.name not in st.session_state.uploaded_files:
-                    content = process_uploaded_file(file)
-                    if content and not content.startswith("Error"):
-                        st.session_state.uploaded_files[file.name] = content
-                        st.session_state.intelligence_core["file_accumulator"].add_file(
-                            file.name, file.type, content, {}
-                        )
-                        st.success(f"✅ {file.name}")
-
-        # Item 3: Multi-file selection — let user choose which files to reference in next edit
-        all_files = list(st.session_state.uploaded_files.keys())
-        if all_files:
-            st.markdown("**📎 Reference in next edit**")
-            st.multiselect(
-                "Select files to inject",
-                options=all_files,
-                default=[],
-                key="selected_ref_files",
-                label_visibility="collapsed"
-            )
-            selected = st.session_state.get("selected_ref_files", [])
-            if selected:
-                st.caption(f"✅ {len(selected)} file(s) will be injected into the edit prompt")
-        
-        st.markdown("---")
-        st.markdown("**Version History**")
-        if st.button("📜 View Versions", use_container_width=True):
-            versions = st.session_state.workspace.version_history
-            if versions:
-                for v in versions[-3:]:
-                    st.caption(f"v{v['id']}: {v['description'][:30]}")
-
 
 def render_document_editor():
-    st.markdown("### 📝 Document Editor")
-    
-    new_title = st.text_input(
-        "Title",
-        value=st.session_state.workspace.current_document["title"],
-        key="doc_title"
-    )
-    if new_title != st.session_state.workspace.current_document["title"]:
-        st.session_state.workspace.current_document["title"] = new_title
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        if st.button("🔍 Analyze", use_container_width=True):
-            analysis = st.session_state.workspace.analyze_document()
-            st.session_state.last_analysis = analysis
-            st.info(f"Readability: {analysis['readability']['level']}")
-    with col2:
-        track_status = "✅ Track ON" if st.session_state.workspace.track_changes else "⭕ Track OFF"
-        if st.button(track_status, use_container_width=True):
-            st.session_state.workspace.track_changes = not st.session_state.workspace.track_changes
-            st.rerun()
-    with col3:
-        if st.button("📊 Stats", use_container_width=True):
-            meta = st.session_state.workspace.current_document["metadata"]
-            st.info(f"{meta['word_count']} words, {meta['reading_time']} min read")
-    with col4:
-        if st.button("🧹 Clear", use_container_width=True):
-            st.session_state.workspace.current_document["content"] = ""
-            st.rerun()
-    
-    st.markdown("---")
-    
+    workspace = st.session_state.workspace
+    meta = workspace.current_document["metadata"]
+
+    col_title, col_btns = st.columns([3, 2])
+    with col_title:
+        new_title = st.text_input(
+            "", value=workspace.current_document["title"],
+            key="doc_title", placeholder="Document title…",
+            label_visibility="collapsed",
+        )
+        if new_title != workspace.current_document["title"]:
+            workspace.current_document["title"] = new_title
+
+    with col_btns:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            if st.button("Analyse", key="btn_analyse", use_container_width=True):
+                profile = profile_current_document()
+                st.session_state.doc_profile_cache = profile
+                tone  = profile.content.get("tone", "—")
+                level = profile.content.get("reading_level", "—")
+                st.toast(f"Tone: {tone}  ·  {level}", icon="🔍")
+        with c2:
+            track = workspace.track_changes
+            if st.button("Track ✓" if track else "Track", key="btn_track",
+                         use_container_width=True):
+                workspace.track_changes = not track
+                st.rerun()
+        with c3:
+            if st.button("Stats", key="btn_stats", use_container_width=True):
+                st.toast(f"{meta['word_count']} words · {meta['reading_time']} min read",
+                         icon="📊")
+        with c4:
+            if st.button("Clear", key="btn_clear", use_container_width=True):
+                workspace.current_document["content"] = ""
+                workspace._update_metadata()
+                st.rerun()
+
     content = st.text_area(
-        "Content",
-        value=st.session_state.workspace.current_document["content"],
-        height=400,
-        key="doc_editor",
-        label_visibility="collapsed"
+        "", value=workspace.current_document["content"],
+        height=340, key="doc_editor",
+        placeholder="Start writing, or paste your document here…",
+        label_visibility="collapsed",
     )
-    
-    if content != st.session_state.workspace.current_document["content"]:
-        st.session_state.workspace.update_document(content, "Manual edit")
+    if content != workspace.current_document["content"]:
+        workspace.update_document(content, "Manual edit")
 
-
-def render_ai_copilot():
-    with st.sidebar:
-        st.markdown("### 🤖 AI Copilot")
-        
-        # Intent summary
-        core = st.session_state.get("intelligence_core")
-        if core:
-            conv_manager = core["conversation_manager"]
-            if conv_manager.turns:
-                intent = conv_manager.intent_summary or conv_manager.summarize_intent(client)
-                if intent and "No conversation" not in intent:
-                    st.info(f"📍 **Goal:** {intent}")
-                
-                total = conv_manager.cumulative_edits["total_edits"]
-                if total > 0:
-                    st.caption(f"🔄 {total} edit{'s' if total != 1 else ''} this session")
-        
-        st.markdown("---")
-        
-        quick_actions = [
-            ("✨ Improve", "improve this document"),
-            ("🎓 Academic", "make this academic"),
-            ("📝 Summarize", "summarize this document"),
-            ("🔧 Fix Grammar", "fix grammar"),
-        ]
-        
-        for label, instruction in quick_actions:
-            if st.button(label, use_container_width=True):
-                with st.spinner("AI editing..."):
-                    result = handle_intelligent_edit(instruction)
-                    if result and result.successful:
-                        st.success("Done!")
-                        st.rerun()
-        
-        st.markdown("---")
-        
-        custom = st.text_area("Custom instruction", placeholder="e.g., 'Rewrite for a 12-year-old'", height=80)
-        if st.button("Apply", use_container_width=True, type="primary"):
-            if custom:
-                with st.spinner("AI working..."):
-                    result = handle_intelligent_edit(custom)
-                    if result and result.successful:
-                        st.success("Updated!")
-                        st.rerun()
-        
-        st.markdown("---")
-        
-        # Item 8: Cumulative timeline
-        render_cumulative_timeline()
-
-        st.markdown("---")
-
-        # Item 5: Conversation dashboard in expander
-        with st.expander("📊 Conversation Dashboard", expanded=False):
-            render_conversation_dashboard()
-
-        st.markdown("---")
-        
-        st.markdown("**Quick Stats**")
-        meta = st.session_state.workspace.current_document["metadata"]
-        st.caption(f"Words: {meta['word_count']}")
-        st.caption(f"Versions: {len(st.session_state.workspace.version_history)}")
-
-        # Model health indicator
-        last_model = st.session_state.get("last_model_used")
-        if last_model:
-            is_primary = last_model == MODEL_PRIORITY[0]
-            badge = "🟢" if is_primary else "🟡"
-            st.caption(f"{badge} Model: `{last_model}`")
+    st.markdown(
+        f'<div class="footnote">{meta["word_count"]} words '
+        f'· {meta["char_count"]} chars '
+        f'· {meta["reading_time"]} min read</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================================================
-# FULLY UPGRADED CHAT INTERFACE
-# Items: 1 (token metrics), 3 (selected_files), 7 (plan display),
-#         9 (streaming non-edit), 10 (keyboard shortcut hint)
+# CHAT INTERFACE
 # ============================================================================
 
 def render_chat_interface():
-    st.markdown("---")
-    st.markdown("### 💬 Chat")
-
-    # Show clarification dialog if pending
     render_clarification_dialog()
-
-    # Show file suggestions if any
     render_file_suggestions()
-    
-    # Show chat history
-    for role, msg in st.session_state.chat_history[-10:]:
-        with st.chat_message(role):
+
+    for role, msg in st.session_state.chat_history[-20:]:
+        avatar = "M" if role == "assistant" else "👤"
+        with st.chat_message(role, avatar=avatar):
             st.markdown(msg)
 
-    # Item 10: Keyboard shortcut hint
-    st.caption("💡 Tip: Press **Enter** to send · Use `/help` for commands · `Ctrl+Z` style undo: type **undo**")
-    
-    query = st.chat_input("Ask me to edit, analyze, or generate…")
-    
-    # Item 10: "undo" as a text shortcut for smart rollback
+    render_artifact_panel()
+
+    query = st.chat_input("Ask anything — edit, generate a Word doc, make a deck…")
+
     if query and query.strip().lower() in ("undo", "undo last"):
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar="👤"):
             st.markdown(query)
         st.session_state.chat_history.append(("user", query))
-        with st.chat_message("assistant"):
-            if smart_rollback():
-                msg = "↩️ Undone — restored the previous version."
-            else:
-                msg = "⚠️ Nothing to undo."
+        with st.chat_message("assistant", avatar="M"):
+            msg = ("↩️ Done — restored the previous version."
+                   if smart_rollback() else "⚠️ Nothing to undo.")
             st.markdown(msg)
             st.session_state.chat_history.append(("assistant", msg))
         st.rerun()
         return
 
-    if query:
-        st.session_state.chat_history.append(("user", query))
-        with st.chat_message("user"):
-            st.markdown(query)
-        
-        with st.chat_message("assistant"):
-            q_lower = query.lower().strip()
-            edit_keywords = ["improve", "rewrite", "summarize", "expand", "shorten",
-                             "fix grammar", "make formal", "make academic", "translate"]
-            is_edit = (any(kw in q_lower for kw in edit_keywords)
-                       and st.session_state.workspace.current_document["content"]
-                       and not q_lower.startswith("/"))
+    if not query:
+        return
 
-            if is_edit:
-                # Item 7: Show plan before streaming starts
-                plan_placeholder = st.empty()
-                
-                # Item 1: Prepare live token-speed display
-                response_placeholder = st.empty()
-                streaming_text = ""
-                metrics_placeholder = st.empty()
-                stream_start = time.time()
-                token_count_ref = [0]
+    st.session_state.chat_history.append(("user", query))
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(query)
 
-                def display_token(token: str):
-                    nonlocal streaming_text
-                    streaming_text += token
-                    token_count_ref[0] += 1
-                    elapsed = max(time.time() - stream_start, 0.001)
-                    tps = round(token_count_ref[0] / elapsed, 1)
-                    wc = len(streaming_text.split())
-                    response_placeholder.markdown(streaming_text + "▌")
-                    # Item 1: live token speed
-                    metrics_placeholder.caption(
-                        f"✍️ {wc} words · {token_count_ref[0]} tokens · **{tps} tok/s**"
-                    )
+    q_lower = query.lower().strip()
+    edit_keywords = [
+        "improve", "rewrite", "summarize", "summarise", "expand", "shorten",
+        "fix grammar", "make formal", "make academic", "translate",
+        "make persuasive", "simplify",
+    ]
+    is_edit = (
+        any(kw in q_lower for kw in edit_keywords)
+        and st.session_state.workspace.current_document["content"]
+        and not q_lower.startswith("/")
+    )
 
-                # Item 3: pick up selected files from sidebar
-                selected_files = st.session_state.get("selected_ref_files", []) or None
+    with st.chat_message("assistant", avatar="M"):
+        if is_edit:
+            resp_ph  = st.empty()
+            meta_ph  = st.empty()
+            buf      = {"text": "", "tok": 0, "t0": time.time()}
 
-                with st.spinner(""):
-                    response = run_agent(query,
-                                         stream_callback=display_token,
-                                         selected_files=selected_files)
+            def on_tok(token):
+                buf["text"] += token
+                buf["tok"]  += 1
+                elapsed = max(time.time() - buf["t0"], 0.001)
+                tps = round(buf["tok"] / elapsed, 1)
+                resp_ph.markdown(buf["text"] + " ▌")
+                meta_ph.markdown(
+                    f'<div class="footnote">{len(buf["text"].split())} words · {tps} tok/s</div>',
+                    unsafe_allow_html=True,
+                )
 
-                metrics_placeholder.empty()
+            sel = st.session_state.get("selected_ref_files", []) or None
+            response = run_agent(query, stream_callback=on_tok, selected_files=sel)
+            meta_ph.empty()
 
-                if response == "__CLARIFICATION_NEEDED__":
-                    response_placeholder.empty()
-                    plan_placeholder.empty()
-                    st.rerun()
-                    return
+            if response == "__CLARIFICATION_NEEDED__":
+                resp_ph.empty()
+                st.rerun()
+                return
 
-                elif isinstance(response, EditResult) and response.successful:
-                    response_placeholder.empty()
-                    plan_placeholder.empty()
+            if isinstance(response, EditResult) and response.successful:
+                resp_ph.empty()
+                ch = response.changes_made
+                old_wc = ch.get("old_word_count", 0)
+                new_wc = ch.get("new_word_count", 0)
+                net    = ch.get("net_change", 0)
+                adds   = ch.get("additions", 0)
+                dels   = ch.get("deletions", 0)
+                ms     = response.execution_time_ms
+                sh     = st.session_state.intelligence_core["streaming_handler"]
+                tps    = sh.last_metrics.get("tokens_per_sec", 0)
+                ttft   = sh.last_metrics.get("ttft_ms", 0)
+                toks   = sh.last_metrics.get("token_count", 0)
+                mdl    = sh.last_metrics.get("model", MODEL_PRIORITY[0]).replace("-versatile","")
 
-                    # Item 7: Retrieve and display the edit plan used
-                    core = st.session_state.intelligence_core
-                    last_plan = None
-                    try:
-                        doc_snap = {
-                            "content": st.session_state.workspace.current_document["content"],
-                            "title": st.session_state.workspace.current_document["title"],
-                            "word_count": len(st.session_state.workspace.current_document["content"].split())
-                        }
-                        parsed = core["instruction_parser"].parse(query, doc_snap)
-                        last_plan = core["edit_planner"].plan(parsed, doc_snap, core["conversation_manager"])
-                    except Exception:
-                        pass
-                    if last_plan:
-                        render_edit_plan(last_plan)
+                add_cls = "esv-green" if adds > 0 else ""
+                del_cls = "esv-red"   if dels > 0 else ""
+                net_cls = "esv-green" if net >= 0 else "esv-red"
+                rsn_html = (f'<div class="edit-reason">💡 {response.reasoning}</div>'
+                            if response.reasoning else "")
 
-                    # Metrics card
-                    changes = response.changes_made
-                    old_wc = changes.get("old_word_count", 0)
-                    new_wc = changes.get("new_word_count", 0)
-                    net = changes.get("net_change", 0)
-                    additions = changes.get("additions", 0)
-                    deletions = changes.get("deletions", 0)
-                    exec_ms = response.execution_time_ms
+                st.markdown(f"""
+                <div class="edit-card">
+                  <div class="edit-card-title">✅ Edit complete</div>
+                  <div class="edit-stats">
+                    <div class="edit-stat">
+                      <div class="edit-stat-val {add_cls}">+{adds}</div>
+                      <div class="edit-stat-label">Added</div>
+                    </div>
+                    <div class="edit-stat">
+                      <div class="edit-stat-val {del_cls}">−{dels}</div>
+                      <div class="edit-stat-label">Removed</div>
+                    </div>
+                    <div class="edit-stat">
+                      <div class="edit-stat-val {net_cls}">{net:+d}</div>
+                      <div class="edit-stat-label">Net</div>
+                    </div>
+                    <div class="edit-stat">
+                      <div class="edit-stat-val">{ms}ms</div>
+                      <div class="edit-stat-label">Time</div>
+                    </div>
+                    <div class="edit-stat">
+                      <div class="edit-stat-val">{tps}</div>
+                      <div class="edit-stat-label">tok/s</div>
+                    </div>
+                  </div>
+                  {rsn_html}
+                  <div class="edit-meta">
+                    {old_wc} → {new_wc} words · {toks} tokens · TTFT {ttft}ms · {mdl}
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-                    # Item 1: Pull token speed from streaming handler
-                    sh = core["streaming_handler"]
-                    tps = sh.last_metrics.get("tokens_per_sec", 0)
-                    ttft = sh.last_metrics.get("ttft_ms", 0)
-                    token_total = sh.last_metrics.get("token_count", 0)
-                    router_model = sh.last_metrics.get("model", MODEL_PRIORITY[0])
+                core = st.session_state.intelligence_core
+                try:
+                    snap   = {"content": st.session_state.workspace.current_document["content"],
+                              "title":   st.session_state.workspace.current_document["title"],
+                              "word_count": new_wc}
+                    parsed = core["instruction_parser"].parse(query, snap)
+                    plan   = core["edit_planner"].plan(parsed, snap, core["conversation_manager"])
+                    render_edit_plan(plan)
+                except Exception:
+                    pass
 
-                    st.success("✅ Edit Complete")
-                    
-                    col1, col2, col3, col4, col5 = st.columns(5)
-                    with col1:
-                        st.metric("Words Added", f"+{additions}" if additions else "0")
-                    with col2:
-                        st.metric("Words Removed", f"-{deletions}" if deletions else "0")
-                    with col3:
-                        st.metric("Net Change", f"{net:+d}")
-                    with col4:
-                        st.metric("Time", f"{exec_ms}ms")
-                    with col5:
-                        # Item 1: token speed metric
-                        st.metric("Speed", f"{tps} tok/s")
+                st.session_state.chat_history.append((
+                    "assistant",
+                    f"✅ Edit complete in {ms}ms · {net:+d} words ({old_wc}→{new_wc}) · {tps} tok/s",
+                ))
 
-                    st.caption(
-                        f"📝 {old_wc} → {new_wc} words · "
-                        f"{token_total} tokens · TTFT {ttft}ms · "
-                        f"model: `{router_model}`"
-                    )
+            elif isinstance(response, EditResult) and not response.successful:
+                msg = f"⚠️ {response.reasoning}"
+                resp_ph.warning(msg)
+                st.session_state.chat_history.append(("assistant", msg))
 
-                    if response.reasoning:
-                        st.info(f"**Why:** {response.reasoning}")
+            elif isinstance(response, str):
+                resp_ph.markdown(response)
+                st.session_state.chat_history.append(("assistant", response))
 
-                    summary_msg = (
-                        f"✅ **Edit complete** in {exec_ms}ms · {tps} tok/s · `{router_model}`\n\n"
-                        f"Words: {old_wc} → {new_wc} ({net:+d})\n\n"
-                        f"Reasoning: {response.reasoning}"
-                    )
-                    st.session_state.chat_history.append(("assistant", summary_msg))
+        else:
+            # General / doc-generation queries with streaming
+            resp_ph  = st.empty()
+            meta_ph  = st.empty()
+            buf      = {"text": "", "tok": 0, "t0": time.time()}
 
-                elif isinstance(response, EditResult) and not response.successful:
-                    response_placeholder.warning(f"⚠️ {response.reasoning}")
-                    st.session_state.chat_history.append(("assistant", f"⚠️ {response.reasoning}"))
+            def on_tok_gen(token):
+                buf["text"] += token
+                buf["tok"]  += 1
+                elapsed = max(time.time() - buf["t0"], 0.001)
+                tps = round(buf["tok"] / elapsed, 1)
+                resp_ph.markdown(buf["text"] + " ▌")
+                meta_ph.markdown(f'<div class="footnote">⚡ {tps} tok/s</div>',
+                                  unsafe_allow_html=True)
 
-                elif isinstance(response, str):
-                    response_placeholder.markdown(response)
-                    st.session_state.chat_history.append(("assistant", response))
+            response = run_agent(query, stream_callback=on_tok_gen)
+            meta_ph.empty()
+            resp_ph.empty()
 
-            else:
-                # Item 9: Streaming for non-edit queries
-                response_placeholder = st.empty()
-                metrics_placeholder = st.empty()
-                streaming_text = ""
-                stream_start = time.time()
-                token_count_ref = [0]
+            _maybe_show_artifact(response)
 
-                def display_token_general(token: str):
-                    nonlocal streaming_text
-                    streaming_text += token
-                    token_count_ref[0] += 1
-                    elapsed = max(time.time() - stream_start, 0.001)
-                    tps = round(token_count_ref[0] / elapsed, 1)
-                    response_placeholder.markdown(streaming_text + "▌")
-                    metrics_placeholder.caption(f"⚡ {tps} tok/s")
+            if isinstance(response, str):
+                st.markdown(response)
+                st.session_state.chat_history.append(("assistant", response))
 
-                with st.spinner(""):
-                    response = run_agent(query, stream_callback=display_token_general)
-
-                metrics_placeholder.empty()
-                response_placeholder.empty()
-
-                if isinstance(response, str):
-                    st.markdown(response)
-                    st.session_state.chat_history.append(("assistant", response))
-
-        st.rerun()
-
-
-def render_download_buttons():
-    if st.session_state.get("show_ppt_download", False) and st.session_state.get("ppt_data"):
-        st.download_button(
-            label="📥 Download PowerPoint",
-            data=st.session_state.ppt_data,
-            file_name=f"{st.session_state.ppt_topic}.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        )
-        st.session_state.show_ppt_download = False
-    
-    if st.session_state.get("show_word_download", False) and st.session_state.get("word_data"):
-        st.download_button(
-            label="📥 Download Word Document",
-            data=st.session_state.word_data,
-            file_name=f"{st.session_state.word_topic}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-        st.session_state.show_word_download = False
-    
-    if st.session_state.get("show_excel_download", False) and st.session_state.get("excel_data"):
-        st.download_button(
-            label="📥 Download Excel File",
-            data=st.session_state.excel_data,
-            file_name=f"{st.session_state.excel_topic}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        st.session_state.show_excel_download = False
+    st.rerun()
 
 
 # ============================================================================
-# MAIN APPLICATION
+# MAIN
 # ============================================================================
-
-def init_session_state():
-    """Initialize all session state variables"""
-    
-    if "workspace" not in st.session_state:
-        st.session_state.workspace = DocumentWorkspace()
-    
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    
-    if "uploaded_files" not in st.session_state:
-        st.session_state.uploaded_files = {}
-    
-    if "show_ppt_download" not in st.session_state:
-        st.session_state.show_ppt_download = False
-        st.session_state.ppt_data = None
-        st.session_state.ppt_topic = ""
-    
-    if "show_word_download" not in st.session_state:
-        st.session_state.show_word_download = False
-        st.session_state.word_data = None
-        st.session_state.word_topic = ""
-    
-    if "show_excel_download" not in st.session_state:
-        st.session_state.show_excel_download = False
-        st.session_state.excel_data = None
-        st.session_state.excel_topic = ""
-    
-    if "intelligence_core" not in st.session_state:
-        st.session_state.intelligence_core = None
-    
-    if "doc_profile_cache" not in st.session_state:
-        st.session_state.doc_profile_cache = None
-    
-    if "last_model_used" not in st.session_state:
-        st.session_state.last_model_used = None
-    
-    if "last_analysis" not in st.session_state:
-        st.session_state.last_analysis = None
-
-    # FIX #2: Clarification state
-    if "pending_clarification" not in st.session_state:
-        st.session_state.pending_clarification = None
-
-    # FIX #4: File suggestions state
-    if "pending_file_suggestions" not in st.session_state:
-        st.session_state.pending_file_suggestions = []
-
-    # Item 3: Multi-file selection state
-    if "selected_ref_files" not in st.session_state:
-        st.session_state.selected_ref_files = []
-
-
-def apply_custom_css():
-    st.markdown("""
-    <style>
-        .stMain {
-            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-        }
-        h1 {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .stButton button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-        }
-        .stTextArea textarea {
-            border-radius: 12px;
-            font-family: monospace;
-        }
-        /* Metric cards */
-        [data-testid="stMetric"] {
-            background: rgba(102, 126, 234, 0.08);
-            border-radius: 10px;
-            padding: 8px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
 
 def main():
     st.set_page_config(
-        page_title="MozeAI Document Studio",
-        page_icon="📝",
-        layout="wide"
+        page_title="MozeAI",
+        page_icon="M",
+        layout="wide",
+        initial_sidebar_state="expanded",
     )
-    
+
     init_session_state()
     apply_custom_css()
-    
-    # Initialize Groq client
+
+    # Groq client
     groq_api_key = None
     try:
         if "GROQ_API_KEY" in st.secrets:
             groq_api_key = st.secrets["GROQ_API_KEY"]
-    except:
+    except Exception:
         pass
-    
     if not groq_api_key:
         groq_api_key = os.environ.get("GROQ_API_KEY")
-    
     if not groq_api_key:
-        st.error("GROQ_API_KEY not found. Please set it in secrets or environment.")
+        st.error("GROQ_API_KEY not found. Set it in Streamlit Secrets or as an env var.")
         st.stop()
-    
+
     global client
     client = Groq(api_key=groq_api_key)
-    
-    # Initialize intelligence core if not exists
+
+    # Intelligence core
     if st.session_state.intelligence_core is None:
-        streaming_handler = StreamingResponseHandler(client)
-        contextual_editor = ContextualEditor(client, streaming_handler)
-        
+        sh = StreamingResponseHandler(client)
         st.session_state.intelligence_core = {
             "conversation_manager": ConversationManager(),
-            "instruction_parser": InstructionParser(client),
-            "file_accumulator": FileContextAccumulator(client),
-            "edit_planner": EditPlanner(client),
-            "streaming_handler": streaming_handler,
-            "document_profiler": DocumentProfiler(client),
-            "contextual_editor": contextual_editor
+            "instruction_parser":   InstructionParser(client),
+            "file_accumulator":     FileContextAccumulator(client),
+            "edit_planner":         EditPlanner(client),
+            "streaming_handler":    sh,
+            "document_profiler":    DocumentProfiler(client),
+            "contextual_editor":    ContextualEditor(client, sh),
         }
-    
-    # Header
-    st.markdown('<h1 style="text-align: center;">📝 MozeAI Document Studio</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #667eea;">Intelligent Document Workspace</p>', unsafe_allow_html=True)
-    st.markdown("---")
-    
-    # Sidebar with tabs
-    with st.sidebar:
-        tab1, tab2 = st.tabs(["📁 Explorer", "🤖 Copilot"])
-        with tab1:
-            render_document_explorer()
-        with tab2:
-            render_ai_copilot()
-    
-    # Main content
-    render_document_editor()
-    
-    # Download buttons
-    render_download_buttons()
-    
-    # Chat interface
-    render_chat_interface()
-    
-    # Footer
-    st.markdown("---")
-    last_model = st.session_state.get("last_model_used", MODEL_PRIORITY[0])
-    is_primary = last_model == MODEL_PRIORITY[0]
-    model_badge = f"🟢 {last_model}" if is_primary else f"🟡 {last_model} (fallback)"
-    st.markdown(
-        f'<p style="text-align: center; color: #888; font-size: 12px;">'
-        f'MozeAI Document Studio | Created by Mukiibi Moses | {model_badge}</p>',
-        unsafe_allow_html=True
-    )
+
+    render_sidebar()
+
+    has_content = bool(st.session_state.workspace.current_document["content"].strip())
+    has_history = bool(st.session_state.chat_history)
+
+    if has_content or has_history:
+        editor_col, chat_col = st.columns([5, 6], gap="large")
+        with editor_col:
+            st.markdown('<div style="padding-top:14px">', unsafe_allow_html=True)
+            render_document_editor()
+            st.markdown("</div>", unsafe_allow_html=True)
+        with chat_col:
+            st.markdown('<div style="padding-top:14px">', unsafe_allow_html=True)
+            render_chat_interface()
+            st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        # Welcome / empty state
+        _, centre, _ = st.columns([1, 4, 1])
+        with centre:
+            st.markdown("""
+            <div style="text-align:center;padding:64px 0 32px">
+              <div class="welcome-icon">M</div>
+              <div style="font-size:24px;font-weight:600;color:var(--text);
+                          letter-spacing:-.4px;margin-bottom:8px;">
+                How can I help you today?
+              </div>
+              <div style="font-size:14px;color:var(--text-muted);
+                          max-width:400px;margin:0 auto;line-height:1.6;">
+                Write or paste a document, upload files, or ask me to create
+                a Word doc, PowerPoint, or spreadsheet — just like you would with Claude.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            suggestions = [
+                "Write a business proposal about renewable energy",
+                "Make a PowerPoint on AI trends in 2025",
+                "Create an Excel sales tracker template",
+                "Summarise this document for executives",
+            ]
+            c1, c2 = st.columns(2)
+            for i, sug in enumerate(suggestions):
+                col = c1 if i % 2 == 0 else c2
+                with col:
+                    if st.button(sug, use_container_width=True, key=f"sug_{i}"):
+                        st.session_state.chat_history.append(("user", sug))
+                        with st.spinner(""):
+                            response = run_agent(sug)
+                        _maybe_show_artifact(response)
+                        if isinstance(response, str):
+                            st.session_state.chat_history.append(("assistant", response))
+                        st.rerun()
+
+            render_chat_interface()
+
 
 if __name__ == "__main__":
     main()
