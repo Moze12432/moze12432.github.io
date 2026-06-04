@@ -38,13 +38,23 @@ from docx.shared import Inches as DocInches, Pt as DocPt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ============================================================================
+# CONSTANTS
+# ============================================================================
+
+MODEL_PRIORITY: List[str] = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-70b-versatile",
+    "mixtral-8x7b-32768",
+]
+
+# ============================================================================
 # DATA CLASSES FOR INTELLIGENCE CORE
 # ============================================================================
 
 @dataclass
 class ParsedInstruction:
     """Structured representation of user instruction"""
-    intent: str  # "improve", "analyze", "transform", "generate", "create", "edit"
+    intent: str = "edit"
     target_audience: Optional[str] = None
     tone: str = "neutral"
     scope: str = "full"
@@ -60,7 +70,7 @@ class ParsedInstruction:
 @dataclass
 class EditPlan:
     """Execution plan for document editing"""
-    strategy: str
+    strategy: str = ""
     steps: List[str] = field(default_factory=list)
     constraints: List[str] = field(default_factory=list)
     target_metrics: Dict[str, Any] = field(default_factory=dict)
@@ -259,7 +269,7 @@ class DocumentWorkspace:
         if len(sentences) == 0 or len(words) == 0:
             return {"score": 0, "level": "Unknown"}
         
-        avg_words_per_sentence = len(words) / len(sentences)
+        avg_words_per_sentence = len(words) / max(1, len(sentences))
         
         if avg_words_per_sentence < 10:
             score = 90
@@ -333,41 +343,18 @@ class DocumentWorkspace:
 
 
 # ============================================================================
-# MODEL ROUTER — centralised fallback for every LLM call in the app
+# MODEL ROUTER
 # ============================================================================
 
-# Ordered priority list.  Change this one list to update all components.
-MODEL_PRIORITY: List[str] = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-70b-versatile",
-    "mixtral-8x7b-32768",
-]
-
 class ModelRouter:
-    """
-    Drop-in helper that tries every model in MODEL_PRIORITY until one succeeds.
-    Used by every intelligence-core component so there is a single, consistent
-    fallback strategy across the whole app.
-
-    Usage:
-        router = ModelRouter(groq_client)
-
-        # Non-streaming call — returns the text string
-        text = router.complete(messages, max_tokens=500, temperature=0.2)
-
-        # Streaming call — calls on_token for each chunk, returns full text
-        text = router.stream(messages, on_token=callback, max_tokens=4000)
-
-    Both methods return None (not raise) if every model fails, so callers can
-    gracefully degrade to their regex / template fallback.
-    """
-
+    """Drop-in helper that tries every model in MODEL_PRIORITY until one succeeds."""
+    
     def __init__(self, client, models: Optional[List[str]] = None):
         self.client = client
         self.models = models or MODEL_PRIORITY
-        # Expose which model actually answered (for debugging / UI display)
         self.last_model_used: Optional[str] = None
         self.last_attempt_errors: Dict[str, str] = {}
+        self.last_stream_metrics: Dict[str, Any] = {}
 
     def complete(
         self,
@@ -376,7 +363,7 @@ class ModelRouter:
         temperature: float = 0.3,
         timeout: int = 30,
     ) -> Optional[str]:
-        """Try each model in order; return text on first success, None if all fail."""
+        """Try each model in order; return text on first success."""
         self.last_attempt_errors = {}
         for model in self.models:
             try:
@@ -391,9 +378,7 @@ class ModelRouter:
                 return response.choices[0].message.content.strip()
             except Exception as e:
                 self.last_attempt_errors[model] = str(e)
-                print(f"[ModelRouter] {model} failed: {e}")
                 continue
-        print(f"[ModelRouter] All models failed: {self.last_attempt_errors}")
         return None
 
     def stream(
@@ -404,13 +389,9 @@ class ModelRouter:
         temperature: float = 0.3,
         timeout: int = 60,
     ) -> Optional[str]:
-        """
-        Try streaming on each model.  If a model raises before/during streaming,
-        fall through to the next.  Returns full accumulated text, or None.
-        """
+        """Try streaming on each model."""
         self.last_attempt_errors = {}
-        # Track speed metrics for caller
-        self.last_stream_metrics: Dict[str, Any] = {}
+        self.last_stream_metrics = {}
 
         for model in self.models:
             full_content = ""
@@ -448,17 +429,11 @@ class ModelRouter:
                     "model": model,
                 }
                 self.last_model_used = model
-                print(f"[ModelRouter] stream OK: {model} | {token_count} tok | {tps} tok/s")
                 return full_content
-
             except Exception as e:
                 self.last_attempt_errors[model] = str(e)
-                print(f"[ModelRouter] stream {model} failed: {e}")
-                # If we already got partial content and the stream broke mid-way,
-                # treat it as a hard failure and try the next model cleanly.
                 continue
 
-        print(f"[ModelRouter] All stream models failed: {self.last_attempt_errors}")
         return None
 
 
@@ -579,7 +554,7 @@ Summarize in one sentence what the user is trying to achieve:"""
             keywords.extend(words)
         
         unique_keywords = list(set(keywords))[:5]
-        self.intent_summary = f"User is focused on: {', '.join(unique_keywords)}"
+        self.intent_summary = f"Focus: {', '.join(unique_keywords)}"
         return self.intent_summary
     
     def clear(self) -> None:
@@ -627,15 +602,14 @@ Output ONLY valid JSON with this structure:
     "confidence": 0.95,
     "reasoning": "Why this interpretation?",
     "needs_clarification": false,
-    "clarification_questions": ["Question if needed?"],
-    "extracted_entities": {"key": "value"}
+    "clarification_questions": []
 }"""
         
         user_prompt = f"""Instruction: "{instruction}"
 
 Document context: {document.get('title', 'Untitled')} ({document.get('word_count', 0)} words)
 
-Parse this instruction and include clarification_questions if the instruction is ambiguous (confidence < 0.7):"""
+Parse this instruction:"""
         
         try:
             messages = [
@@ -727,7 +701,6 @@ Parse this instruction and include clarification_questions if the instruction is
             confidence += 0.1
         confidence = min(confidence, 0.9)
 
-        # FIX #9: Generate clarification questions when ambiguous
         clarification_questions = []
         needs_clarification = confidence < self.confidence_threshold
 
@@ -736,10 +709,6 @@ Parse this instruction and include clarification_questions if the instruction is
                 clarification_questions.append("What tone should I use? (formal, casual, academic, persuasive)")
             if target_audience is None:
                 clarification_questions.append("Who is the target audience for this document?")
-            if scope == "full" and len(instruction.split()) < 5:
-                clarification_questions.append("Should I edit the full document or a specific section?")
-            if not constraints:
-                clarification_questions.append("Are there any length or style constraints I should follow?")
         
         return ParsedInstruction(
             intent=intent,
@@ -1010,7 +979,6 @@ class StreamingResponseHandler:
     
     def __init__(self, client):
         self.client = client
-        # Item 1: Expose last-run speed metrics for UI display
         self.last_metrics: Dict[str, Any] = {}
 
     def stream_completion(
@@ -1048,17 +1016,15 @@ class StreamingResponseHandler:
             
             elapsed_ms = int((time.time() - start_time) * 1000)
             ttft_ms = int((first_token_time - start_time) * 1000) if first_token_time else 0
-            tokens_per_sec = round(token_count / max(elapsed_ms / 1000, 0.001), 1)
+            tps = round(token_count / max(elapsed_ms / 1000, 0.001), 1)
 
-            # Item 1: Store metrics for caller to display
             self.last_metrics = {
                 "elapsed_ms": elapsed_ms,
                 "ttft_ms": ttft_ms,
                 "token_count": token_count,
-                "tokens_per_sec": tokens_per_sec,
+                "tokens_per_sec": tps,
                 "char_count": len(full_content),
             }
-            print(f"Streaming: {token_count} tokens, {tokens_per_sec} tok/s, TTFT {ttft_ms}ms")
             return full_content
             
         except Exception as e:
@@ -1078,8 +1044,7 @@ class StreamingResponseHandler:
                     on_token(full_content)
                 return full_content
             except Exception as e2:
-                print(f"Fallback failed: {e2}")
-                return f"Error: {str(e)}"
+                return f"Error: {str(e2)}"
 
 
 # ============================================================================
@@ -1087,7 +1052,7 @@ class StreamingResponseHandler:
 # ============================================================================
 
 class DocumentProfiler:
-    """Deep AI-driven analysis of document (replaces regex analysis)"""
+    """Deep AI-driven analysis of document"""
     
     def __init__(self, llm_client=None):
         self.llm_client = llm_client
@@ -1256,7 +1221,7 @@ class ContextualEditor:
         conversation: Optional[ConversationManager] = None,
         file_context: Optional[FileContextAccumulator] = None,
         stream_callback: Optional[Callable[[str], None]] = None,
-        selected_files: Optional[List[str]] = None,  # Item 3: multi-file selection
+        selected_files: Optional[List[str]] = None,
     ) -> EditResult:
         start_time = time.time()
         
@@ -1277,17 +1242,13 @@ class ContextualEditor:
         
         file_context_str = ""
         if file_context and file_context.files:
-            # Item 2: Auto-reference files — inject content of matched/selected files
             if selected_files:
-                # User explicitly chose files (Item 3)
                 for fname in selected_files:
                     detail = file_context.get_detailed_file_context(fname)
                     file_context_str += detail + "\n"
             else:
-                # Auto-detect the most relevant file
                 relevant_file = file_context.find_relevant_file(instruction)
                 if relevant_file:
-                    # Inject summary + content preview so AI can actually use the data
                     file_context_str = file_context.get_detailed_file_context(relevant_file)
                 else:
                     file_context_str = file_context.get_file_context()
@@ -1318,7 +1279,6 @@ class ContextualEditor:
                     max_tokens=4000,
                     temperature=0.3,
                 )
-                # Sync metrics to streaming_handler so UI can read them
                 if router.last_stream_metrics:
                     self.streaming_handler.last_metrics = router.last_stream_metrics
             else:
@@ -1329,9 +1289,7 @@ class ContextualEditor:
                 )
 
             if not edited_content:
-                raise RuntimeError(
-                    f"All models failed. Errors: {router.last_attempt_errors}"
-                )
+                raise RuntimeError("All models failed")
 
             changes_made = self._calculate_changes(
                 document.get("content", ""),
@@ -1351,7 +1309,7 @@ class ContextualEditor:
             return EditResult(
                 edited_document=document.get("content", ""),
                 changes_made={},
-                reasoning=f"Edit failed (all models tried): {str(e)}",
+                reasoning=f"Edit failed: {str(e)}",
                 successful=False,
                 execution_time_ms=int((time.time() - start_time) * 1000)
             )
@@ -1380,14 +1338,12 @@ class ContextualEditor:
         for step in plan.steps:
             prompt_parts.append(f"  {step}")
 
-        # FIX #5: Make conversation context PROMINENT at top of prompt
         if conv_context and conv_context != "No previous conversation.":
             prompt_parts.extend([
                 "",
-                "## ⚠️ CRITICAL - CONVERSATION CONTEXT (MUST FOLLOW)",
+                "## CRITICAL - CONVERSATION CONTEXT",
                 conv_context,
-                "IMPORTANT: The above history shows what was done previously.",
-                "You MUST maintain any tone/style/constraints established in previous turns.",
+                "IMPORTANT: Maintain any tone/style/constraints from previous turns.",
             ])
         
         if file_context and file_context != "No files uploaded.":
@@ -1406,7 +1362,6 @@ class ContextualEditor:
         return "\n".join(prompt_parts)
     
     def _get_system_prompt(self, conversation=None) -> str:
-        # FIX #5: Inject cumulative intent into system prompt
         intent_note = ""
         if conversation and conversation.intent_summary:
             intent_note = f"\nUser's overarching goal: {conversation.intent_summary}\nMaintain this goal across all edits."
@@ -1415,8 +1370,7 @@ class ContextualEditor:
 
 Return ONLY the edited document content - no explanations, no chat responses.
 Preserve the original meaning unless instructed otherwise.
-Apply changes exactly as described.
-ALWAYS maintain any tone, style, or constraints established in previous conversation turns."""
+Apply changes exactly as described."""
     
     def _calculate_changes(self, old_content: str, new_content: str, plan: EditPlan) -> Dict:
         old_words = len(old_content.split())
@@ -1625,20 +1579,7 @@ def create_real_excel_file(title, data_rows):
         print(f"Excel error: {e}")
         return None
 
-def create_csv_from_data(title, data_rows):
-    try:
-        output = BytesIO()
-        output.write('\ufeff'.encode('utf-8'))
-        writer = csv.writer(output)
-        for row in data_rows:
-            writer.writerow(row)
-        output.seek(0)
-        return output
-    except Exception as e:
-        return None
-
 def export_chat_history():
-    """FIX #10: Enhanced export includes intent + timeline"""
     if not st.session_state.chat_history:
         return None
     
@@ -1647,23 +1588,12 @@ def export_chat_history():
     export_content += f"Exported on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     export_content += "=" * 70 + "\n\n"
     
-    # Include intent summary
     core = st.session_state.get("intelligence_core")
     if core:
         conv_manager = core["conversation_manager"]
         if conv_manager.intent_summary:
-            export_content += f"=== SESSION INTENT ===\n{conv_manager.intent_summary}\n\n"
-        
-        evolution = conv_manager.get_document_evolution()
-        if evolution:
-            export_content += "=== EDIT TIMELINE ===\n"
-            for i, turn in enumerate(evolution, 1):
-                changes = turn.get("changes", {})
-                net = changes.get("net_change", 0)
-                export_content += f"{i}. {turn['query'][:60]}... → {net:+d} words\n"
-            export_content += "\n"
+            export_content += f"Session Intent: {conv_manager.intent_summary}\n\n"
     
-    export_content += "=== CONVERSATION ===\n\n"
     for idx, (role, msg) in enumerate(st.session_state.chat_history, 1):
         if role == "user":
             export_content += f"[{idx}] USER:\n{msg}\n\n"
@@ -1671,6 +1601,7 @@ def export_chat_history():
             export_content += f"[{idx}] MOZEAI:\n{msg}\n\n"
     
     return export_content
+
 
 # ============================================================================
 # WEB & UTILITY FUNCTIONS
@@ -1723,7 +1654,6 @@ def generate_and_display_image(prompt, is_edit=False):
         return "Sorry, I couldn't generate an image."
 
 def llm_with_fallback(messages, max_retries=2):
-    """General-purpose fallback wrapper — now delegates to ModelRouter for consistency."""
     router = ModelRouter(client)
     result = router.complete(messages, max_tokens=800, temperature=0.3, timeout=30)
     if result:
@@ -1749,7 +1679,6 @@ def clean_answer(text):
 # ============================================================================
 
 def handle_intelligent_edit(instruction: str, stream_callback=None, selected_files=None):
-    """Use contextual editor for intelligent document editing"""
     core = st.session_state.intelligence_core
     
     document_state = {
@@ -1759,7 +1688,6 @@ def handle_intelligent_edit(instruction: str, stream_callback=None, selected_fil
         "char_count": len(st.session_state.workspace.current_document["content"])
     }
 
-    # Check clarification BEFORE editing
     parser = core["instruction_parser"]
     parsed = parser.parse(instruction, document_state)
 
@@ -1769,7 +1697,7 @@ def handle_intelligent_edit(instruction: str, stream_callback=None, selected_fil
             "questions": parsed.clarification_questions,
             "parsed": parsed
         }
-        return None  # Signal that clarification is needed
+        return None
     
     result = core["contextual_editor"].edit(
         instruction=instruction,
@@ -1777,7 +1705,7 @@ def handle_intelligent_edit(instruction: str, stream_callback=None, selected_fil
         conversation=core["conversation_manager"],
         file_context=core["file_accumulator"],
         stream_callback=stream_callback,
-        selected_files=selected_files,  # Item 2 & 3: pass through
+        selected_files=selected_files,
     )
     
     if result.successful:
@@ -1788,7 +1716,6 @@ def handle_intelligent_edit(instruction: str, stream_callback=None, selected_fil
     return result
 
 def profile_current_document():
-    """Profile current document using AI"""
     core = st.session_state.intelligence_core
     document_state = {
         "content": st.session_state.workspace.current_document["content"],
@@ -1797,43 +1724,29 @@ def profile_current_document():
     return core["document_profiler"].profile(document_state)
 
 def run_agent(query: str, stream_callback=None, selected_files=None):
-    """Enhanced agent with intelligence core integration"""
     q = query.lower().strip()
     
-    # Document workspace commands
     if q.startswith("/"):
         return handle_document_command(q)
     
-    # Check for document editing commands
     edit_keywords = ["improve", "rewrite", "summarize", "expand", "shorten", 
                      "fix grammar", "make formal", "make academic", "translate"]
     
     if any(keyword in q for keyword in edit_keywords) and st.session_state.workspace.current_document["content"]:
-        # Item 6: Edit validation — snapshot word count before edit
         pre_word_count = len(st.session_state.workspace.current_document["content"].split())
 
         result = handle_intelligent_edit(query, stream_callback=stream_callback, selected_files=selected_files)
 
-        # Clarification needed
         if result is None:
             return "__CLARIFICATION_NEEDED__"
 
         if result.successful:
-            # Item 6: Validate edit didn't produce empty/trivially-short output
             post_word_count = len(result.edited_document.split())
             if post_word_count < max(10, pre_word_count * 0.1):
                 result.successful = False
-                result.reasoning = (
-                    f"Edit validation failed: output was only {post_word_count} words "
-                    f"(original was {pre_word_count}). Original preserved."
-                )
-                st.session_state.workspace.update_document(
-                    st.session_state.workspace.version_history[-1]["content"],
-                    "Rollback: edit validation failed"
-                )
+                result.reasoning = f"Edit validation failed: output was only {post_word_count} words (original was {pre_word_count})"
                 return result
 
-            # Compute file cross-references
             doc_content = st.session_state.workspace.current_document["content"]
             file_acc = st.session_state.intelligence_core["file_accumulator"]
             cross_refs = file_acc.get_cross_references(doc_content)
@@ -1843,7 +1756,6 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
         else:
             return f"⚠️ {result.reasoning}"
     
-    # Analysis command
     if "analyze document" in q or "profile document" in q:
         with st.spinner("Analyzing document..."):
             profile = profile_current_document()
@@ -1854,12 +1766,6 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
             result += f"**Purpose:** {profile.content.get('primary_purpose', 'unknown').title()}\n"
             result += f"**Reading Level:** {profile.content.get('reading_level', 'unknown')}\n\n"
             
-            if profile.strengths:
-                result += "**Strengths:**\n"
-                for s in profile.strengths[:3]:
-                    result += f"- {s}\n"
-                result += "\n"
-            
             if profile.suggestions:
                 result += "**Suggestions:**\n"
                 for s in profile.suggestions[:3]:
@@ -1867,7 +1773,6 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
             
             return result
     
-    # Clear context
     if any(phrase in q for phrase in ["clear context", "new chat", "start fresh"]):
         st.session_state.workspace = DocumentWorkspace()
         st.session_state.intelligence_core["conversation_manager"].clear()
@@ -1878,14 +1783,11 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
         st.session_state.pending_file_suggestions = []
         return "✨ Everything cleared! Ready for a new session."
     
-    # What is a word?
     if q == "what is a word":
         return "A **Word document** (.docx) is created by Microsoft Word. Try 'make a word about dogs'"
     
-    # Excel generation
-    if "make an excel" in q or "create an excel" in q or "generate an excel" in q:
-        topic = q.replace("make an excel", "").replace("create an excel", "").replace("generate an excel", "").strip()
-        topic = topic or "Sample_Data"
+    if "make an excel" in q or "create an excel" in q:
+        topic = q.replace("make an excel", "").replace("create an excel", "").strip() or "Sample_Data"
         
         data_rows = [
             ["Item", "Category", "Quantity", "Price", "Total"],
@@ -1901,7 +1803,6 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
             st.session_state.show_excel_download = True
             return f"📊 Created Excel file: {topic}. Scroll down to download!"
     
-    # PowerPoint generation
     if any(phrase in q for phrase in ["make a ppt", "create a powerpoint"]):
         topic = q.replace("make a ppt", "").replace("create a powerpoint", "").strip() or "Presentation"
         content = f"Introduction to {topic}\n- Key point 1\n- Key point 2\n\nConclusion\n- Summary"
@@ -1912,10 +1813,9 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
             st.session_state.show_ppt_download = True
             return f"📊 Created PowerPoint: {topic}. Scroll down to download!"
     
-    # Word generation
     if any(phrase in q for phrase in ["make a word", "create a document"]):
         topic = q.replace("make a word", "").replace("create a document", "").strip() or "Document"
-        content = f"# {topic}\n\nThis document covers important information about {topic}.\n\n## Introduction\n\nContent here.\n\n## Conclusion\n\nSummary."
+        content = f"# {topic}\n\nThis document covers important information about {topic}."
         word_bytes = create_word_from_content(topic, content)
         if word_bytes:
             st.session_state.word_data = word_bytes
@@ -1923,14 +1823,12 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
             st.session_state.show_word_download = True
             return f"📄 Created Word document: {topic}. Scroll down to download!"
     
-    # Image generation
     if any(phrase in q for phrase in ["generate image", "create image"]):
         image_prompt = q.replace("generate image", "").replace("create image", "").strip()
         if not image_prompt:
             image_prompt = "a beautiful landscape"
         return generate_and_display_image(image_prompt)
     
-    # Item 9: Streaming for non-edit queries — use ModelRouter so fallback applies here too
     search_result = internet_search(query)
     context = get_current_datetime()
     if search_result:
@@ -1952,7 +1850,6 @@ def run_agent(query: str, stream_callback=None, selected_files=None):
         return reason(query, context)
 
 def handle_document_command(command: str) -> str:
-    """Handle slash commands"""
     cmd = command.lower().strip()
     workspace = st.session_state.workspace
     core = st.session_state.intelligence_core
@@ -2001,152 +1898,380 @@ def handle_document_command(command: str) -> str:
 
 
 # ============================================================================
-# FIX #2: CLARIFICATION DIALOG COMPONENT
-# ============================================================================
-
-# UI written below
-
-# ============================================================================
-# CLARIFICATION DIALOG
+# UI COMPONENTS
 # ============================================================================
 
 def render_clarification_dialog():
     pending = st.session_state.get("pending_clarification")
     if not pending:
         return
-    st.markdown(
-        '<div class="clarif-box">'
-        f'<div class="clarif-title">I need a bit more detail</div>'
-        f'<div class="clarif-sub">Instruction: <em>{pending["instruction"]}</em></div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    
+    st.info("📝 **I need a bit more detail**")
+    st.write(f"Instruction: *{pending['instruction']}*")
+    
     answers = {}
     for i, question in enumerate(pending["questions"]):
-        answer = st.text_input(question, key=f"clarif_q_{i}", placeholder="Your answer…")
-        answers[question] = answer
-    col1, col2 = st.columns([3, 1])
+        answers[question] = st.text_input(question, key=f"clarif_q_{i}")
+    
+    col1, col2 = st.columns(2)
     with col1:
-        if st.button("Continue with this context", use_container_width=True, type="primary"):
+        if st.button("Continue with this context", type="primary", key="clarif_continue"):
             clarifications = "; ".join([f"{q}: {a}" for q, a in answers.items() if a])
             enriched = f"{pending['instruction']}. Clarifications: {clarifications}"
             st.session_state.pending_clarification = None
-            with st.spinner(""):
+            with st.spinner("Processing..."):
                 result = handle_intelligent_edit(enriched)
                 if result and result.successful:
                     st.rerun()
     with col2:
-        if st.button("Skip", use_container_width=True):
+        if st.button("Skip", key="clarif_skip"):
             st.session_state.pending_clarification = None
-            with st.spinner(""):
+            with st.spinner("Processing..."):
                 result = handle_intelligent_edit(pending["instruction"])
                 if result and result.successful:
                     st.rerun()
-
-
-# ============================================================================
-# FILE SUGGESTIONS BANNER
-# ============================================================================
 
 def render_file_suggestions():
     suggestions = st.session_state.get("pending_file_suggestions", [])
     if not suggestions:
         return
-    items = "".join(
-        f'<div class="file-sug-item">📎 <strong>{s["file"]}</strong> — '
-        f'{", ".join(s["matched_terms"][:3])}</div>'
-        for s in suggestions[:3]
-    )
-    st.markdown(
-        f'<div class="file-sug-banner">'
-        f'<span class="file-sug-head">💡 File references available</span>{items}</div>',
-        unsafe_allow_html=True,
-    )
+    
+    st.info("💡 **File Reference Opportunities:**")
+    for s in suggestions[:3]:
+        st.write(f"- {s['suggestion']}")
+    
     if st.button("Dismiss", key="dismiss_file_suggestions"):
         st.session_state.pending_file_suggestions = []
         st.rerun()
-
-
-# ============================================================================
-# SMART ROLLBACK
-# ============================================================================
-
-def smart_rollback(target_description: str = "") -> bool:
-    workspace = st.session_state.workspace
-    versions = workspace.version_history
-    if not versions:
-        return False
-    if not target_description:
-        after_versions = [v for v in versions if v["description"].startswith("After:")]
-        if len(after_versions) >= 2:
-            workspace.restore_version(after_versions[-2]["id"])
-            return True
-        return False
-    keyword = target_description.lower()
-    for v in reversed(versions):
-        if keyword in v["description"].lower():
-            workspace.restore_version(v["id"])
-            return True
-    return False
-
-
-# ============================================================================
-# EDIT PLAN DISPLAY
-# ============================================================================
-
-def render_edit_plan(plan) -> None:
-    if not plan:
-        return
-    with st.expander("View edit plan", expanded=False):
-        st.markdown(f"**Strategy:** {plan.strategy}")
-        for step in plan.steps:
-            st.markdown(f"- {step}")
-        if plan.rationale:
-            st.caption(plan.rationale)
-
-
-# ============================================================================
-# CONVERSATION DASHBOARD
-# ============================================================================
 
 def render_conversation_dashboard():
     core = st.session_state.get("intelligence_core")
     if not core:
         return
+    
     conv = core["conversation_manager"]
     if not conv.turns:
         st.caption("No edits yet.")
         return
+    
     evolution = conv.get_document_evolution()
     intent = conv.intent_summary or ""
     if intent:
-        st.caption(f"Goal: {intent}")
+        st.caption(f"🎯 Goal: {intent}")
+    
     for i, turn in enumerate(evolution[-6:], 1):
         changes = turn.get("changes", {})
         net = changes.get("net_change", 0)
-        color = "#2e7d32" if net >= 0 else "#c62828"
         label = turn["query"][:38] + ("…" if len(turn["query"]) > 38 else "")
-        st.markdown(
-            f"<div class='timeline-row'><span class='tl-num'>{i}</span>"
-            f"<span class='tl-label'>{label}</span>"
-            f"<span class='tl-delta' style='color:{color}'>{net:+d}w</span></div>",
-            unsafe_allow_html=True,
-        )
+        st.text(f"{i}. {label} ({net:+d}w)")
+    
     st.markdown("---")
     col_a, col_b = st.columns([3, 1])
     with col_a:
-        rollback_kw = st.text_input(
-            "Rollback keyword", placeholder="e.g. formal", key="rollback_kw",
-            label_visibility="collapsed"
-        )
+        rollback_kw = st.text_input("Rollback keyword", placeholder="e.g. formal", key="rollback_kw", label_visibility="collapsed")
     with col_b:
-        if st.button("Undo", use_container_width=True, help="Undo / rollback"):
-            kw = rollback_kw.strip() if rollback_kw.strip() else ""
-            if smart_rollback(kw):
-                st.success("Rolled back")
-                st.rerun()
+        if st.button("↩️ Undo", use_container_width=True, key="undo_btn"):
+            if rollback_kw.strip():
+                workspace = st.session_state.workspace
+                versions = workspace.version_history
+                for v in reversed(versions):
+                    if rollback_kw.lower() in v["description"].lower():
+                        workspace.restore_version(v["id"])
+                        st.success("Rolled back")
+                        st.rerun()
+                        return
+                st.warning("No matching version found")
             else:
-                st.warning("Nothing found")
+                st.warning("Enter a keyword or use /version command")
+
+def render_artifact_panel():
+    artifact = st.session_state.get("artifact")
+    if not artifact:
+        return
+    
+    with st.container():
+        st.markdown(f"### 📄 {artifact['title']}")
+        
+        col_dl, col_close = st.columns([4, 1])
+        with col_dl:
+            st.download_button(
+                f"⬇️ Download {artifact['title']}",
+                data=artifact["bytes"],
+                file_name=artifact["filename"],
+                mime=artifact["mime"],
+                use_container_width=True,
+            )
+        with col_close:
+            if st.button("✕ Close", use_container_width=True, key="close_artifact"):
+                st.session_state.artifact = None
+                st.rerun()
+
+def _maybe_show_artifact(response):
+    if st.session_state.get("show_word_download") and st.session_state.get("word_data"):
+        topic = st.session_state.word_topic
+        st.session_state.artifact = {
+            "type": "word",
+            "title": f"{topic}.docx",
+            "filename": f"{topic}.docx",
+            "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "bytes": st.session_state.word_data,
+        }
+        st.session_state.show_word_download = False
+    elif st.session_state.get("show_ppt_download") and st.session_state.get("ppt_data"):
+        topic = st.session_state.ppt_topic
+        st.session_state.artifact = {
+            "type": "pptx",
+            "title": f"{topic}.pptx",
+            "filename": f"{topic}.pptx",
+            "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "bytes": st.session_state.ppt_data,
+        }
+        st.session_state.show_ppt_download = False
+    elif st.session_state.get("show_excel_download") and st.session_state.get("excel_data"):
+        topic = st.session_state.excel_topic
+        st.session_state.artifact = {
+            "type": "excel",
+            "title": f"{topic}.xlsx",
+            "filename": f"{topic}.xlsx",
+            "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "bytes": st.session_state.excel_data,
+        }
+        st.session_state.show_excel_download = False
+
+def render_document_editor():
+    workspace = st.session_state.workspace
+    meta = workspace.current_document["metadata"]
+
+    col_title, col_btns = st.columns([3, 2])
+    with col_title:
+        new_title = st.text_input(
+            "Document title",
+            value=workspace.current_document["title"],
+            key="doc_title",
+            placeholder="Document title...",
+            label_visibility="collapsed",
+        )
+        if new_title != workspace.current_document["title"]:
+            workspace.current_document["title"] = new_title
+
+    with col_btns:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            if st.button("🔍 Analyse", key="btn_analyse", use_container_width=True):
+                profile = profile_current_document()
+                st.session_state.doc_profile_cache = profile
+                tone = profile.content.get("tone", "—")
+                st.toast(f"Tone: {tone}", icon="🔍")
+        with c2:
+            track = workspace.track_changes
+            if st.button("✓ Track" if track else "Track", key="btn_track", use_container_width=True):
+                workspace.track_changes = not track
+                st.rerun()
+        with c3:
+            if st.button("📊 Stats", key="btn_stats", use_container_width=True):
+                st.toast(f"{meta['word_count']} words · {meta['reading_time']} min read", icon="📊")
+        with c4:
+            if st.button("🗑️ Clear", key="btn_clear", use_container_width=True):
+                workspace.current_document["content"] = ""
+                workspace._update_metadata()
+                st.rerun()
+
+    content = st.text_area(
+        "Document content",
+        value=workspace.current_document["content"],
+        height=340,
+        key="doc_editor",
+        placeholder="Start writing, or paste your document here…",
+        label_visibility="collapsed",
+    )
+    if content != workspace.current_document["content"]:
+        workspace.update_document(content, "Manual edit")
+
+    st.caption(f"{meta['word_count']} words · {meta['char_count']} chars · {meta['reading_time']} min read")
+
+def render_chat_interface():
+    render_clarification_dialog()
+    render_file_suggestions()
+
+    for role, msg in st.session_state.chat_history[-20:]:
+        avatar = "🤖" if role == "assistant" else "👤"
+        with st.chat_message(role, avatar=avatar):
+            st.markdown(msg)
+
+    render_artifact_panel()
+
+    query = st.chat_input("Ask anything — edit, generate a Word doc, make a deck…")
+
+    if not query:
+        return
+
+    st.session_state.chat_history.append(("user", query))
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(query)
+
+    q_lower = query.lower().strip()
+    edit_keywords = [
+        "improve", "rewrite", "summarize", "expand", "shorten",
+        "fix grammar", "make formal", "make academic", "translate",
+    ]
+    is_edit = (
+        any(kw in q_lower for kw in edit_keywords)
+        and st.session_state.workspace.current_document["content"]
+        and not q_lower.startswith("/")
+    )
+
+    with st.chat_message("assistant", avatar="🤖"):
+        if is_edit:
+            resp_ph = st.empty()
+            meta_ph = st.empty()
+            buf = {"text": "", "tok": 0, "t0": time.time()}
+
+            def on_tok(token):
+                buf["text"] += token
+                buf["tok"] += 1
+                elapsed = max(time.time() - buf["t0"], 0.001)
+                tps = round(buf["tok"] / elapsed, 1)
+                resp_ph.markdown(buf["text"] + " ▌")
+                meta_ph.caption(f"⚡ {tps} tok/s")
+
+            sel = st.session_state.get("selected_ref_files", []) or None
+            response = run_agent(query, stream_callback=on_tok, selected_files=sel)
+            meta_ph.empty()
+
+            if response == "__CLARIFICATION_NEEDED__":
+                resp_ph.empty()
+                st.rerun()
+                return
+
+            if isinstance(response, EditResult) and response.successful:
+                resp_ph.empty()
+                ch = response.changes_made
+                old_wc = ch.get("old_word_count", 0)
+                new_wc = ch.get("new_word_count", 0)
+                net = ch.get("net_change", 0)
+                ms = response.execution_time_ms
+                sh = st.session_state.intelligence_core["streaming_handler"]
+                tps = sh.last_metrics.get("tokens_per_sec", 0)
+                toks = sh.last_metrics.get("token_count", 0)
+
+                st.markdown(f"""
+✅ **Edit Complete** ({ms}ms)
+
+| Metric | Value |
+|--------|-------|
+| Words added | +{ch.get('additions', 0)} |
+| Words removed | -{ch.get('deletions', 0)} |
+| Net change | {net:+d} |
+| Progress | {old_wc} → {new_wc} words |
+| Speed | {tps} tok/s |
+| Tokens | {toks} |
+
+💡 **Why:** {response.reasoning}
+""")
+                st.session_state.chat_history.append(("assistant", f"✅ Edit complete: {net:+d} words"))
+            elif isinstance(response, EditResult) and not response.successful:
+                resp_ph.warning(f"⚠️ {response.reasoning}")
+                st.session_state.chat_history.append(("assistant", f"⚠️ {response.reasoning}"))
+            elif isinstance(response, str):
+                resp_ph.markdown(response)
+                st.session_state.chat_history.append(("assistant", response))
+
+        else:
+            resp_ph = st.empty()
+            meta_ph = st.empty()
+            buf = {"text": "", "tok": 0, "t0": time.time()}
+
+            def on_tok_gen(token):
+                buf["text"] += token
+                buf["tok"] += 1
+                elapsed = max(time.time() - buf["t0"], 0.001)
+                tps = round(buf["tok"] / elapsed, 1)
+                resp_ph.markdown(buf["text"] + " ▌")
+                meta_ph.caption(f"⚡ {tps} tok/s")
+
+            response = run_agent(query, stream_callback=on_tok_gen)
+            meta_ph.empty()
+            resp_ph.empty()
+
+            _maybe_show_artifact(response)
+
+            if isinstance(response, str):
+                st.markdown(response)
+                st.session_state.chat_history.append(("assistant", response))
+
+    st.rerun()
+
+def render_sidebar():
+    with st.sidebar:
+        st.markdown("## MozeAI")
+        st.markdown("---")
+
+        if st.button("➕ New document", key="new_doc_btn", use_container_width=True):
+            st.session_state.workspace.current_document["content"] = ""
+            st.session_state.workspace.current_document["title"] = "Untitled"
+            st.session_state.workspace.save_version("New document")
+            st.session_state.chat_history = []
+            st.session_state.artifact = None
+            st.session_state.intelligence_core["conversation_manager"].clear()
+            st.rerun()
+
+        st.markdown("---")
+        st.markdown("### Quick Actions")
+
+        quick = [
+            ("✨ Improve writing", "improve this document"),
+            ("🎓 Make academic", "make this academic"),
+            ("📝 Summarise", "summarize this document"),
+            ("🔧 Fix grammar", "fix grammar"),
+        ]
+        for label, instr in quick:
+            if st.button(label, use_container_width=True, key=f"qa_{label[:4]}"):
+                with st.spinner("Editing..."):
+                    result = handle_intelligent_edit(instr)
+                    if result and result.successful:
+                        st.rerun()
+
+        st.markdown("---")
+        st.markdown("### Files")
+        
+        uploaded = st.file_uploader(
+            "Upload files",
+            type=["pdf", "docx", "txt", "csv", "json"],
+            accept_multiple_files=True,
+            key="file_uploader",
+            label_visibility="collapsed",
+        )
+        if uploaded:
+            for file in uploaded:
+                if file.name not in st.session_state.uploaded_files:
+                    content = process_uploaded_file(file)
+                    if content and not content.startswith("Error"):
+                        st.session_state.uploaded_files[file.name] = content
+                        st.session_state.intelligence_core["file_accumulator"].add_file(
+                            file.name, file.type, content, {}
+                        )
+                        st.success(f"✅ {file.name}")
+
+        all_files = list(st.session_state.uploaded_files.keys())
+        if all_files:
+            st.markdown("**Reference files in next edit:**")
+            st.multiselect(
+                "Select files",
+                options=all_files,
+                default=st.session_state.get("selected_ref_files", []),
+                key="selected_ref_files",
+                label_visibility="collapsed",
+            )
+
+        st.markdown("---")
+        st.markdown("### History")
+        render_conversation_dashboard()
+
+        meta = st.session_state.workspace.current_document["metadata"]
+        lm = st.session_state.last_model_used or MODEL_PRIORITY[0]
+        lm_short = lm.replace("-versatile", "") if lm else MODEL_PRIORITY[0].replace("-versatile", "")
+        st.caption(f"📝 {meta['word_count']} words")
+        st.caption(f"🤖 {lm_short}")
 
 
 # ============================================================================
@@ -2178,8 +2303,6 @@ def init_session_state():
         st.session_state.doc_profile_cache = None
     if "last_model_used" not in st.session_state:
         st.session_state.last_model_used = None
-    if "last_analysis" not in st.session_state:
-        st.session_state.last_analysis = None
     if "pending_clarification" not in st.session_state:
         st.session_state.pending_clarification = None
     if "pending_file_suggestions" not in st.session_state:
@@ -2188,775 +2311,6 @@ def init_session_state():
         st.session_state.selected_ref_files = []
     if "artifact" not in st.session_state:
         st.session_state.artifact = None
-    if "sidebar_view" not in st.session_state:
-        st.session_state.sidebar_view = "chat"
-
-
-# ============================================================================
-# CSS — Claude-inspired dark design system
-# ============================================================================
-
-def apply_custom_css():
-    st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono&display=swap');
-
-    :root {
-        --bg:           #212121;
-        --bg-sidebar:   #171717;
-        --bg-input:     #2f2f2f;
-        --bg-card:      #2a2a2a;
-        --bg-artifact:  #1a1a1a;
-        --border:       #383838;
-        --border-light: #484848;
-        --text:         #ececec;
-        --text-muted:   #9a9a9a;
-        --text-dim:     #555;
-        --accent:       #cc785c;
-        --accent-soft:  rgba(204,120,92,0.14);
-        --radius:       12px;
-        --radius-sm:    8px;
-        --font:         'DM Sans', 'ui-sans-serif', system-ui, sans-serif;
-        --font-mono:    'DM Mono', 'ui-monospace', monospace;
-    }
-
-    html, body,
-    [data-testid="stAppViewContainer"],
-    [data-testid="stMain"] {
-        background: var(--bg) !important;
-        color: var(--text) !important;
-        font-family: var(--font) !important;
-    }
-
-    #MainMenu, footer, header,
-    [data-testid="stToolbar"],
-    [data-testid="stDecoration"],
-    [data-testid="collapsedControl"] { display: none !important; }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: var(--bg-sidebar) !important;
-        border-right: 1px solid var(--border) !important;
-    }
-    [data-testid="stSidebar"] > div { padding: 0 !important; }
-
-    /* Sidebar logo */
-    .sb-logo {
-        display: flex; align-items: center; gap: 10px;
-        padding: 18px 16px 14px;
-        border-bottom: 1px solid var(--border);
-        margin-bottom: 4px;
-    }
-    .sb-logo-icon {
-        width: 30px; height: 30px; background: var(--accent);
-        border-radius: 7px; display: flex; align-items: center;
-        justify-content: center; font-size: 15px; font-weight: 700; color: #fff;
-        flex-shrink: 0;
-    }
-    .sb-logo-name { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
-
-    /* Stat rows */
-    .stat-row {
-        display: flex; justify-content: space-between;
-        padding: 5px 0; border-bottom: 1px solid var(--border);
-        font-size: 12px;
-    }
-    .stat-key { color: var(--text-dim); }
-    .stat-val { color: var(--text-muted); font-weight: 500; }
-    .model-dot { width: 6px; height: 6px; border-radius: 50%;
-        display: inline-block; margin-right: 4px; }
-
-    /* Timeline */
-    .timeline-row {
-        display: flex; align-items: center; gap: 8px;
-        padding: 4px 0; font-size: 12px;
-    }
-    .tl-num  { color: var(--text-dim); font-size: 10.5px; width: 14px; flex-shrink: 0; }
-    .tl-label { color: var(--text-muted); flex: 1; overflow: hidden;
-        text-overflow: ellipsis; white-space: nowrap; }
-    .tl-delta { font-size: 11px; font-weight: 600; flex-shrink: 0; }
-
-    /* Section labels */
-    .sec-label {
-        font-size: 10.5px; font-weight: 600; color: var(--text-dim);
-        text-transform: uppercase; letter-spacing: .6px;
-        padding: 12px 0 5px;
-    }
-
-    /* Artifact panel */
-    .artifact-panel {
-        background: var(--bg-artifact); border: 1px solid var(--border);
-        border-radius: var(--radius); overflow: hidden; margin-bottom: 16px;
-        animation: fadeUp .2s ease;
-    }
-    @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
-
-    .artifact-header {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 10px 14px; border-bottom: 1px solid var(--border);
-        background: var(--bg-card);
-    }
-    .artifact-badge {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 12px; font-weight: 600; color: var(--text-muted);
-        text-transform: uppercase; letter-spacing: .5px;
-    }
-    .artifact-icon {
-        width: 22px; height: 22px; border-radius: 5px;
-        display: flex; align-items: center; justify-content: center; font-size: 12px;
-    }
-    .art-word  { background: #1565c0; }
-    .art-pptx  { background: #b71c1c; }
-    .art-excel { background: #1b5e20; }
-    .artifact-title { font-size: 13px; font-weight: 500; color: var(--text); }
-    .artifact-preview {
-        padding: 14px 16px; font-family: var(--font-mono); font-size: 12.5px;
-        color: var(--text-muted); max-height: 180px; overflow-y: auto;
-        white-space: pre-wrap; line-height: 1.6;
-    }
-    .artifact-preview::-webkit-scrollbar { width: 3px; }
-    .artifact-preview::-webkit-scrollbar-thumb { background: var(--border); }
-
-    /* Edit result card */
-    .edit-card {
-        background: var(--bg-card); border: 1px solid var(--border);
-        border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
-        padding: 12px 14px; margin: 10px 0;
-    }
-    .edit-card-title {
-        font-weight: 600; color: var(--text); margin-bottom: 10px;
-        font-size: 13px;
-    }
-    .edit-stats { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
-    .edit-stat { display: flex; flex-direction: column; gap: 1px; }
-    .edit-stat-val {
-        font-size: 17px; font-weight: 700; color: var(--text);
-        font-variant-numeric: tabular-nums;
-    }
-    .esv-green { color: #4caf50; }
-    .esv-red   { color: #ef5350; }
-    .edit-stat-label { font-size: 10px; color: var(--text-muted);
-        text-transform: uppercase; letter-spacing: .5px; }
-    .edit-reason { color: var(--text-muted); font-size: 12.5px;
-        line-height: 1.5; margin-bottom: 6px; }
-    .edit-meta { color: var(--text-dim); font-size: 11px; }
-
-    /* Clarification */
-    .clarif-box {
-        background: var(--bg-card); border: 1px solid var(--border-light);
-        border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px;
-    }
-    .clarif-title { font-weight: 600; font-size: 13.5px; color: var(--text); margin-bottom: 4px; }
-    .clarif-sub   { font-size: 12.5px; color: var(--text-muted); }
-
-    /* File suggestion */
-    .file-sug-banner {
-        background: var(--accent-soft); border: 1px solid rgba(204,120,92,.3);
-        border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 12px;
-    }
-    .file-sug-head { font-weight: 600; color: var(--text); display: block; margin-bottom: 5px; }
-    .file-sug-item { color: var(--text-muted); margin-bottom: 3px; font-size: 12.5px; }
-
-    /* Footnote */
-    .footnote { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-
-    /* Welcome screen */
-    .welcome-icon {
-        width: 56px; height: 56px; background: var(--accent);
-        border-radius: 14px; display: inline-flex; align-items: center;
-        justify-content: center; font-size: 26px; font-weight: 700;
-        color: #fff; margin-bottom: 18px;
-    }
-
-    /* ── Streamlit overrides ── */
-    [data-testid="stTextArea"] textarea,
-    [data-testid="stTextInput"] input {
-        background: var(--bg-input) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: var(--radius-sm) !important;
-        color: var(--text) !important;
-        font-family: var(--font) !important;
-        font-size: 14px !important;
-    }
-    [data-testid="stTextArea"] textarea:focus,
-    [data-testid="stTextInput"] input:focus {
-        border-color: var(--accent) !important;
-        box-shadow: 0 0 0 2px var(--accent-soft) !important;
-        outline: none !important;
-    }
-    [data-testid="stChatInput"] {
-        background: var(--bg-input) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: var(--radius) !important;
-    }
-    [data-testid="stChatInput"]:focus-within {
-        border-color: var(--accent) !important;
-        box-shadow: 0 0 0 2px var(--accent-soft) !important;
-    }
-    [data-testid="stChatInput"] textarea {
-        background: transparent !important;
-        color: var(--text) !important;
-        font-family: var(--font) !important;
-        font-size: 14px !important;
-    }
-    [data-testid="stChatMessage"] {
-        background: none !important; border: none !important; padding: 2px 0 !important;
-    }
-    .stButton > button {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border) !important;
-        color: var(--text) !important;
-        border-radius: var(--radius-sm) !important;
-        font-family: var(--font) !important;
-        font-size: 13px !important; font-weight: 500 !important;
-        transition: background .15s, border-color .15s !important;
-        padding: 6px 12px !important;
-    }
-    .stButton > button:hover {
-        background: rgba(255,255,255,.08) !important;
-        border-color: var(--border-light) !important;
-    }
-    .stButton > button[kind="primary"] {
-        background: var(--accent) !important;
-        border-color: var(--accent) !important;
-        color: #fff !important;
-    }
-    .stButton > button[kind="primary"]:hover { background: #b86b4f !important; }
-    .stDownloadButton > button {
-        background: var(--accent) !important; border: none !important;
-        color: #fff !important; border-radius: var(--radius-sm) !important;
-        font-family: var(--font) !important; font-weight: 600 !important;
-        font-size: 13px !important; padding: 8px 18px !important;
-        width: 100% !important; transition: background .15s !important;
-    }
-    .stDownloadButton > button:hover { background: #b86b4f !important; }
-    [data-testid="stExpander"] {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: var(--radius-sm) !important;
-    }
-    [data-testid="stExpander"] summary {
-        color: var(--text-muted) !important; font-size: 13px !important;
-    }
-    [data-testid="stMetric"] {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: var(--radius-sm) !important;
-        padding: 10px !important;
-    }
-    [data-testid="stMetricLabel"] { color: var(--text-muted) !important; font-size: 11px !important; }
-    [data-testid="stMetricValue"] { color: var(--text) !important; font-size: 20px !important; }
-    [data-testid="stAlert"] {
-        background: var(--bg-card) !important;
-        border-radius: var(--radius-sm) !important; font-size: 13px !important;
-    }
-    [data-testid="stMultiSelect"] div[data-baseweb="select"] {
-        background: var(--bg-input) !important; border-color: var(--border) !important;
-    }
-    [data-testid="stFileUploader"] {
-        background: var(--bg-card) !important;
-        border: 1px dashed var(--border) !important;
-        border-radius: var(--radius-sm) !important;
-    }
-    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# ============================================================================
-# SIDEBAR
-# ============================================================================
-
-def render_sidebar():
-    with st.sidebar:
-        st.markdown(
-            '<div class="sb-logo">'
-            '<div class="sb-logo-icon">M</div>'
-            '<div class="sb-logo-name">MozeAI</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-
-        if st.button("＋  New document", key="new_doc_btn", use_container_width=True):
-            st.session_state.workspace.current_document["content"] = ""
-            st.session_state.workspace.current_document["title"] = "Untitled"
-            st.session_state.workspace.save_version("New document")
-            st.session_state.chat_history = []
-            st.session_state.artifact = None
-            st.session_state.intelligence_core["conversation_manager"].clear()
-            st.rerun()
-
-        view = st.radio(
-            "nav", ["Chat", "Files", "History"],
-            key="sidebar_view_radio",
-            label_visibility="collapsed",
-            horizontal=True,
-        )
-
-        if view == "Chat":
-            _sidebar_chat_tools()
-        elif view == "Files":
-            _sidebar_files()
-        else:
-            _sidebar_history()
-
-
-def _sidebar_chat_tools():
-    core = st.session_state.get("intelligence_core")
-
-    # Intent banner
-    if core:
-        conv = core["conversation_manager"]
-        if conv.turns:
-            intent = conv.intent_summary or ""
-            if intent:
-                st.markdown(
-                    f'<div style="font-size:12px;color:var(--text-muted);background:var(--bg-card);'
-                    f'border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:6px 0 10px;">'
-                    f'🎯 {intent}</div>',
-                    unsafe_allow_html=True,
-                )
-
-    st.markdown('<div class="sec-label">Quick edits</div>', unsafe_allow_html=True)
-    quick = [
-        ("✨ Improve writing",  "improve this document"),
-        ("🎓 Make academic",    "make this academic"),
-        ("📝 Summarise",        "summarize this document"),
-        ("🔧 Fix grammar",      "fix grammar"),
-        ("📢 Make persuasive",  "make this persuasive"),
-        ("🪄 Simplify",         "simplify this document"),
-    ]
-    for label, instr in quick:
-        if st.button(label, use_container_width=True, key=f"qa_{label[:8]}"):
-            with st.spinner(""):
-                result = handle_intelligent_edit(instr)
-                if result and result.successful:
-                    st.rerun()
-
-    st.markdown('<div class="sec-label" style="margin-top:14px">Custom instruction</div>', unsafe_allow_html=True)
-    custom = st.text_area(
-        "Custom instruction", placeholder="e.g. Rewrite for a 10-year-old…",
-        height=72, key="custom_instr", label_visibility="collapsed",
-    )
-    if st.button("Apply", use_container_width=True, type="primary", key="apply_custom"):
-        if custom.strip():
-            with st.spinner(""):
-                result = handle_intelligent_edit(custom.strip())
-                if result and result.successful:
-                    st.rerun()
-
-    if core:
-        meta = st.session_state.workspace.current_document["metadata"]
-        # Bug fix: .get() returns None when key exists but value is None
-        lm = st.session_state.last_model_used or MODEL_PRIORITY[0]
-        is_primary = lm == MODEL_PRIORITY[0]
-        dot_bg = "#4caf50" if is_primary else "#ff9800"
-        lm_short = lm.replace("-versatile", "")
-        st.markdown(
-            f'<div style="margin-top:16px">'
-            f'<div class="stat-row"><span class="stat-key">Words</span>'
-            f'<span class="stat-val">{meta["word_count"]}</span></div>'
-            f'<div class="stat-row"><span class="stat-key">Versions</span>'
-            f'<span class="stat-val">{len(st.session_state.workspace.version_history)}</span></div>'
-            f'<div class="stat-row"><span class="stat-key">Model</span>'
-            f'<span class="stat-val"><span class="model-dot" style="background:{dot_bg}"></span>{lm_short}</span></div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-
-def _sidebar_files():
-    st.markdown('<div class="sec-label">Upload files</div>', unsafe_allow_html=True)
-    uploaded = st.file_uploader(
-        "Upload files", type=["pdf", "docx", "txt", "csv", "json"],
-        accept_multiple_files=True, key="file_uploader",
-        label_visibility="collapsed",
-    )
-    if uploaded:
-        for file in uploaded:
-            if file.name not in st.session_state.uploaded_files:
-                content = process_uploaded_file(file)
-                if content and not content.startswith("Error"):
-                    st.session_state.uploaded_files[file.name] = content
-                    st.session_state.intelligence_core["file_accumulator"].add_file(
-                        file.name, file.type, content, {}
-                    )
-                    st.toast(f"Loaded {file.name}", icon="✅")
-
-    all_files = list(st.session_state.uploaded_files.keys())
-    if all_files:
-        st.markdown('<div class="sec-label" style="margin-top:10px">Reference in next edit</div>',
-                    unsafe_allow_html=True)
-        st.multiselect(
-            "Reference files", options=all_files, default=[],
-            key="selected_ref_files", label_visibility="collapsed",
-        )
-        sel = st.session_state.get("selected_ref_files", [])
-        if sel:
-            st.caption(f"{len(sel)} file(s) selected")
-    else:
-        st.markdown(
-            '<div style="color:var(--text-dim);font-size:12.5px;text-align:center;padding:24px 0;">'
-            'No files uploaded yet</div>',
-            unsafe_allow_html=True,
-        )
-
-
-def _sidebar_history():
-    st.markdown('<div class="sec-label">Edit timeline</div>', unsafe_allow_html=True)
-    render_conversation_dashboard()
-
-    versions = st.session_state.workspace.version_history
-    if versions:
-        st.markdown('<div class="sec-label" style="margin-top:12px">Version history</div>',
-                    unsafe_allow_html=True)
-        for v in reversed(versions[-8:]):
-            desc = v["description"][:38]
-            wc = v["metadata"].get("word_count", 0)
-            st.markdown(
-                f'<div style="padding:5px 0;border-bottom:1px solid var(--border);'
-                f'font-size:12px;color:var(--text-muted);display:flex;'
-                f'justify-content:space-between;">'
-                f'<span>{desc}</span><span style="color:var(--text-dim)">{wc}w</span></div>',
-                unsafe_allow_html=True,
-            )
-
-
-# ============================================================================
-# ARTIFACT PANEL  — shows generated docs like Claude's artifact pane
-# ============================================================================
-
-def render_artifact_panel():
-    artifact = st.session_state.get("artifact")
-    if not artifact:
-        return
-
-    type_conf = {
-        "word":  ("📄", "art-word",  "Word Document"),
-        "pptx":  ("📊", "art-pptx",  "PowerPoint"),
-        "excel": ("📈", "art-excel", "Spreadsheet"),
-    }
-    icon, css_cls, type_label = type_conf.get(
-        artifact["type"], ("📄", "art-word", "Document")
-    )
-
-    preview_safe = (
-        artifact.get("preview", "")
-        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")[:600]
-    )
-
-    st.markdown(
-        f'<div class="artifact-panel">'
-        f'  <div class="artifact-header">'
-        f'    <div class="artifact-badge">'
-        f'      <div class="artifact-icon {css_cls}">{icon}</div>'
-        f'      <span>{type_label}</span>'
-        f'    </div>'
-        f'    <div class="artifact-title">{artifact["title"]}</div>'
-        f'  </div>'
-        f'  <div class="artifact-preview">{preview_safe}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
-    col_dl, col_close = st.columns([4, 1])
-    with col_dl:
-        st.download_button(
-            f"⬇  Download {artifact['title']}",
-            data=artifact["bytes"],
-            file_name=artifact["filename"],
-            mime=artifact["mime"],
-            use_container_width=True,
-        )
-    with col_close:
-        if st.button("✕", use_container_width=True, key="close_artifact",
-                     help="Close"):
-            st.session_state.artifact = None
-            st.rerun()
-
-
-def _maybe_show_artifact(response):
-    """Convert pending download state into a rich artifact card."""
-    if st.session_state.get("show_word_download") and st.session_state.get("word_data"):
-        data  = st.session_state.word_data
-        topic = st.session_state.word_topic
-        try:
-            from docx import Document as _D
-            buf = data if hasattr(data, "read") else BytesIO(data)
-            doc = _D(buf)
-            preview = "\n".join(p.text for p in doc.paragraphs if p.text.strip())[:600]
-        except Exception:
-            preview = f"Word document: {topic}"
-        st.session_state.artifact = {
-            "type": "word", "title": f"{topic}.docx",
-            "filename": f"{topic}.docx",
-            "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "bytes": st.session_state.word_data, "preview": preview,
-        }
-        st.session_state.show_word_download = False
-
-    elif st.session_state.get("show_ppt_download") and st.session_state.get("ppt_data"):
-        topic = st.session_state.ppt_topic
-        st.session_state.artifact = {
-            "type": "pptx", "title": f"{topic}.pptx",
-            "filename": f"{topic}.pptx",
-            "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "bytes": st.session_state.ppt_data,
-            "preview": f"PowerPoint: {topic}\nGenerated by MozeAI.",
-        }
-        st.session_state.show_ppt_download = False
-
-    elif st.session_state.get("show_excel_download") and st.session_state.get("excel_data"):
-        topic = st.session_state.excel_topic
-        st.session_state.artifact = {
-            "type": "excel", "title": f"{topic}.xlsx",
-            "filename": f"{topic}.xlsx",
-            "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "bytes": st.session_state.excel_data,
-            "preview": f"Excel spreadsheet: {topic}\nCreated by MozeAI.",
-        }
-        st.session_state.show_excel_download = False
-
-
-# ============================================================================
-# DOCUMENT EDITOR
-# ============================================================================
-
-def render_document_editor():
-    workspace = st.session_state.workspace
-    meta = workspace.current_document["metadata"]
-
-    col_title, col_btns = st.columns([3, 2])
-    with col_title:
-        new_title = st.text_input(
-            "Document title", value=workspace.current_document["title"],
-            key="doc_title", placeholder="Document title…",
-            label_visibility="collapsed",
-        )
-        if new_title != workspace.current_document["title"]:
-            workspace.current_document["title"] = new_title
-
-    with col_btns:
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            if st.button("Analyse", key="btn_analyse", use_container_width=True):
-                profile = profile_current_document()
-                st.session_state.doc_profile_cache = profile
-                tone  = profile.content.get("tone", "—")
-                level = profile.content.get("reading_level", "—")
-                st.toast(f"Tone: {tone}  ·  {level}", icon="🔍")
-        with c2:
-            track = workspace.track_changes
-            if st.button("Track ✓" if track else "Track", key="btn_track",
-                         use_container_width=True):
-                workspace.track_changes = not track
-                st.rerun()
-        with c3:
-            if st.button("Stats", key="btn_stats", use_container_width=True):
-                st.toast(f"{meta['word_count']} words · {meta['reading_time']} min read",
-                         icon="📊")
-        with c4:
-            if st.button("Clear", key="btn_clear", use_container_width=True):
-                workspace.current_document["content"] = ""
-                workspace._update_metadata()
-                st.rerun()
-
-    content = st.text_area(
-        "Document content", value=workspace.current_document["content"],
-        height=340, key="doc_editor",
-        placeholder="Start writing, or paste your document here…",
-        label_visibility="collapsed",
-    )
-    if content != workspace.current_document["content"]:
-        workspace.update_document(content, "Manual edit")
-
-    st.markdown(
-        f'<div class="footnote">{meta["word_count"]} words '
-        f'· {meta["char_count"]} chars '
-        f'· {meta["reading_time"]} min read</div>',
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================================
-# CHAT INTERFACE
-# ============================================================================
-
-def render_chat_interface():
-    render_clarification_dialog()
-    render_file_suggestions()
-
-    for role, msg in st.session_state.chat_history[-20:]:
-        avatar = "M" if role == "assistant" else "👤"
-        with st.chat_message(role, avatar=avatar):
-            st.markdown(msg)
-
-    render_artifact_panel()
-
-    query = st.chat_input("Ask anything — edit, generate a Word doc, make a deck…")
-
-    if query and query.strip().lower() in ("undo", "undo last"):
-        with st.chat_message("user", avatar="👤"):
-            st.markdown(query)
-        st.session_state.chat_history.append(("user", query))
-        with st.chat_message("assistant", avatar="M"):
-            msg = ("↩️ Done — restored the previous version."
-                   if smart_rollback() else "⚠️ Nothing to undo.")
-            st.markdown(msg)
-            st.session_state.chat_history.append(("assistant", msg))
-        st.rerun()
-        return
-
-    if not query:
-        return
-
-    st.session_state.chat_history.append(("user", query))
-    with st.chat_message("user", avatar="👤"):
-        st.markdown(query)
-
-    q_lower = query.lower().strip()
-    edit_keywords = [
-        "improve", "rewrite", "summarize", "summarise", "expand", "shorten",
-        "fix grammar", "make formal", "make academic", "translate",
-        "make persuasive", "simplify",
-    ]
-    is_edit = (
-        any(kw in q_lower for kw in edit_keywords)
-        and st.session_state.workspace.current_document["content"]
-        and not q_lower.startswith("/")
-    )
-
-    with st.chat_message("assistant", avatar="M"):
-        if is_edit:
-            resp_ph  = st.empty()
-            meta_ph  = st.empty()
-            buf      = {"text": "", "tok": 0, "t0": time.time()}
-
-            def on_tok(token):
-                buf["text"] += token
-                buf["tok"]  += 1
-                elapsed = max(time.time() - buf["t0"], 0.001)
-                tps = round(buf["tok"] / elapsed, 1)
-                resp_ph.markdown(buf["text"] + " ▌")
-                meta_ph.markdown(
-                    f'<div class="footnote">{len(buf["text"].split())} words · {tps} tok/s</div>',
-                    unsafe_allow_html=True,
-                )
-
-            sel = st.session_state.get("selected_ref_files", []) or None
-            response = run_agent(query, stream_callback=on_tok, selected_files=sel)
-            meta_ph.empty()
-
-            if response == "__CLARIFICATION_NEEDED__":
-                resp_ph.empty()
-                st.rerun()
-                return
-
-            if isinstance(response, EditResult) and response.successful:
-                resp_ph.empty()
-                ch = response.changes_made
-                old_wc = ch.get("old_word_count", 0)
-                new_wc = ch.get("new_word_count", 0)
-                net    = ch.get("net_change", 0)
-                adds   = ch.get("additions", 0)
-                dels   = ch.get("deletions", 0)
-                ms     = response.execution_time_ms
-                sh     = st.session_state.intelligence_core["streaming_handler"]
-                tps    = sh.last_metrics.get("tokens_per_sec", 0)
-                ttft   = sh.last_metrics.get("ttft_ms", 0)
-                toks   = sh.last_metrics.get("token_count", 0)
-                mdl    = sh.last_metrics.get("model", MODEL_PRIORITY[0]).replace("-versatile","")
-
-                add_cls = "esv-green" if adds > 0 else ""
-                del_cls = "esv-red"   if dels > 0 else ""
-                net_cls = "esv-green" if net >= 0 else "esv-red"
-                rsn_html = (f'<div class="edit-reason">💡 {response.reasoning}</div>'
-                            if response.reasoning else "")
-
-                st.markdown(f"""
-                <div class="edit-card">
-                  <div class="edit-card-title">✅ Edit complete</div>
-                  <div class="edit-stats">
-                    <div class="edit-stat">
-                      <div class="edit-stat-val {add_cls}">+{adds}</div>
-                      <div class="edit-stat-label">Added</div>
-                    </div>
-                    <div class="edit-stat">
-                      <div class="edit-stat-val {del_cls}">−{dels}</div>
-                      <div class="edit-stat-label">Removed</div>
-                    </div>
-                    <div class="edit-stat">
-                      <div class="edit-stat-val {net_cls}">{net:+d}</div>
-                      <div class="edit-stat-label">Net</div>
-                    </div>
-                    <div class="edit-stat">
-                      <div class="edit-stat-val">{ms}ms</div>
-                      <div class="edit-stat-label">Time</div>
-                    </div>
-                    <div class="edit-stat">
-                      <div class="edit-stat-val">{tps}</div>
-                      <div class="edit-stat-label">tok/s</div>
-                    </div>
-                  </div>
-                  {rsn_html}
-                  <div class="edit-meta">
-                    {old_wc} → {new_wc} words · {toks} tokens · TTFT {ttft}ms · {mdl}
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                core = st.session_state.intelligence_core
-                try:
-                    snap   = {"content": st.session_state.workspace.current_document["content"],
-                              "title":   st.session_state.workspace.current_document["title"],
-                              "word_count": new_wc}
-                    parsed = core["instruction_parser"].parse(query, snap)
-                    plan   = core["edit_planner"].plan(parsed, snap, core["conversation_manager"])
-                    render_edit_plan(plan)
-                except Exception:
-                    pass
-
-                st.session_state.chat_history.append((
-                    "assistant",
-                    f"✅ Edit complete in {ms}ms · {net:+d} words ({old_wc}→{new_wc}) · {tps} tok/s",
-                ))
-
-            elif isinstance(response, EditResult) and not response.successful:
-                msg = f"⚠️ {response.reasoning}"
-                resp_ph.warning(msg)
-                st.session_state.chat_history.append(("assistant", msg))
-
-            elif isinstance(response, str):
-                resp_ph.markdown(response)
-                st.session_state.chat_history.append(("assistant", response))
-
-        else:
-            # General / doc-generation queries with streaming
-            resp_ph  = st.empty()
-            meta_ph  = st.empty()
-            buf      = {"text": "", "tok": 0, "t0": time.time()}
-
-            def on_tok_gen(token):
-                buf["text"] += token
-                buf["tok"]  += 1
-                elapsed = max(time.time() - buf["t0"], 0.001)
-                tps = round(buf["tok"] / elapsed, 1)
-                resp_ph.markdown(buf["text"] + " ▌")
-                meta_ph.markdown(f'<div class="footnote">⚡ {tps} tok/s</div>',
-                                  unsafe_allow_html=True)
-
-            response = run_agent(query, stream_callback=on_tok_gen)
-            meta_ph.empty()
-            resp_ph.empty()
-
-            _maybe_show_artifact(response)
-
-            if isinstance(response, str):
-                st.markdown(response)
-                st.session_state.chat_history.append(("assistant", response))
-
-    st.rerun()
 
 
 # ============================================================================
@@ -2966,13 +2320,12 @@ def render_chat_interface():
 def main():
     st.set_page_config(
         page_title="MozeAI",
-        page_icon="M",
+        page_icon="🤖",
         layout="wide",
         initial_sidebar_state="expanded",
     )
 
     init_session_state()
-    apply_custom_css()
 
     # Groq client
     groq_api_key = None
@@ -2995,12 +2348,12 @@ def main():
         sh = StreamingResponseHandler(client)
         st.session_state.intelligence_core = {
             "conversation_manager": ConversationManager(),
-            "instruction_parser":   InstructionParser(client),
-            "file_accumulator":     FileContextAccumulator(client),
-            "edit_planner":         EditPlanner(client),
-            "streaming_handler":    sh,
-            "document_profiler":    DocumentProfiler(client),
-            "contextual_editor":    ContextualEditor(client, sh),
+            "instruction_parser": InstructionParser(client),
+            "file_accumulator": FileContextAccumulator(client),
+            "edit_planner": EditPlanner(client),
+            "streaming_handler": sh,
+            "document_profiler": DocumentProfiler(client),
+            "contextual_editor": ContextualEditor(client, sh),
         }
 
     render_sidebar()
@@ -3011,28 +2364,20 @@ def main():
     if has_content or has_history:
         editor_col, chat_col = st.columns([5, 6], gap="large")
         with editor_col:
-            st.markdown('<div style="padding-top:14px">', unsafe_allow_html=True)
             render_document_editor()
-            st.markdown("</div>", unsafe_allow_html=True)
         with chat_col:
-            st.markdown('<div style="padding-top:14px">', unsafe_allow_html=True)
             render_chat_interface()
-            st.markdown("</div>", unsafe_allow_html=True)
     else:
-        # Welcome / empty state
         _, centre, _ = st.columns([1, 4, 1])
         with centre:
             st.markdown("""
             <div style="text-align:center;padding:64px 0 32px">
-              <div class="welcome-icon">M</div>
-              <div style="font-size:24px;font-weight:600;color:var(--text);
-                          letter-spacing:-.4px;margin-bottom:8px;">
+              <div style="font-size:48px;margin-bottom:16px;">🤖</div>
+              <div style="font-size:24px;font-weight:600;margin-bottom:8px;">
                 How can I help you today?
               </div>
-              <div style="font-size:14px;color:var(--text-muted);
-                          max-width:400px;margin:0 auto;line-height:1.6;">
-                Write or paste a document, upload files, or ask me to create
-                a Word doc, PowerPoint, or spreadsheet — just like you would with Claude.
+              <div style="font-size:14px;color:#666;max-width:400px;margin:0 auto;">
+                Write or paste a document, upload files, or ask me to create a Word doc, PowerPoint, or spreadsheet.
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -3041,7 +2386,7 @@ def main():
                 "Write a business proposal about renewable energy",
                 "Make a PowerPoint on AI trends in 2025",
                 "Create an Excel sales tracker template",
-                "Summarise this document for executives",
+                "Make this document more professional",
             ]
             c1, c2 = st.columns(2)
             for i, sug in enumerate(suggestions):
@@ -3049,7 +2394,7 @@ def main():
                 with col:
                     if st.button(sug, use_container_width=True, key=f"sug_{i}"):
                         st.session_state.chat_history.append(("user", sug))
-                        with st.spinner(""):
+                        with st.spinner("Thinking..."):
                             response = run_agent(sug)
                         _maybe_show_artifact(response)
                         if isinstance(response, str):
