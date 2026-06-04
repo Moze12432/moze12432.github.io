@@ -214,6 +214,8 @@ class ClaudeUI:
             st.session_state.is_processing = False
         if "temperature" not in st.session_state:
             st.session_state.temperature = 0.7
+        if "sidebar_view" not in st.session_state:
+            st.session_state.sidebar_view = "Chat"
     
     def get_current_conversation(self) -> Conversation:
         for conv in st.session_state.conversations:
@@ -224,7 +226,6 @@ class ClaudeUI:
     def add_message(self, role: str, content: str):
         conv = self.get_current_conversation()
         conv.messages.append(Message(role=role, content=content))
-        conv.updated_at = time.time()
         if len(conv.messages) == 1 and role == "user":
             conv.title = content[:30] + ("..." if len(content) > 30 else "")
     
@@ -236,57 +237,67 @@ class ClaudeUI:
     
     def render_sidebar(self):
         with st.sidebar:
-            st.markdown("# 🤖 Claude Clone")
+            st.markdown("### 🤖 Claude")
             st.markdown("---")
             
-            if st.button("+ New Chat", use_container_width=True, type="primary"):
+            new_chat_clicked = st.button("+ New chat", use_container_width=True, type="primary", key="new_chat_btn")
+            if new_chat_clicked:
                 new_conv = Conversation(id=str(uuid.uuid4()), title="New Chat", messages=[], artifacts=[])
                 st.session_state.conversations.insert(0, new_conv)
                 st.session_state.current_conv_id = new_conv.id
                 st.session_state.current_document = ""
+                st.session_state.current_artifact = None
                 st.rerun()
             
             st.markdown("---")
             
-            if st.session_state.router:
-                st.caption(f"🧠 Model: {st.session_state.router.current_model}")
-            
-            with st.expander("⚙️ Settings"):
-                st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature)
-            
-            st.markdown("---")
-            st.markdown("### Recent Chats")
-            for conv in st.session_state.conversations[:10]:
+            st.markdown("#### Recent chats")
+            for i, conv in enumerate(st.session_state.conversations[:20]):
                 title = conv.title[:25] + ("..." if len(conv.title) > 25 else "")
-                if st.button(f"💬 {title}", use_container_width=True, key=f"conv_{conv.id}"):
+                btn_key = f"conv_btn_{conv.id}_{i}"
+                if st.button(f"{title}", use_container_width=True, key=btn_key):
                     st.session_state.current_conv_id = conv.id
                     st.rerun()
+            
+            st.markdown("---")
+            
+            with st.expander("Settings"):
+                st.session_state.temperature = st.slider("Temperature", 0.0, 1.0, st.session_state.temperature, key="temp_slider")
+            
+            if st.session_state.router:
+                st.caption(f"Model: {st.session_state.router.current_model}")
     
     def render_chat(self):
         conv = self.get_current_conversation()
         
+        # Display messages
         for msg in conv.messages:
-            with st.chat_message(msg.role, avatar="👤" if msg.role == "user" else "🤖"):
+            with st.chat_message(msg.role):
                 st.markdown(msg.content)
         
+        # Artifacts panel (Claude-like)
         if conv.artifacts:
-            with st.expander(f"📎 Artifacts ({len(conv.artifacts)})", expanded=False):
+            with st.expander(f"Artifacts ({len(conv.artifacts)})", expanded=False):
                 for art in conv.artifacts[-5:]:
                     col1, col2 = st.columns([3, 1])
                     with col1:
                         st.markdown(f"**{art.title}**")
+                        st.caption(f"Type: {art.type.value}")
                     with col2:
-                        if st.button("View", key=f"art_{art.id}"):
+                        if st.button("View", key=f"view_art_{art.id}"):
                             st.session_state.current_artifact = art
                             st.rerun()
         
-        uploaded = st.file_uploader("Attach file", type=['pdf', 'docx', 'txt'], label_visibility="collapsed")
-        if uploaded and uploaded.name not in [f.get("name", "") for f in st.session_state.uploaded_files]:
-            content = self.doc_processor.extract_text_from_file(uploaded)
-            st.session_state.uploaded_files.append({"name": uploaded.name, "content": content})
-            st.success(f"✅ Attached: {uploaded.name}")
+        # File attachment (Claude-like)
+        with st.expander("Attach file", expanded=False):
+            uploaded = st.file_uploader("Upload a file", type=['pdf', 'docx', 'txt'], label_visibility="collapsed", key="chat_file_uploader")
+            if uploaded:
+                content = self.doc_processor.extract_text_from_file(uploaded)
+                st.session_state.uploaded_files.append({"name": uploaded.name, "content": content})
+                st.success(f"Attached: {uploaded.name}")
         
-        prompt = st.chat_input("Message Claude...", disabled=st.session_state.is_processing)
+        # Chat input
+        prompt = st.chat_input("Ask Claude...", disabled=st.session_state.is_processing)
         if prompt:
             self.add_message("user", prompt)
             st.rerun()
@@ -299,25 +310,30 @@ class ClaudeUI:
         st.session_state.is_processing = True
         conv = self.get_current_conversation()
         
+        # Build context
         context = ""
         if st.session_state.current_document:
-            context += f"\n\nCurrent document:\n{st.session_state.current_document}\n"
+            context += f"\n\nUser is currently editing this document:\n{st.session_state.current_document}\n"
         if st.session_state.uploaded_files:
             for f in st.session_state.uploaded_files:
-                context += f"\nFile: {f['name']}\n{f['content'][:1000]}\n"
+                context += f"\nAttached file: {f['name']}\nContent preview: {f['content'][:500]}\n"
         
+        # Build messages
         messages = []
         for msg in conv.messages[-20:]:
             messages.append({"role": msg.role, "content": msg.content})
-        messages.append({"role": "user", "content": prompt + context})
         
+        full_prompt = prompt + context
+        messages.append({"role": "user", "content": full_prompt})
+        
+        # Streaming response
         response_placeholder = st.empty()
         streaming_text = ""
         
         def on_token(token):
             nonlocal streaming_text
             streaming_text += token
-            response_placeholder.markdown(streaming_text + "▌")
+            response_placeholder.markdown(streaming_text + " ▌")
         
         try:
             response = st.session_state.router.chat(
@@ -325,18 +341,27 @@ class ClaudeUI:
                 max_tokens=4000, temperature=st.session_state.temperature
             )
             response_placeholder.empty()
-            with st.chat_message("assistant", avatar="🤖"):
+            
+            # Display final response
+            with st.chat_message("assistant"):
                 st.markdown(streaming_text)
             
-            if len(streaming_text) > 800:
-                artifact = self.add_artifact(f"Response: {prompt[:30]}...", streaming_text)
-                st.info(f"📎 Saved as artifact: {artifact.title}")
+            # Create artifact for long responses
+            if len(streaming_text) > 1000:
+                artifact_title = f"Response: {prompt[:30]}..." if len(prompt) > 30 else prompt
+                artifact = self.add_artifact(artifact_title, streaming_text, ArtifactType.DOCUMENT)
+                st.info(f"✨ Saved as artifact: {artifact.title}")
             
+            # Add to conversation
             self.add_message("assistant", streaming_text)
             
-            if any(kw in prompt.lower() for kw in ["edit", "rewrite", "improve", "fix"]) and len(streaming_text) > 100:
-                st.session_state.current_document = streaming_text
-                st.success("✅ Document updated")
+            # Auto-update document if edit instruction detected
+            edit_keywords = ["edit", "rewrite", "improve", "fix", "change", "update", "modify", "revise"]
+            if any(kw in prompt.lower() for kw in edit_keywords) and len(streaming_text) > 100:
+                if streaming_text != st.session_state.current_document:
+                    st.session_state.current_document = streaming_text
+                    st.success("Document updated")
+                    
         except Exception as e:
             st.error(f"Error: {str(e)}")
         finally:
@@ -344,101 +369,154 @@ class ClaudeUI:
             st.rerun()
     
     def render_document_editor(self):
-        st.markdown("## 📄 Document Editor")
+        st.markdown("### Document Editor")
         
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            if st.button("🔍 Analyze", use_container_width=True) and st.session_state.current_document and st.session_state.router:
-                with st.spinner("Analyzing..."):
-                    analysis = self.doc_processor.analyze_document(st.session_state.current_document, st.session_state.router)
-                    self.add_message("assistant", f"**Analysis:**\n\n{analysis}")
-                    st.rerun()
-        with col2:
-            if st.button("✨ Improve", use_container_width=True) and st.session_state.current_document and st.session_state.router:
-                with st.spinner("Improving..."):
-                    improved = self.doc_processor.edit_document(
-                        st.session_state.current_document, "Improve writing quality and fix grammar", st.session_state.router
-                    )
-                    st.session_state.current_document = improved
-                    st.rerun()
-        with col3:
-            if st.button("📝 Summarize", use_container_width=True) and st.session_state.current_document and st.session_state.router:
-                with st.spinner("Summarizing..."):
-                    summary = self.doc_processor.edit_document(
-                        st.session_state.current_document, "Summarize this document concisely", st.session_state.router
-                    )
-                    self.add_message("assistant", f"**Summary:**\n\n{summary}")
-                    st.rerun()
-        with col4:
-            if st.button("🗑️ Clear", use_container_width=True):
-                st.session_state.current_document = ""
-                st.rerun()
+        # Document title
+        doc_title = st.text_input("Document Title", value="Untitled", key="doc_title", label_visibility="collapsed")
         
-        st.markdown("---")
-        content = st.text_area("Document", value=st.session_state.current_document, height=400,
-                               placeholder="Write or paste your document here...")
+        # Document content
+        content = st.text_area(
+            "Document Content",
+            value=st.session_state.current_document,
+            height=400,
+            key="doc_content",
+            placeholder="Write your document here or paste content from your conversation..."
+        )
+        
         if content != st.session_state.current_document:
             st.session_state.current_document = content
         
+        # Document stats
         if st.session_state.current_document:
             words = len(st.session_state.current_document.split())
-            st.caption(f"📊 {words} words")
-    
-    def render_code_interpreter(self):
-        st.markdown("## 💻 Code Interpreter")
-        
-        language = st.selectbox("Language", ["python", "javascript", "java", "cpp", "go", "rust", "sql", "bash"])
-        code = st.text_area("Code", height=300, placeholder=f"Paste {language} code here...")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔍 Analyze", use_container_width=True) and code and st.session_state.router:
-                with st.spinner("Analyzing..."):
-                    analysis = self.code_interpreter.analyze_code(code, language, st.session_state.router)
-                    self.add_message("assistant", f"**Code Analysis:**\n\n{analysis}")
-                    st.rerun()
-        with col2:
-            if st.button("💡 Explain", use_container_width=True) and code and st.session_state.router:
-                with st.spinner("Explaining..."):
-                    explanation = st.session_state.router.chat([
-                        {"role": "user", "content": f"Explain this {language} code line by line:\n```{language}\n{code}\n```"}
-                    ])
-                    self.add_message("assistant", f"**Explanation:**\n\n{explanation}")
-                    st.rerun()
+            chars = len(st.session_state.current_document)
+            st.caption(f"{words} words  ·  {chars} characters")
         
         st.markdown("---")
-        st.markdown("### Generate Code")
-        description = st.text_area("Describe what you want", height=100, placeholder="Example: A function to fetch data from an API")
-        if st.button("✨ Generate", type="primary", use_container_width=True) and description and st.session_state.router:
-            with st.spinner("Generating..."):
-                generated = self.code_interpreter.generate_code(description, language, st.session_state.router)
-                artifact = self.add_artifact(f"Code: {description[:30]}...", generated, ArtifactType.CODE)
-                st.code(generated, language=language)
-                st.success(f"✅ Saved as artifact: {artifact.title}")
+        st.markdown("#### Quick actions")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("✨ Improve writing", use_container_width=True, key="improve_btn"):
+                if st.session_state.current_document and st.session_state.router:
+                    with st.spinner("Improving..."):
+                        improved = self.doc_processor.edit_document(
+                            st.session_state.current_document,
+                            "Improve the writing quality, fix grammar, and enhance clarity",
+                            st.session_state.router
+                        )
+                        st.session_state.current_document = improved
+                        st.rerun()
+        
+        with col2:
+            if st.button("📝 Summarize", use_container_width=True, key="summarize_btn"):
+                if st.session_state.current_document and st.session_state.router:
+                    with st.spinner("Summarizing..."):
+                        summary = self.doc_processor.edit_document(
+                            st.session_state.current_document,
+                            "Provide a concise summary of this document",
+                            st.session_state.router
+                        )
+                        self.add_message("assistant", f"**Summary:**\n\n{summary}")
+                        st.rerun()
+        
+        with col3:
+            if st.button("🔍 Analyze", use_container_width=True, key="analyze_btn"):
+                if st.session_state.current_document and st.session_state.router:
+                    with st.spinner("Analyzing..."):
+                        analysis = self.doc_processor.analyze_document(
+                            st.session_state.current_document,
+                            st.session_state.router
+                        )
+                        self.add_message("assistant", f"**Analysis:**\n\n{analysis}")
+                        st.rerun()
+    
+    def render_code_interpreter(self):
+        st.markdown("### Code Interpreter")
+        
+        language = st.selectbox(
+            "Language",
+            ["python", "javascript", "typescript", "java", "cpp", "go", "rust", "html", "css", "sql", "bash"],
+            key="code_lang"
+        )
+        
+        code = st.text_area(
+            "Code",
+            height=300,
+            placeholder=f"Paste your {language} code here...",
+            key="code_input"
+        )
+        
+        if code:
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔍 Analyze Code", use_container_width=True, key="code_analyze_btn"):
+                    if st.session_state.router:
+                        with st.spinner("Analyzing..."):
+                            analysis = self.code_interpreter.analyze_code(code, language, st.session_state.router)
+                            self.add_message("assistant", f"**Code Analysis:**\n\n{analysis}")
+                            st.rerun()
+            
+            with col2:
+                if st.button("📖 Explain Code", use_container_width=True, key="code_explain_btn"):
+                    if st.session_state.router:
+                        with st.spinner("Explaining..."):
+                            explanation = st.session_state.router.chat([
+                                {"role": "user", "content": f"Explain this {language} code line by line:\n```{language}\n{code}\n```"}
+                            ])
+                            self.add_message("assistant", f"**Code Explanation:**\n\n{explanation}")
+                            st.rerun()
+        
+        st.markdown("---")
+        st.markdown("#### Generate Code")
+        
+        code_desc = st.text_area(
+            "Describe what you want",
+            height=100,
+            placeholder="Example: A Python function that fetches weather data from an API",
+            key="code_desc"
+        )
+        
+        if st.button("✨ Generate Code", type="primary", use_container_width=True, key="code_gen_btn"):
+            if code_desc and st.session_state.router:
+                with st.spinner("Generating..."):
+                    generated = self.code_interpreter.generate_code(code_desc, language, st.session_state.router)
+                    artifact = self.add_artifact(f"Code: {code_desc[:30]}...", generated, ArtifactType.CODE)
+                    st.code(generated, language=language)
+                    st.success(f"Saved as artifact: {artifact.title}")
     
     def render_web_research(self):
-        st.markdown("## 🔍 Web Research")
+        st.markdown("### Web Research")
         
-        query = st.text_input("Search query", placeholder="What would you like to research?")
+        query = st.text_input(
+            "Search the web",
+            placeholder="What would you like to research?",
+            key="research_query"
+        )
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔎 Quick Search", use_container_width=True) and query:
-                with st.spinner("Searching..."):
-                    results = self.web_researcher.search_web(query)
-                    self.add_message("assistant", f"**Search Results:**\n\n{results}")
-                    st.rerun()
-        with col2:
-            if st.button("📚 Deep Research", use_container_width=True, type="primary") and query and st.session_state.router:
-                with st.spinner("Researching..."):
-                    search_results = self.web_researcher.search_web(query)
-                    analysis = st.session_state.router.chat([
-                        {"role": "user", "content": f"Based on these search results about '{query}', provide a comprehensive research summary:\n\n{search_results}"}
-                    ], max_tokens=3000)
-                    artifact = self.add_artifact(f"Research: {query[:30]}...", analysis, ArtifactType.ANALYSIS)
-                    self.add_message("assistant", f"**Research Report:**\n\n{analysis}")
-                    st.success(f"✅ Saved as artifact: {artifact.title}")
-                    st.rerun()
+        if query:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("Quick Search", use_container_width=True, key="quick_search_btn"):
+                    with st.spinner("Searching..."):
+                        results = self.web_researcher.search_web(query)
+                        self.add_message("assistant", f"**Search Results:**\n\n{results}")
+                        st.rerun()
+            
+            with col2:
+                if st.button("Deep Research", type="primary", use_container_width=True, key="deep_research_btn"):
+                    if st.session_state.router:
+                        with st.spinner("Researching..."):
+                            search_results = self.web_researcher.search_web(query)
+                            analysis = st.session_state.router.chat([
+                                {"role": "user", "content": f"Based on these search results about '{query}', provide a comprehensive research summary:\n\n{search_results}"}
+                            ], max_tokens=3000)
+                            artifact = self.add_artifact(f"Research: {query[:30]}...", analysis, ArtifactType.ANALYSIS)
+                            self.add_message("assistant", f"**Research Report:**\n\n{analysis}")
+                            st.success(f"Saved as artifact: {artifact.title}")
+                            st.rerun()
     
     def render_artifact_viewer(self):
         if st.session_state.current_artifact:
@@ -448,21 +526,31 @@ class ClaudeUI:
                     st.code(art.content)
                 else:
                     st.markdown(art.content)
-                if st.button("Close", key="close_artifact"):
+                if st.button("Close", key="close_artifact_btn"):
                     st.session_state.current_artifact = None
                     st.rerun()
     
+    def render_artifact_panel(self):
+        """Render artifact panel in sidebar like Claude"""
+        conv = self.get_current_conversation()
+        if conv.artifacts:
+            with st.sidebar:
+                st.markdown("---")
+                st.markdown("### 📎 Artifacts")
+                for art in conv.artifacts[-5:]:
+                    if st.button(f"{art.title}", key=f"sidebar_art_{art.id}"):
+                        st.session_state.current_artifact = art
+                        st.rerun()
+    
     def render(self):
+        # Main layout: Sidebar + Main content
         self.render_sidebar()
         
-        tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat", "📄 Document", "💻 Code", "🔍 Research"])
+        # Main content tabs
+        tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat", "📄 Documents", "💻 Code", "🔍 Research"])
         
         with tab1:
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                self.render_chat()
-            with col2:
-                self.render_document_editor()
+            self.render_chat()
         
         with tab2:
             self.render_document_editor()
@@ -473,26 +561,84 @@ class ClaudeUI:
         with tab4:
             self.render_web_research()
         
+        self.render_artifact_panel()
         self.render_artifact_viewer()
-    
-    def apply_css(self):
-        st.markdown("""
-        <style>
-        .stChatMessage { border-radius: 12px; }
-        .stButton button { border-radius: 8px; transition: all 0.2s; }
-        .stButton button:hover { transform: translateY(-1px); }
-        </style>
-        """, unsafe_allow_html=True)
 
 # ============================================================================
 # MAIN
 # ============================================================================
 
 def main():
-    st.set_page_config(page_title="Claude Clone", page_icon="🤖", layout="wide")
+    st.set_page_config(
+        page_title="Claude - AI Assistant",
+        page_icon="🤖",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
     
+    # Apply Claude-like CSS
+    st.markdown("""
+    <style>
+    /* Main container */
+    .main {
+        background-color: #f9f9f9;
+    }
+    
+    /* Chat messages */
+    .stChatMessage {
+        background-color: transparent;
+        border-radius: 12px;
+        padding: 8px 0;
+    }
+    
+    /* User message */
+    [data-testid="stChatMessage"]:has([data-testid="stMarkdown"]:contains("user")) {
+        background-color: #f0f0f0;
+    }
+    
+    /* Assistant message */
+    [data-testid="stChatMessage"]:has([data-testid="stMarkdown"]:contains("assistant")) {
+        background-color: transparent;
+    }
+    
+    /* Buttons */
+    .stButton button {
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .stButton button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Primary button */
+    .stButton button[kind="primary"] {
+        background-color: #10a37f;
+        color: white;
+    }
+    
+    /* Text area */
+    .stTextArea textarea {
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #f7f7f8;
+        border-right: 1px solid #e0e0e0;
+    }
+    
+    /* Headers */
+    h1, h2, h3, h4 {
+        font-weight: 600;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Initialize UI
     ui = ClaudeUI()
-    ui.apply_css()
     
     # Get API key
     api_key = None
@@ -501,6 +647,7 @@ def main():
             api_key = st.secrets["GROQ_API_KEY"]
     except:
         pass
+    
     if not api_key:
         api_key = os.environ.get("GROQ_API_KEY")
     
@@ -508,11 +655,12 @@ def main():
         st.session_state.router = ClaudeRouter(api_key)
     
     if not api_key:
-        st.error("GROQ_API_KEY Required. Please set your Groq API key.")
-        key_input = st.text_input("Enter API key:", type="password")
-        if key_input:
-            st.session_state.router = ClaudeRouter(key_input)
-            st.rerun()
+        with st.sidebar:
+            st.warning("GROQ_API_KEY Required")
+            key_input = st.text_input("Enter API Key:", type="password", key="api_key_input")
+            if key_input:
+                st.session_state.router = ClaudeRouter(key_input)
+                st.rerun()
         return
     
     # Process pending messages
@@ -521,6 +669,7 @@ def main():
         if len(conv.messages) == 1 or conv.messages[-2].role != "assistant":
             ui.process_message(conv.messages[-1].content)
     
+    # Render UI
     ui.render()
 
 if __name__ == "__main__":
