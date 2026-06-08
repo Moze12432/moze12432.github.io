@@ -110,6 +110,101 @@
       padding: 0;
       box-sizing: border-box;
     }
+    /* Contact Form */
+#contact .info-card {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.contact-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 30px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  color: #1e40af;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.contact-links a:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.contact-links img {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+}
+
+#contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+#contact-form input,
+#contact-form textarea {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: #0f172a;
+  transition: border 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+#contact-form input:focus,
+#contact-form textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+  background: white;
+}
+
+#contact-form textarea {
+  height: 130px;
+  resize: vertical;
+}
+
+#contact-form button {
+  align-self: flex-start;
+  background: #3b82f6;
+  color: white;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 30px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+#contact-form button:hover {
+  background: #2563eb;
+  transform: scale(1.02);
+}
+
+#form-status {
+  font-size: 0.9rem;
+  color: #16a34a;
+}
 
     body {
       font-family: 'Inter', sans-serif;
@@ -600,35 +695,26 @@
 <section id="contact" class="fade-up">
   <h2>Contact</h2>
   <div class="info-card">
-    <a href="https://linkedin.com/in/mukiibi-moses-273121351" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a> • 
-    <a href="https://github.com/Moze12432" target="_blank"><i class="fab fa-github"></i> GitHub</a> • 
-    <a href="https://www.credly.com/users/mukiibi-moses/badges#credly" target="_blank"><i class="fas fa-certificate"></i> Credly</a>
-    <a href="https://orcid.org/0009-0009-7086-7113" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/orcid.svg" style="width:14px;height:14px;vertical-align:middle; margin:0 4px;" alt="ORCID"> ORCID</a>
-    <a href="https://www.researchgate.net/profile/Mukiibi-Moses" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/researchgate.svg" style="width:14px;height:14px;vertical-align:middle;" alt="RG"> ResearchGate</a>
-    <a href="https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/googlescholar.svg" style="width:14px;height:14px;vertical-align:middle;" alt="GS"> GoogleScholar</a>
-    <a href="https://www.webofscience.com/wos/author/record/PXB-6271-2026" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/clarivate.svg" style="width:14px;height:14px;vertical-align:middle;" alt="WoS"> Web of Science</a>
-
-    <div style="margin-top:20px;">
-      <p>I'm open to research collaborations, internships, and AI projects. Feel free to reach out.</p>
-      <h3>Send Me a Message</h3>
-      <form id="contact-form">
-        <input type="text" name="name" placeholder="Your Name" required autocomplete="name"
-        style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid #ccc;">
-        
-        <input type="email" name="email" placeholder="Your Email" required autocomplete="email"
-        style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid #ccc;">
-        
-        <textarea name="message" placeholder="Your Message" required autocomplete="on"
-        style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid #ccc; height:120px;"></textarea>
-        
-        <button type="submit"
-        style="background:#3b82f6; color:white; padding:12px 20px; border:none; border-radius:30px; cursor:pointer;">
-          Send Message
-        </button>
-
-        <p id="form-status" style="margin-top:10px;"></p>
-      </form>
+    <div class="contact-links">
+      <a href="https://linkedin.com/in/mukiibi-moses-273121351" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+      <a href="https://github.com/Moze12432" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+      <a href="https://www.credly.com/users/mukiibi-moses/badges#credly" target="_blank"><i class="fas fa-certificate"></i> Credly</a>
+      <a href="https://orcid.org/0009-0009-7086-7113" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/orcid.svg" alt="ORCID"> ORCID</a>
+      <a href="https://www.researchgate.net/profile/Mukiibi-Moses" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/researchgate.svg" alt="RG"> ResearchGate</a>
+      <a href="https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/googlescholar.svg" alt="GS"> Google Scholar</a>
+      <a href="https://www.webofscience.com/wos/author/record/PXB-6271-2026" target="_blank"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/clarivate.svg" alt="WoS"> Web of Science</a>
     </div>
+
+    <p style="color:#475569; margin-bottom:8px;">I'm open to research collaborations, internships, and AI projects. Feel free to reach out.</p>
+    <h3 style="margin-bottom:4px;">Send Me a Message</h3>
+
+    <form id="contact-form">
+      <input type="text" name="name" placeholder="Your Name" required autocomplete="name">
+      <input type="email" name="email" placeholder="Your Email" required autocomplete="email">
+      <textarea name="message" placeholder="Your Message" required></textarea>
+      <button type="submit">Send Message</button>
+      <p id="form-status"></p>
+    </form>
   </div>
 </section>
   
