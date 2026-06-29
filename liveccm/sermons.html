@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sermons · LCCM</title>
+  <meta name="description" content="Watch, listen, or download sermons from Live Christian Centre Mission. Search by series, speaker, or format." />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,700&family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css" />
+  
+  <link rel="stylesheet" href="css/variables.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header id="header">
+    <div class="nav-container">
+      <div class="logo"><img src="images/lccm-logo.png" alt="LCCM Logo" height="48" /></div>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="ministries.html">Ministries</a></li>
+        <li><a href="sermons.html" class="active">Sermons</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="gallery.html">Gallery</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="#" class="donate-btn"><i class="fas fa-heart"></i> Give</a></li>
+      </ul>
+      <div class="menu-toggle" id="menuToggle"><i class="fas fa-bars"></i></div>
+    </div>
+    <ul class="mobile-menu" id="mobileMenu">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="ministries.html">Ministries</a></li>
+      <li><a href="sermons.html">Sermons</a></li>
+      <li><a href="events.html">Events</a></li>
+      <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="contact.html">Contact</a></li>
+      <li><a href="#" class="donate-btn-mobile">Give / Donate</a></li>
+    </ul>
+  </header>
+
+  <!-- ===== PAGE HERO ===== -->
+  <section class="page-hero sermons-hero">
+    <div class="container">
+      <h1>Sermon Archive</h1>
+      <div class="search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="Search sermons by title, speaker, or series…" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FILTER BAR ===== -->
+  <div class="filter-bar">
+    <div class="container">
+      <select><option>Series</option></select>
+      <select><option>Speaker</option></select>
+      <select><option>Year</option></select>
+      <select><option>Format</option></select>
+    </div>
+  </div>
+
+  <!-- ===== FEATURED SERMON ===== -->
+  <section data-aos="fade-up">
+    <div class="container">
+      <div class="sermon-featured-full">
+        <div class="sermon-embed">
+          <i class="fas fa-play-circle"></i>
+          <span>Watch Latest Sermon</span>
+        </div>
+        <div class="sermon-meta">
+          <span class="series-badge">GRACE SERIES</span>
+          <h3>The Power of Forgiveness</h3>
+          <p>Bishop Robert James Kakande · June 28, 2026</p>
+          <div class="format-icons">
+            <span><i class="fas fa-video"></i> Video</span>
+            <span><i class="fas fa-music"></i> Audio</span>
+            <span><i class="fas fa-file-pdf"></i> PDF</span>
+          </div>
+          <a href="#" class="btn-primary">Watch Now</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SERMON GRID ===== -->
+  <section data-aos="fade-up">
+    <div class="container">
+      <div class="sermon-grid">
+        <div class="sermon-card">
+          <div class="sermon-thumb"><i class="fas fa-play-circle"></i></div>
+          <div class="sermon-card-body">
+            <span class="series-badge small">GRACE</span>
+            <h4>Freedom in Christ</h4>
+            <p>Pastor Fred Mutesa · Jun 21, 2026</p>
+            <div class="format-icons small">
+              <i class="fas fa-video"></i>
+              <i class="fas fa-music"></i>
+              <i class="fas fa-file-pdf"></i>
+            </div>
+            <a href="#" class="link-gold">Watch →</a>
+          </div>
+        </div>
+        <div class="sermon-card">
+          <div class="sermon-thumb"><i class="fas fa-play-circle"></i></div>
+          <div class="sermon-card-body">
+            <span class="series-badge small">PRAYER</span>
+            <h4>The Power of Intercession</h4>
+            <p>Pastor Dorothy Kakande · Jun 14, 2026</p>
+            <div class="format-icons small">
+              <i class="fas fa-video"></i>
+              <i class="fas fa-music"></i>
+            </div>
+            <a href="#" class="link-gold">Watch →</a>
+          </div>
+        </div>
+        <div class="sermon-card">
+          <div class="sermon-thumb"><i class="fas fa-play-circle"></i></div>
+          <div class="sermon-card-body">
+            <span class="series-badge small">FAITH</span>
+            <h4>Walking by Faith</h4>
+            <p>Bishop Robert Kakande · Jun 7, 2026</p>
+            <div class="format-icons small">
+              <i class="fas fa-video"></i>
+              <i class="fas fa-file-pdf"></i>
+            </div>
+            <a href="#" class="link-gold">Watch →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <div class="container footer-grid">
+      <div>
+        <h3>LCCM</h3>
+        <p>Live Christian Centre Mission</p>
+        <div class="social-icons">
+          <a href="#"><i class="fab fa-facebook"></i></a>
+          <a href="#"><i class="fab fa-youtube"></i></a>
+          <a href="#"><i class="fab fa-whatsapp"></i></a>
+          <a href="#"><i class="fab fa-instagram"></i></a>
+        </div>
+      </div>
+      <div>
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="ministries.html">Ministries</a></li>
+          <li><a href="sermons.html">Sermons</a></li>
+          <li><a href="events.html">Events</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="contact.html">Contact</a></li>
+          <li><a href="prayer.html">Prayer</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Service Times</h4>
+        <p><i class="fas fa-clock"></i> Sun 9:00 &amp; 11:00 AM</p>
+        <p><i class="fas fa-clock"></i> Wed 6:30 PM</p>
+        <p><i class="fas fa-clock"></i> Fri 7:00 PM</p>
+        <p style="margin-top:8px;"><i class="fas fa-map-pin"></i> Gayaza, Kabanyoro, Wakiso</p>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Live Christian Centre Mission · All rights reserved</div>
+  </footer>
+
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/menu.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

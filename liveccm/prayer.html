@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prayer Requests · LCCM</title>
+  <meta name="description" content="Submit a prayer request to Live Christian Centre Mission. We're here to pray with you." />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,700&family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css" />
+  
+  <link rel="stylesheet" href="css/variables.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header id="header">
+    <div class="nav-container">
+      <div class="logo"><img src="images/lccm-logo.png" alt="LCCM Logo" height="48" /></div>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="ministries.html">Ministries</a></li>
+        <li><a href="sermons.html">Sermons</a></li>
+        <li><a href="events.html">Events</a></li>
+        <li><a href="gallery.html">Gallery</a></li>
+        <li><a href="contact.html">Contact</a></li>
+        <li><a href="#" class="donate-btn"><i class="fas fa-heart"></i> Give</a></li>
+      </ul>
+      <div class="menu-toggle" id="menuToggle"><i class="fas fa-bars"></i></div>
+    </div>
+    <ul class="mobile-menu" id="mobileMenu">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="ministries.html">Ministries</a></li>
+      <li><a href="sermons.html">Sermons</a></li>
+      <li><a href="events.html">Events</a></li>
+      <li><a href="gallery.html">Gallery</a></li>
+      <li><a href="contact.html">Contact</a></li>
+      <li><a href="#" class="donate-btn-mobile">Give / Donate</a></li>
+    </ul>
+  </header>
+
+  <!-- ===== PAGE HERO ===== -->
+  <section class="page-hero prayer-hero">
+    <div class="container">
+      <h1>Prayer Requests</h1>
+      <p>We believe in the power of prayer. Share your request with us.</p>
+    </div>
+  </section>
+
+  <!-- ===== PRAYER FORM ===== -->
+  <section data-aos="fade-up">
+    <div class="container" style="max-width:700px;">
+      <div class="prayer-form-card">
+        <form name="prayer" method="POST" data-netlify="true" netlify-honeypot="bot-field">
+          <input type="hidden" name="form-name" value="prayer" />
+          <input type="text" name="name" placeholder="Your Name (optional)" />
+          <input type="email" name="email" placeholder="Email (optional - for follow-up)" />
+          <textarea name="request" rows="6" placeholder="Please share your prayer request..." required></textarea>
+          <label style="display:flex; align-items:center; gap:8px; margin:12px 0;">
+            <input type="checkbox" name="pray_with_me" value="yes" />
+            I would like someone to pray with me personally
+          </label>
+          <button type="submit" class="btn-primary">Submit Prayer Request</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PRAYER PROMISES ===== -->
+  <section style="background:var(--off-white);" data-aos="fade-up">
+    <div class="container">
+      <h2 class="section-title">Prayer Promises</h2>
+      <div class="prayer-promises">
+        <div class="promise-card">
+          <i class="fas fa-bible"></i>
+          <blockquote>"Do not be anxious about anything, but in every situation, by prayer and petition, present your requests to God."</blockquote>
+          <p>— Philippians 4:6</p>
+        </div>
+        <div class="promise-card">
+          <i class="fas fa-heart"></i>
+          <blockquote>"The prayer of a righteous person is powerful and effective."</blockquote>
+          <p>— James 5:16</p>
+        </div>
+        <div class="promise-card">
+          <i class="fas fa-hands-praying"></i>
+          <blockquote>"Call to me and I will answer you and tell you great and unsearchable things you do not know."</blockquote>
+          <p>— Jeremiah 33:3</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <div class="container footer-grid">
+      <div>
+        <h3>LCCM</h3>
+        <p>Live Christian Centre Mission</p>
+        <div class="social-icons">
+          <a href="#"><i class="fab fa-facebook"></i></a>
+          <a href="#"><i class="fab fa-youtube"></i></a>
+          <a href="#"><i class="fab fa-whatsapp"></i></a>
+          <a href="#"><i class="fab fa-instagram"></i></a>
+        </div>
+      </div>
+      <div>
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="ministries.html">Ministries</a></li>
+          <li><a href="sermons.html">Sermons</a></li>
+          <li><a href="events.html">Events</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="contact.html">Contact</a></li>
+          <li><a href="prayer.html">Prayer</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Service Times</h4>
+        <p><i class="fas fa-clock"></i> Sun 9:00 &amp; 11:00 AM</p>
+        <p><i class="fas fa-clock"></i> Wed 6:30 PM</p>
+        <p><i class="fas fa-clock"></i> Fri 7:00 PM</p>
+        <p style="margin-top:8px;"><i class="fas fa-map-pin"></i> Gayaza, Kabanyoro, Wakiso</p>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Live Christian Centre Mission · All rights reserved</div>
+  </footer>
+
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/menu.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
