@@ -1,12 +1,15 @@
+/* NOTE: Primary blue (#1E90FF) matches liveccm.org exactly. All other
+   tokens — gold accent, neutrals, glass, shadow — are back to the
+   original theme values. */
 :root {
-  --primary: #2D1B69;
-  --primary-light: #4A2F9A;
+  --primary: #1E90FF;
+  --primary-light: #4DA6FF;
   --gold: #D4A843;
   --gold-light: #F0C96B;
   --white: #FFFFFF;
   --off-white: #F8F7FF;
   --text-dark: #1A1A2E;
-  --text-muted: #6B7280;
+  --text-muted: #6B7280;a
   --glass-bg: rgba(255, 255, 255, 0.12);
   --glass-border: rgba(255, 255, 255, 0.25);
   --shadow-lg: 0 25px 50px rgba(0,0,0,0.15);
