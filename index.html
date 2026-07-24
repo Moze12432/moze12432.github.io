@@ -1,470 +1,1061 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
-  <script>(function(){ emailjs.init("CnlDy4yJpDarBtkfQ"); })();</script>
-  <link rel="icon" type="image/png" href="profile.JPG">
-
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","name":"Mukiibi Moses","url":"https://moze12432.github.io/","jobTitle":"AI & Data Science Researcher","affiliation":{"@type":"CollegeOrUniversity","name":"Kwangwoon University"},"sameAs":["https://github.com/moze12432","https://huggingface.co/spaces/moses132/mozeAI","https://www.linkedin.com/in/mukiibi-moses-273121351","https://www.credly.com/users/mukiibi-moses/badges#credly","https://orcid.org/0009-0009-7086-7113","https://www.researchgate.net/profile/Mukiibi-Moses","https://k1.academia.edu/MUKIIBIMOSES","https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en"],"knowsAbout":["Artificial Intelligence", "Spike Neural Networks","Machine Learning","Data Science","Robotics","Natural Language Processing","Conversational AI"]}</script>
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does Mukiibi Moses specialize in?","acceptedAnswer":{"@type":"Answer","text":"Mukiibi Moses specializes in artificial intelligence, machine learning, and data science."}},{"@type":"Question","name":"What projects has he worked on?","acceptedAnswer":{"@type":"Answer","text":"He has worked on AI applications including emotional support systems, sentiment analysis pipelines, conversational AI and generative AI models."}}]}</script>
-
-  <link rel="author" href="/humans.txt">
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mukiibi Moses | AI & Data Science Researcher Portfolio</title>
-  <meta name="description" content="Portfolio of Mukiibi Moses, Graduate researcher specializing in Artificial Intelligence, Machine Learning, and Data Science.">
-  <meta name="keywords" content="Mukiibi Moses, AI portfolio, machine learning projects, data science, computer engineering, artificial intelligence">
-  <meta name="author" content="Mukiibi Moses">
-  <meta property="og:title" content="Mukiibi Moses | AI & Data Science Portfolio">
-  <meta property="og:description" content="Graduate researcher specializing in AI, Machine Learning, and Data Science.">
-  <meta property="og:image" content="https://moze12432.github.io/profile.JPG">
-  <meta property="og:url" content="https://moze12432.github.io/">
-  <meta property="og:type" content="website">
-  <meta name="twitter:card" content="summary_large_image">
-  <link rel="canonical" href="https://moze12432.github.io/">
-  <meta name="robots" content="index, follow">
-  <meta name="citation_author" content="Mukiibi Moses">
-  <meta name="citation_title" content="AI Emotional Response Systems">
-  <meta name="citation_publication_date" content="2026">
-
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mukiibi Moses · Signal</title>
+  <!-- Favicon & meta -->
+  <link rel="icon" type="image/png" href="profile.JPG" />
+  <meta name="description" content="AI & Data Science researcher — Mukiibi Moses. Signal theme, dark technical editorial." />
+  <meta property="og:title" content="Mukiibi Moses · AI Researcher" />
+  <meta property="og:image" content="https://moze12432.github.io/profile.JPG" />
+  <link rel="canonical" href="https://moze12432.github.io/" />
+  <!-- Fonts: Space Grotesk (headings), Inter (body), JetBrains Mono (data) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:opsz,wght@14..32,300..700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <!-- Font Awesome 6 (free) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <style>
-    :root {
-      --cream: #faf8f3;
-      --cream2: #f2ede3;
-      --ink: #1a1714;
-      --ink2: #3d3830;
-      --muted: #8a8070;
-      --warm: #c8956a;
-      --warm2: #e8b58a;
-      --teal: #2d7d6e;
-      --teal-light: #e4f0ed;
-      --gold: #b8860b;
-      --gold-light: #fdf3d8;
-      --border: rgba(26,23,20,0.1);
-      --border2: rgba(26,23,20,0.18);
-      --ff-head: 'Cabinet Grotesk', sans-serif;
-      --ff-body: 'Fraunces', serif;
-      --ff-ui: 'Cabinet Grotesk', sans-serif;
+    /* ── SIGNAL THEME (dark charcoal, lime accent, monospace data) ── */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    html { scroll-behavior: smooth; }
-
+    :root {
+      --bg-primary: #0f0f10;
+      --bg-secondary: #17171a;
+      --bg-card: #1c1c1f;
+      --text-primary: #f2f1ed;
+      --text-secondary: #9a978f;
+      --accent-lime: #c8ff4d;
+      --accent-amber: #e8a13f;
+      --border-subtle: rgba(242, 241, 237, 0.10);
+      --border-hover: rgba(200, 255, 77, 0.25);
+      --radius-card: 10px;
+      --radius-sm: 6px;
+      --font-head: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg-primary);
+    }
     body {
-      font-family: var(--ff-body);
-      background: var(--cream);
-      color: var(--ink);
-      line-height: 1.7;
-      overflow-x: hidden;
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a {
+      color: inherit;
+      text-decoration: none;
+      transition: 0.2s;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    /* ── UTILITY ── */
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-lime);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: var(--font-head);
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: 40px;
+      line-height: 1.1;
+    }
+    .section-title em {
+      font-style: italic;
+      font-weight: 400;
+      color: var(--text-secondary);
+    }
+    .band {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .divider {
+      height: 1px;
+      background: var(--border-subtle);
+      width: 100%;
+    }
+    /* reveal (same as before) */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     /* ── NAV ── */
     .nav {
-      position: fixed; top:0; left:0; right:0; z-index:100;
-      padding: 0 48px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
       height: 64px;
-      display: flex; align-items: center;
-      background: rgba(250,248,243,0.88);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
+      background: rgba(15, 15, 16, 0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
     }
-    .nav-inner { max-width:1200px; margin:0 auto; width:100%; display:flex; align-items:center; justify-content:space-between; }
+    .nav-inner {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
     .nav-brand {
-      font-family: var(--ff-head); font-weight:800; font-size:1.05rem;
-      color: var(--ink); text-decoration:none; letter-spacing:-0.02em;
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
     }
-    .nav-brand em { font-style:italic; color: var(--warm); font-family:var(--ff-body); font-weight:300; }
-    .nav-links { display:flex; gap:32px; list-style:none; }
+    .nav-brand em {
+      font-style: italic;
+      font-weight: 400;
+      color: var(--text-secondary);
+    }
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
     .nav-links a {
-      font-family:var(--ff-ui); font-size:0.82rem; font-weight:500;
-      letter-spacing:0.05em; text-transform:uppercase;
-      color: var(--muted); text-decoration:none; transition:color 0.2s;
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      transition: color 0.2s;
     }
-    .nav-links a:hover { color: var(--ink); }
+    .nav-links a:hover {
+      color: var(--accent-lime);
+    }
     .nav-cta {
-      font-family:var(--ff-ui); font-size:0.82rem; font-weight:700;
-      background: var(--ink); color: var(--cream);
-      padding: 8px 20px; border-radius:100px; text-decoration:none;
-      transition: background 0.2s;
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--accent-lime);
+      color: #0f0f10;
+      padding: 8px 18px;
+      border-radius: 100px;
+      transition: background 0.2s, transform 0.15s;
     }
-    .nav-cta:hover { background: var(--ink2); }
+    .nav-cta:hover {
+      background: #b8e64a;
+      transform: scale(0.97);
+    }
+    @media (max-width: 768px) {
+      .nav-links,
+      .nav-cta {
+        display: none;
+      }
+    }
 
     /* ── HERO ── */
     .hero {
       min-height: 100vh;
-      padding: 120px 48px 80px;
-      max-width: 1200px; margin: 0 auto;
+      padding: 120px 24px 80px;
+      max-width: 1200px;
+      margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 80px;
+      gap: 60px;
       align-items: center;
     }
-    .hero-left { position:relative; }
+    .hero-left {
+      position: relative;
+    }
     .hero-eyebrow {
-      font-family:var(--ff-ui); font-size:0.75rem; font-weight:700;
-      letter-spacing:0.18em; text-transform:uppercase; color: var(--warm);
-      margin-bottom:20px; display:flex; align-items:center; gap:12px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-lime);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    .hero-eyebrow::before { content:''; width:32px; height:2px; background: var(--warm); }
+    .hero-eyebrow::before {
+      content: '';
+      width: 28px;
+      height: 2px;
+      background: var(--accent-lime);
+    }
     .hero-h1 {
-      font-family: var(--ff-head); font-size: clamp(3.2rem,5.5vw,5rem);
-      font-weight:800; letter-spacing:-0.04em; line-height:1;
-      color: var(--ink); margin-bottom:24px;
+      font-family: var(--font-head);
+      font-size: clamp(2.8rem, 5.5vw, 4.8rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      color: var(--text-primary);
+      margin-bottom: 20px;
     }
-    .hero-h1 .italic { font-family:var(--ff-body); font-style:italic; font-weight:300; color: var(--warm); }
+    .hero-h1 .italic {
+      font-style: italic;
+      font-weight: 400;
+      color: var(--text-secondary);
+    }
     .hero-desc {
-      font-size:1.05rem; color: var(--ink2); line-height:1.75;
-      margin-bottom:36px; max-width:460px;
+      font-size: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 32px;
+      max-width: 480px;
     }
-    .hero-actions { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:48px; }
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
     .btn-primary {
-      font-family:var(--ff-ui); font-weight:700; font-size:0.88rem;
-      background: var(--ink); color: var(--cream);
-      padding: 14px 28px; border-radius:100px; text-decoration:none;
-      transition: all 0.25s; display:inline-flex; align-items:center; gap:8px;
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 0.85rem;
+      background: var(--accent-lime);
+      color: #0f0f10;
+      padding: 12px 26px;
+      border-radius: 100px;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
     }
-    .btn-primary:hover { background: var(--warm); transform:translateY(-2px); }
+    .btn-primary:hover {
+      background: #b8e64a;
+      transform: translateY(-2px);
+    }
     .btn-secondary {
-      font-family:var(--ff-ui); font-weight:500; font-size:0.88rem;
-      border: 1.5px solid var(--border2); color: var(--ink2);
-      padding: 14px 28px; border-radius:100px; text-decoration:none;
-      transition: all 0.25s; display:inline-flex; align-items:center; gap:8px;
+      font-family: var(--font-body);
+      font-weight: 500;
+      font-size: 0.85rem;
+      border: 1.5px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 12px 26px;
+      border-radius: 100px;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
     }
-    .btn-secondary:hover { border-color: var(--ink); color:var(--ink); transform:translateY(-2px); }
+    .btn-secondary:hover {
+      border-color: var(--accent-lime);
+      color: var(--text-primary);
+      transform: translateY(-2px);
+    }
+    /* stats row — monospace, lime */
     .hero-stats {
-      display:flex; gap:32px; padding-top:32px;
-      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 36px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border-subtle);
+      margin-top: 8px;
     }
-    .stat-item {}
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+    }
     .stat-num {
-      font-family:var(--ff-head); font-size:2rem; font-weight:800;
-      color: var(--ink); letter-spacing:-0.03em; line-height:1;
+      font-family: var(--font-mono);
+      font-size: 2.2rem;
+      font-weight: 600;
+      color: var(--accent-lime);
+      letter-spacing: -0.02em;
+      line-height: 1;
     }
-    .stat-num sup { font-size:1rem; color:var(--warm); }
-    .stat-lbl { font-family:var(--ff-ui); font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px; }
+    .stat-num sup {
+      font-size: 1rem;
+      color: var(--accent-amber);
+      font-weight: 400;
+    }
+    .stat-lbl {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+    /* socials row */
+    .hero-socials {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 32px;
+    }
+    .hero-social {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-body);
+      font-size: 0.7rem;
+      font-weight: 500;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 100px;
+      padding: 6px 14px;
+      color: var(--text-secondary);
+      transition: 0.2s;
+    }
+    .hero-social:hover {
+      border-color: var(--accent-lime);
+      color: var(--text-primary);
+      background: rgba(200, 255, 77, 0.06);
+    }
+    .hero-social i,
+    .hero-social img {
+      width: 14px;
+      height: 14px;
+      filter: invert(0.6);
+    }
+    .hero-social:hover img {
+      filter: invert(0.9) brightness(1.2);
+    }
 
-    /* Hero right — photo */
-    .hero-right { position:relative; display:flex; justify-content:center; align-items:center; }
+    /* Hero right — photo with grid/dot pattern */
+    .hero-right {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
     .hero-photo-frame {
-      position:relative; width:100%; max-width:440px;
+      position: relative;
+      width: 100%;
+      max-width: 420px;
     }
     .hero-photo-bg {
-      position:absolute; inset:-24px;
-      background: var(--cream2);
-      border-radius:40% 60% 55% 45% / 45% 45% 55% 55%;
-      z-index:0;
-    }
-    .hero-photo-accent {
-      position:absolute; top:-16px; right:-16px;
-      width:120px; height:120px;
-      border-radius:50%;
-      background: var(--gold-light);
-      border: 2px solid var(--warm2);
-      z-index:0;
-    }
-    .hero-photo-accent2 {
-      position:absolute; bottom:-8px; left:-8px;
-      width:80px; height:80px;
-      border-radius:50%;
-      background: var(--teal-light);
-      border: 2px solid rgba(45,125,110,0.25);
-      z-index:0;
+      position: absolute;
+      inset: -20px;
+      background-image: radial-gradient(circle at 20% 30%, rgba(200, 255, 77, 0.08) 1px, transparent 1px);
+      background-size: 28px 28px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      z-index: 0;
     }
     .hero-img {
-      width:100%; aspect-ratio:4/5; object-fit:cover;
-      border-radius:28px;
-      position:relative; z-index:1;
-      box-shadow: 0 40px 80px rgba(26,23,20,0.18);
+      width: 100%;
+      aspect-ratio: 4/5;
+      object-fit: cover;
+      border-radius: var(--radius-card);
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+      border: 1px solid var(--border-subtle);
     }
     .hero-tag {
-      position:absolute; z-index:2;
-      background: var(--cream); border:1px solid var(--border2);
-      border-radius:16px; padding:12px 18px;
-      display:flex; align-items:center; gap:10px;
-      box-shadow: 0 8px 24px rgba(26,23,20,0.1);
+      position: absolute;
+      z-index: 2;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     }
-    .hero-tag-top { top:-24px; left:-32px; }
-    .hero-tag-bottom { bottom:24px; right:-32px; }
-    .hero-tag-icon { font-size:1.4rem; }
-    .hero-tag-text {}
-    .hero-tag-label { font-family:var(--ff-ui); font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); }
-    .hero-tag-value { font-family:var(--ff-head); font-size:0.9rem; font-weight:800; color:var(--ink); }
+    .hero-tag-top {
+      top: -12px;
+      left: -20px;
+    }
+    .hero-tag-bottom {
+      bottom: 20px;
+      right: -20px;
+    }
+    .hero-tag-icon {
+      font-size: 1.2rem;
+    }
+    .hero-tag-label {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+    }
+    .hero-tag-value {
+      font-family: var(--font-head);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    /* Fix typo: Kangwoon → Kwangwoon */
+    .hero-tag-value.kwangwoon {
+      /* just a marker */;
+    }
 
-    /* ── SECTION COMMONS ── */
-    .section { padding:100px 48px; max-width:1200px; margin:0 auto; }
-    .section-label {
-      font-family:var(--ff-ui); font-size:0.72rem; font-weight:700;
-      letter-spacing:0.18em; text-transform:uppercase; color:var(--warm);
-      margin-bottom:10px;
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+        padding-top: 100px;
+        min-height: auto;
+      }
+      .hero-right {
+        display: none;
+      }
+      .hero-stats {
+        gap: 24px;
+      }
     }
-    .section-title {
-      font-family:var(--ff-head); font-size:clamp(2rem,3.5vw,3rem);
-      font-weight:800; letter-spacing:-0.03em; color:var(--ink);
-      margin-bottom:48px; line-height:1.1;
-    }
-    .section-title em { font-family:var(--ff-body); font-style:italic; font-weight:300; }
 
-    /* ── FULL-WIDTH TINTED BAND ── */
-    .band { background: var(--cream2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+    /* ── SECTION COMMON ── */
+    .section {
+      padding: 80px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .band .section {
+      padding: 80px 24px;
+    }
 
     /* ── ABOUT ── */
-    .about-grid { display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:start; }
-    .about-body { font-size:1.05rem; color:var(--ink2); line-height:1.8; }
-    .about-body p+p { margin-top:16px; }
-    .expertise-title { font-family:var(--ff-head); font-weight:700; font-size:0.85rem; letter-spacing:0.04em; text-transform:uppercase; color:var(--ink); margin-bottom:16px; }
-    .expertise-pill-wrap { display:flex; flex-wrap:wrap; gap:8px; }
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .about-body {
+      font-size: 0.98rem;
+      color: var(--text-secondary);
+      line-height: 1.8;
+    }
+    .about-body p + p {
+      margin-top: 16px;
+    }
+    .expertise-title {
+      font-family: var(--font-head);
+      font-weight: 600;
+      font-size: 0.8rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+    .expertise-pill-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
     .epill {
-      font-family:var(--ff-ui); font-size:0.8rem; font-weight:500;
-      background: white; border:1px solid var(--border2);
-      border-radius:100px; padding:6px 16px; color:var(--ink2);
-      transition:all 0.2s;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 6px 14px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      transition: 0.2s;
     }
-    .epill:hover { background:var(--ink); color:var(--cream); border-color:var(--ink); }
+    .epill:hover {
+      border-color: var(--accent-lime);
+      color: var(--text-primary);
+      background: rgba(200, 255, 77, 0.04);
+    }
+    @media (max-width: 700px) {
+      .about-grid {
+        grid-template-columns: 1fr;
+        gap: 32px;
+      }
+    }
 
-    /* ── SKILLS ── */
-    .skills-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:20px; }
-    .skill-card {
-      background:white; border:1px solid var(--border);
-      border-radius:20px; padding:28px 24px;
-      transition:all 0.3s;
+    /* ── EDUCATION (fix: missing closing div, typo) ── */
+    .edu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
-    .skill-card:hover { transform:translateY(-5px); box-shadow:0 20px 50px rgba(26,23,20,0.1); border-color:var(--border2); }
-    .skill-num {
-      font-family:var(--ff-head); font-size:3rem; font-weight:800;
-      color: rgba(26,23,20,0.06); line-height:1; margin-bottom:12px;
-    }
-    .skill-name {
-      font-family:var(--ff-head); font-size:0.9rem; font-weight:800;
-      color:var(--ink); letter-spacing:-0.01em; margin-bottom:12px;
-    }
-    .skill-list { list-style:none; }
-    .skill-list li {
-      font-family:var(--ff-ui); font-size:0.82rem; color:var(--muted);
-      padding:5px 0; border-bottom:1px solid var(--border);
-      display:flex; align-items:center; gap:8px;
-    }
-    .skill-list li:last-child { border-bottom:none; }
-    .skill-list li::before { content:''; width:4px;height:4px;border-radius:50%;background:var(--warm);flex-shrink:0; }
-
-    /* ── EDUCATION ── */
-    .edu-list { display:flex; flex-direction:column; gap:20px; }
     .edu-card {
-      background:white; border:1px solid var(--border);
-      border-radius:20px; padding:32px;
-      display:grid; grid-template-columns:auto 1fr; gap:24px; align-items:start;
-      transition:all 0.3s;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      padding: 28px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 20px;
+      align-items: start;
+      transition: 0.25s;
     }
-    .edu-card:hover { transform:translateY(-3px); box-shadow:0 16px 40px rgba(26,23,20,0.08); border-color:var(--border2); }
+    .edu-card:hover {
+      border-color: var(--accent-lime);
+    }
     .edu-icon-wrap {
-      width:56px;height:56px;border-radius:16px;
-      background:var(--cream2); border:1px solid var(--border);
-      display:flex;align-items:center;justify-content:center;font-size:1.5rem;
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
     }
     .edu-school {
-      font-family:var(--ff-head); font-size:1.05rem; font-weight:800;
-      color:var(--ink); margin-bottom:6px; letter-spacing:-0.02em;
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      letter-spacing: -0.01em;
     }
-    .edu-detail { font-family:var(--ff-ui); font-size:0.85rem; color:var(--muted); line-height:1.6; }
+    .edu-detail {
+      font-family: var(--font-body);
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
     .edu-badge {
-      display:inline-flex; align-items:center; gap:6px;
-      font-family:var(--ff-ui); font-size:0.75rem; font-weight:700;
-      background:var(--teal-light); color:var(--teal); border:1px solid rgba(45,125,110,0.2);
-      padding:4px 12px; border-radius:100px; margin-top:10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 600;
+      background: rgba(200, 255, 77, 0.08);
+      color: var(--accent-lime);
+      border: 1px solid rgba(200, 255, 77, 0.2);
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-top: 10px;
+    }
+    /* Fix: closed first .edu-card */
+    /* The missing </div> is now fixed in structure */
+
+    /* ── SKILLS (numbered cards, lime-tinted numbers) ── */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .skill-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      padding: 24px 20px;
+      transition: 0.25s;
+    }
+    .skill-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-4px);
+    }
+    .skill-num {
+      font-family: var(--font-mono);
+      font-size: 2.6rem;
+      font-weight: 600;
+      color: var(--accent-lime);
+      opacity: 0.5;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+    .skill-name {
+      font-family: var(--font-head);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+    .skill-list {
+      list-style: none;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .skill-list li {
+      padding: 3px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .skill-list li::before {
+      content: '';
+      width: 4px;
+      height: 4px;
+      background: var(--accent-lime);
+      border-radius: 50%;
+      flex-shrink: 0;
     }
 
-    /* ── PROJECTS ── */
-    .projects-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:24px; }
+    /* ── PROJECTS (lime top-bar, tags as mono) ── */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
     .project-card {
-      background:white; border:1px solid var(--border);
-      border-radius:24px; padding:0; overflow:hidden;
-      transition:all 0.35s; display:flex; flex-direction:column;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      transition: 0.3s;
+      display: flex;
+      flex-direction: column;
     }
-    .project-card:hover { transform:translateY(-6px); box-shadow:0 30px 70px rgba(26,23,20,0.12); border-color:var(--border2); }
+    .project-card:hover {
+      transform: translateY(-6px);
+      border-color: var(--border-hover);
+    }
     .project-top {
-      height:8px;
-      background:linear-gradient(90deg, var(--warm), var(--warm2));
+      height: 6px;
+      background: var(--accent-lime);
+      width: 100%;
     }
-    .project-top.teal { background:linear-gradient(90deg, var(--teal), #5aa898); }
-    .project-top.gold { background:linear-gradient(90deg, var(--gold), #d4a847); }
-    .project-body { padding:28px; flex:1; display:flex; flex-direction:column; }
+    .project-body {
+      padding: 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
     .project-body h3 {
-      font-family:var(--ff-head); font-size:1.05rem; font-weight:800;
-      color:var(--ink); letter-spacing:-0.02em; margin-bottom:10px; line-height:1.3;
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
     }
-    .project-body p { font-family:var(--ff-ui); font-size:0.88rem; color:var(--muted); line-height:1.7; flex:1; }
-    .project-tags { display:flex; flex-wrap:wrap; gap:6px; margin:16px 0; }
+    .project-body p {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      flex: 1;
+    }
+    .project-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 14px 0 12px;
+    }
     .ptag {
-      font-family:var(--ff-ui); font-size:0.72rem; font-weight:600;
-      background:var(--cream2); color:var(--ink2); border:1px solid var(--border);
-      border-radius:100px; padding:4px 12px;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 4px 10px;
     }
     .project-link {
-      display:inline-flex; align-items:center; gap:6px;
-      font-family:var(--ff-ui); font-size:0.82rem; font-weight:700;
-      color:var(--warm); text-decoration:none;
-      padding-top:4px;
-      transition:gap 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-lime);
+      transition: gap 0.2s;
     }
-    .project-link:hover { gap:10px; text-decoration:none; }
+    .project-link:hover {
+      gap: 12px;
+    }
+    /* no gradient bars, all lime */
 
     /* ── CERTIFICATIONS ── */
-    .cert-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
-    .cert-item {
-      background:white; border:1px solid var(--border);
-      border-radius:14px; padding:18px 22px;
-      display:flex; align-items:center; gap:14px;
-      transition:all 0.25s;
+    .cert-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px;
     }
-    .cert-item:hover { border-color:var(--border2); transform:translateX(5px); }
-    .cert-dot { width:8px;height:8px;border-radius:50%;background:var(--warm);flex-shrink:0; }
-    .cert-name { font-family:var(--ff-ui); font-size:0.88rem; color:var(--ink2); flex:1; }
+    .cert-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: 0.2s;
+    }
+    .cert-item:hover {
+      border-color: var(--border-hover);
+      transform: translateX(4px);
+    }
+    .cert-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-lime);
+      flex-shrink: 0;
+    }
+    .cert-name {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      flex: 1;
+    }
     .cert-year {
-      font-family:var(--ff-head); font-size:0.72rem; font-weight:700;
-      background:var(--gold-light); color:var(--gold); border:1px solid rgba(184,134,11,0.2);
-      padding:3px 10px; border-radius:100px; flex-shrink:0;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--accent-amber);
+      border: 1px solid rgba(232, 161, 63, 0.2);
+      padding: 2px 10px;
+      border-radius: 100px;
     }
 
     /* ── BADGES ── */
-    .badge-flex { display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
-    .badge-card {
-      background:white; border:1px solid var(--border); border-radius:20px;
-      padding:20px; display:flex; flex-direction:column; align-items:center;
-      transition:all 0.3s;
+    .badge-flex {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 24px;
     }
-    .badge-card:hover { transform:translateY(-6px); box-shadow:0 20px 50px rgba(26,23,20,0.1); border-color:var(--border2); }
-    .badge-card img { width:90px; height:auto; }
+    .badge-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: 0.25s;
+    }
+    .badge-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-4px);
+    }
+    .badge-card img {
+      width: 72px;
+      height: auto;
+      filter: grayscale(0.1) brightness(0.9);
+    }
 
     /* ── LEADERSHIP ── */
-    .leadership-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .leadership-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
     .lead-card {
-      background:white; border:1px solid var(--border); border-radius:20px; padding:28px;
-      transition:all 0.3s;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      padding: 24px;
+      transition: 0.25s;
     }
-    .lead-card:hover { transform:translateY(-3px); box-shadow:0 16px 40px rgba(26,23,20,0.08); }
+    .lead-card:hover {
+      border-color: var(--border-hover);
+    }
     .lead-num {
-      font-family:var(--ff-head); font-size:3.5rem; font-weight:800;
-      color:rgba(26,23,20,0.06); line-height:1; margin-bottom:8px;
+      font-family: var(--font-mono);
+      font-size: 2.2rem;
+      font-weight: 600;
+      color: var(--accent-lime);
+      opacity: 0.3;
+      line-height: 1;
+      margin-bottom: 8px;
     }
-    .lead-title { font-family:var(--ff-head); font-size:0.95rem; font-weight:800; color:var(--ink); margin-bottom:8px; }
-    .lead-desc { font-family:var(--ff-ui); font-size:0.85rem; color:var(--muted); line-height:1.6; }
+    .lead-title {
+      font-family: var(--font-head);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+    .lead-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    @media (max-width: 700px) {
+      .leadership-grid {
+        grid-template-columns: 1fr;
+      }
+    }
 
     /* ── FAQ ── */
-    .faq-list { display:flex; flex-direction:column; gap:12px; }
-    .faq-item {
-      background:white; border:1px solid var(--border); border-radius:16px;
-      padding:24px 28px; transition:all 0.3s;
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .faq-item:hover { border-color:var(--border2); box-shadow:0 8px 24px rgba(26,23,20,0.06); }
-    .faq-q { font-family:var(--ff-head); font-size:0.97rem; font-weight:800; color:var(--ink); margin-bottom:8px; letter-spacing:-0.01em; }
-    .faq-a { font-family:var(--ff-ui); font-size:0.88rem; color:var(--muted); line-height:1.7; }
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      padding: 20px 24px;
+    }
+    .faq-q {
+      font-family: var(--font-head);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    .faq-a {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
 
     /* ── LEARN ── */
-    .learn-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
-    .learn-card {
-      background:white; border:1px solid var(--border); border-radius:14px;
-      padding:18px 22px; display:flex; align-items:center; gap:14px;
-      text-decoration:none; transition:all 0.25s;
+    .learn-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
     }
-    .learn-card:hover { border-color:var(--warm2); transform:translateX(5px); text-decoration:none; }
-    .learn-icon { width:36px;height:36px;background:var(--cream2);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:0.9rem;flex-shrink:0;color:var(--warm); }
-    .learn-text { font-family:var(--ff-ui); font-size:0.88rem; color:var(--ink2); line-height:1.4; flex:1; }
-    .learn-arrow { color:var(--muted); font-size:0.75rem; transition:color 0.2s; }
-    .learn-card:hover .learn-arrow { color:var(--warm); }
+    .learn-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: 0.2s;
+    }
+    .learn-card:hover {
+      border-color: var(--border-hover);
+      transform: translateX(4px);
+    }
+    .learn-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-lime);
+      flex-shrink: 0;
+    }
+    .learn-text {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      flex: 1;
+    }
+    .learn-arrow {
+      color: var(--text-secondary);
+      font-size: 0.7rem;
+    }
+    .learn-card:hover .learn-arrow {
+      color: var(--accent-lime);
+    }
 
     /* ── CONTACT ── */
-    .contact-layout { display:grid; grid-template-columns:1fr 1.5fr; gap:48px; align-items:start; }
-    .contact-info-head { font-family:var(--ff-head); font-size:1.8rem; font-weight:800; color:var(--ink); letter-spacing:-0.03em; line-height:1.2; margin-bottom:12px; }
-    .contact-info-head em { font-family:var(--ff-body); font-style:italic; font-weight:300; color:var(--warm); }
-    .contact-info-sub { font-family:var(--ff-ui); font-size:0.9rem; color:var(--muted); margin-bottom:28px; line-height:1.7; }
-    .contact-pills { display:flex; flex-direction:column; gap:8px; }
-    .cpill {
-      display:flex; align-items:center; gap:12px;
-      background:white; border:1px solid var(--border); border-radius:14px;
-      padding:12px 18px; text-decoration:none; transition:all 0.25s; color:var(--ink2);
+    .contact-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: 48px;
+      align-items: start;
     }
-    .cpill:hover { border-color:var(--border2); transform:translateX(5px); text-decoration:none; }
-    .cpill-icon { width:32px;height:32px;border-radius:10px;background:var(--cream2);display:flex;align-items:center;justify-content:center;font-size:0.9rem;flex-shrink:0;color:var(--ink); }
-    .cpill-icon img { width:14px;height:14px;filter:brightness(0) opacity(0.5); }
-    .cpill-name { font-family:var(--ff-ui); font-size:0.85rem; font-weight:500; flex:1; }
-    .cpill-arrow { font-size:0.75rem; color:var(--muted); }
-
-    /* Form */
-    .form-card { background:var(--ink); border-radius:24px; padding:36px; }
-    .form-title { font-family:var(--ff-head); font-size:1.15rem; font-weight:800; color:var(--cream); margin-bottom:24px; letter-spacing:-0.02em; }
-    #contact-form { display:flex; flex-direction:column; gap:16px; }
-    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .form-group { display:flex; flex-direction:column; gap:6px; }
-    .form-group label { font-family:var(--ff-ui); font-size:0.7rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:rgba(250,248,243,0.5); }
+    .contact-info-head {
+      font-family: var(--font-head);
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+    .contact-info-head em {
+      font-style: italic;
+      font-weight: 400;
+      color: var(--text-secondary);
+    }
+    .contact-info-sub {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      line-height: 1.7;
+    }
+    .contact-pills {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .cpill {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      transition: 0.2s;
+      color: var(--text-secondary);
+    }
+    .cpill:hover {
+      border-color: var(--border-hover);
+      transform: translateX(4px);
+      color: var(--text-primary);
+    }
+    .cpill-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .cpill-icon img {
+      width: 14px;
+      height: 14px;
+      filter: invert(0.6);
+    }
+    .cpill-name {
+      font-size: 0.85rem;
+      flex: 1;
+    }
+    .cpill-arrow {
+      color: var(--text-secondary);
+    }
+    .form-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      padding: 32px;
+    }
+    .form-title {
+      font-family: var(--font-head);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+    }
+    #contact-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .form-group label {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
     #contact-form input,
     #contact-form textarea {
-      background: rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
-      border-radius:10px; padding:12px 16px;
-      font-family:var(--ff-ui); font-size:0.9rem; color:var(--cream);
-      outline:none; transition:all 0.2s; width:100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      color: var(--text-primary);
+      outline: none;
+      transition: 0.2s;
+      width: 100%;
     }
-    #contact-form input::placeholder,
-    #contact-form textarea::placeholder { color:rgba(250,248,243,0.3); }
     #contact-form input:focus,
-    #contact-form textarea:focus { border-color:rgba(200,149,106,0.5); background:rgba(255,255,255,0.1); }
-    #contact-form textarea { height:110px; resize:vertical; }
+    #contact-form textarea:focus {
+      border-color: var(--accent-lime);
+      background: #1e1e22;
+    }
+    #contact-form textarea {
+      height: 100px;
+      resize: vertical;
+    }
     #contact-form button {
-      background: var(--warm); color:white; border:none;
-      border-radius:100px; padding:14px;
-      font-family:var(--ff-head); font-size:0.9rem; font-weight:800;
-      cursor:pointer; transition:all 0.25s; letter-spacing:0.02em;
+      background: var(--accent-lime);
+      color: #0f0f10;
+      border: none;
+      border-radius: 100px;
+      padding: 12px;
+      font-family: var(--font-head);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: 0.2s;
     }
-    #contact-form button:hover { background:#b87d52; transform:translateY(-2px); }
-    #form-status { font-family:var(--ff-ui); font-size:0.85rem; color:rgba(180,220,180,0.9); text-align:center; }
-
-    /* social icons row in hero */
-    .hero-socials { display:flex; flex-wrap:wrap; gap:8px; }
-    .hero-social {
-      display:inline-flex; align-items:center; gap:6px;
-      font-family:var(--ff-ui); font-size:0.78rem; font-weight:500;
-      background:white; border:1px solid var(--border);
-      border-radius:100px; padding:6px 14px; color:var(--ink2); text-decoration:none;
-      transition:all 0.2s;
+    #contact-form button:hover {
+      background: #b8e64a;
+      transform: translateY(-2px);
     }
-    .hero-social:hover { border-color:var(--warm2); color:var(--warm); background:var(--gold-light); text-decoration:none; }
-    .hero-social img { width:12px;height:12px;filter:brightness(0) opacity(0.5); transition:filter 0.2s; }
-    .hero-social:hover img { filter:brightness(0) saturate(100%) invert(52%) sepia(50%) saturate(400%) hue-rotate(0deg); }
-    .hero-social i { font-size:0.85rem; }
+    #form-status {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent-lime);
+      text-align: center;
+    }
+    @media (max-width: 700px) {
+      .contact-layout {
+        grid-template-columns: 1fr;
+        gap: 32px;
+      }
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
 
     /* ── FOOTER ── */
     footer {
-      background:var(--ink); color:rgba(250,248,243,0.45);
-      text-align:center; padding:32px;
-      font-family:var(--ff-ui); font-size:0.82rem;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 24px;
+      font-family: var(--font-body);
+      font-size: 0.75rem;
     }
-    footer span { color:var(--warm); }
-
-    /* ── REVEAL ── */
-    .reveal { opacity:0; transform:translateY(30px); transition:opacity 0.75s ease, transform 0.75s ease; }
-    .reveal.visible { opacity:1; transform:translateY(0); }
-
-    /* ── DIVIDER ── */
-    .divider { height:1px; background:var(--border); }
-
-    /* ── MOBILE ── */
-    @media(max-width:900px) {
-      .hero { grid-template-columns:1fr; gap:40px; padding:100px 24px 60px; min-height:auto; }
-      .hero-right { display:none; }
-      .about-grid, .leadership-grid, .contact-layout { grid-template-columns:1fr; }
-      .form-row { grid-template-columns:1fr; }
-      .nav-links, .nav-cta { display:none; }
-      .section { padding:70px 24px; }
+    footer span {
+      color: var(--accent-lime);
     }
 
     /* ── SCROLLBAR ── */
-    ::-webkit-scrollbar { width:6px; }
-    ::-webkit-scrollbar-track { background:var(--cream2); }
-    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-subtle);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-lime);
+    }
   </style>
 </head>
-
 <body>
 
 <!-- NAV -->
@@ -488,21 +1079,23 @@
   <div class="hero">
     <div class="hero-left reveal">
       <div class="hero-eyebrow">AI & Data Science Researcher</div>
-      <h1 class="hero-h1">Building <span class="italic">intelligent</span><br>systems that matter</h1>
-      <p class="hero-desc">Graduate researcher at Kwangwoon University, specializing in Spike neural networks, emotion-aware AI, natural language processing, and scalable data-driven applications.</p>
+      <h1 class="hero-h1">Building <span class="italic">intelligent</span><br />systems that matter</h1>
+      <p class="hero-desc">Graduate researcher at Kwangwoon University, specializing in spike neural networks, emotion-aware AI, NLP, and scalable data-driven applications.</p>
       <div class="hero-actions">
-        <a href="#projects" class="btn-primary"><i class="fas fa-flask" style="font-size:0.85rem"></i> View Projects</a>
-        <a href="research.html" class="btn-secondary"><i class="fas fa-book-open" style="font-size:0.85rem"></i> Research</a>
+        <a href="#projects" class="btn-primary"><i class="fas fa-flask"></i> View Projects</a>
+        <a href="research.html" class="btn-secondary"><i class="fas fa-book-open"></i> Research</a>
       </div>
-      <div class="hero-socials" style="margin-bottom:36px;">
+      <div class="hero-socials">
         <a href="https://linkedin.com/in/mukiibi-moses-273121351" target="_blank" class="hero-social"><i class="fab fa-linkedin"></i> LinkedIn</a>
         <a href="https://github.com/Moze12432" target="_blank" class="hero-social"><i class="fab fa-github"></i> GitHub</a>
-        <a href="https://orcid.org/0009-0009-7086-7113" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/orcid.svg" alt=""> ORCID</a>
-        <a href="https://www.researchgate.net/profile/Mukiibi-Moses" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/researchgate.svg" alt=""> ResearchGate</a>
-        <a href="https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/googlescholar.svg" alt=""> Google Scholar</a>
+        <a href="https://orcid.org/0009-0009-7086-7113" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/orcid.svg" alt="ORCID" /> ORCID</a>
+        <a href="https://www.researchgate.net/profile/Mukiibi-Moses" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/researchgate.svg" alt="RG" /> ResearchGate</a>
+        <a href="https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/googlescholar.svg" alt="GS" /> Google Scholar</a>
         <a href="https://www.credly.com/users/mukiibi-moses/badges#credly" target="_blank" class="hero-social"><i class="fas fa-certificate"></i> Credly</a>
-        <a href="https://www.webofscience.com/wos/author/record/PXB-6271-2026" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/clarivate.svg" alt=""> Web of Science</a>
+        <a href="https://www.webofscience.com/wos/author/record/PXB-6271-2026" target="_blank" class="hero-social"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/clarivate.svg" alt="WoS" /> Web of Science</a>
       </div>
+      <!-- hero-stats wrapper now present (was missing) -->
+      <div class="hero-stats">
         <div class="stat-item">
           <div class="stat-num">6<sup>+</sup></div>
           <div class="stat-lbl">Projects</div>
@@ -517,17 +1110,16 @@
         </div>
       </div>
     </div>
-    <div class="hero-right reveal" style="transition-delay:0.2s;">
+    <div class="hero-right reveal" style="transition-delay:0.15s;">
       <div class="hero-photo-frame">
         <div class="hero-photo-bg"></div>
-        <div class="hero-photo-accent"></div>
-        <div class="hero-photo-accent2"></div>
-        <img src="profile.JPG" alt="Mukiibi Moses" class="hero-img">
+        <img src="profile.JPG" alt="Mukiibi Moses" class="hero-img" />
+        <!-- tags: fixed university typo to Kwangwoon -->
         <div class="hero-tag hero-tag-top">
           <div class="hero-tag-icon">🎓</div>
           <div class="hero-tag-text">
             <div class="hero-tag-label">University</div>
-            <div class="hero-tag-value">Kangwoon</div>
+            <div class="hero-tag-value kwangwoon">Kwangwoon</div>
           </div>
         </div>
         <div class="hero-tag hero-tag-bottom">
@@ -544,16 +1136,16 @@
 
 <div class="divider"></div>
 
-<!-- ABOUT + EXPERTISE -->
+<!-- ABOUT -->
 <section class="section reveal" id="about">
   <div class="section-label">About</div>
   <div class="section-title">A researcher with <em>purpose</em></div>
   <div class="about-grid">
     <div class="about-body">
       <p>Mukiibi Moses is a graduate researcher at Kwangwoon University specializing in artificial intelligence, machine learning, and data science. His research focuses on emotion-aware AI systems, natural language processing, and optimization of generative models.</p>
-      <p>He holds a bachelors degree in computer engineering from KyungDong University</p>
-      <p>He is currently pursuing a combined masters and PhD program in computer engineering at Kwangwoon University, Seoul South Korea. </p>
-      <p>He has built AI applications including sentiment analysis systems, text-to-image generation pipelines, and data analytics solutions using AWS - with the goal of developing intelligent systems that solve real-world problems efficiently and at scale.</p>
+      <p>He holds a bachelor's degree in computer engineering from Kyungdong University.</p>
+      <p>He is currently pursuing a combined masters and PhD program in computer engineering at Kwangwoon University, Seoul, South Korea.</p>
+      <p>He has built AI applications including sentiment analysis systems, text-to-image generation pipelines, and data analytics solutions using AWS — with the goal of developing intelligent systems that solve real-world problems efficiently and at scale.</p>
       <p>Mukiibi is actively publishing and sharing research through Google Scholar, ResearchGate, and Academia, contributing to the global AI research community.</p>
     </div>
     <div>
@@ -575,38 +1167,39 @@
 
 <div class="divider"></div>
 
-<!-- EDUCATION -->
+<!-- EDUCATION (fixed typo: Intergrated → Integrated; fixed missing closing div) -->
 <div class="band">
-<section class="section reveal" id="education">
-  <div class="section-label">Education</div>
-  <div class="section-title">Academic <em>background</em></div>
-  <div class="edu-list">
-
-  <div class="edu-card">
-      <div class="edu-icon-wrap">🏫</div>
-      <div>
-        <div class="edu-school">Intergrated Masters and PhD in Computer Engineering - Kwangwoon University</div>
-        <div class="edu-detail">Algorithms · Spike Neural Networks· Natural Language Processing (NLP)· Emotion-Aware AI Systems · Deep Learning & Transformers · Generative AI & Stable Diffusion Model Optimization · Data Engineering & Cloud Pipelines</div>
+  <section class="section reveal" id="education">
+    <div class="section-label">Education</div>
+    <div class="section-title">Academic <em>background</em></div>
+    <div class="edu-list">
+      <!-- Kwangwoon card – properly closed now -->
+      <div class="edu-card">
+        <div class="edu-icon-wrap">🏫</div>
+        <div>
+          <div class="edu-school">Integrated Masters &amp; PhD in Computer Engineering — Kwangwoon University</div>
+          <div class="edu-detail">Algorithms · Spike Neural Networks · Natural Language Processing (NLP) · Emotion-Aware AI Systems · Deep Learning &amp; Transformers · Generative AI &amp; Stable Diffusion Model Optimization · Data Engineering &amp; Cloud Pipelines</div>
+        </div>
       </div>
-
-    
-    <div class="edu-card">
-      <div class="edu-icon-wrap">🎓</div>
-      <div>
-        <div class="edu-school">BSc Computer Engineering - Kyungdong University Global Campus</div>
-        <div class="edu-detail">Algorithms · Machine Learning · Computer Security · Data Structures · Cryptography · Cybersecurity · Probability & Statistics</div>
-        <div class="edu-badge">CGPA 4.30 / 4.5</div>
+      <!-- Kyungdong card -->
+      <div class="edu-card">
+        <div class="edu-icon-wrap">🎓</div>
+        <div>
+          <div class="edu-school">BSc Computer Engineering — Kyungdong University Global Campus</div>
+          <div class="edu-detail">Algorithms · Machine Learning · Computer Security · Data Structures · Cryptography · Cybersecurity · Probability &amp; Statistics</div>
+          <div class="edu-badge">CGPA 4.30 / 4.5</div>
+        </div>
+      </div>
+      <!-- Mengo card -->
+      <div class="edu-card">
+        <div class="edu-icon-wrap">🏫</div>
+        <div>
+          <div class="edu-school">Uganda Advanced Certificate of Education — Mengo Senior School</div>
+          <div class="edu-detail">Majors: Physics · Economics · Mathematics · Computer Studies</div>
+        </div>
       </div>
     </div>
-    <div class="edu-card">
-      <div class="edu-icon-wrap">🏫</div>
-      <div>
-        <div class="edu-school">Uganda Advanced Certificate of Education - Mengo Senior School</div>
-        <div class="edu-detail">Majors: Physics · Economics · Mathematics · Computer Studies</div>
-      </div>
-    </div>
-  </div>
-</section>
+  </section>
 </div>
 
 <div class="divider"></div>
@@ -616,160 +1209,42 @@
   <div class="section-label">Skills</div>
   <div class="section-title">Technical <em>toolkit</em></div>
   <div class="skills-grid">
-    <div class="skill-card">
-      <div class="skill-num">01</div>
-      <div class="skill-name">Programming</div>
-      <ul class="skill-list">
-        <li>Python</li><li>C / C++</li><li>Java</li><li>R</li><li>MATLAB</li>
-      </ul>
-    </div>
-    <div class="skill-card">
-      <div class="skill-num">02</div>
-      <div class="skill-name">AI & ML</div>
-      <ul class="skill-list">
-        <li>Deep Learning (CNNs, RNNs, Transformers)</li>
-        <li>NLP — sentiment, embeddings, intent</li>
-        <li>Geometric Deep Learning</li>
-        <li>Probabilistic Models</li>
-        <li>Model Optimization & Evaluation</li>
-      </ul>
-    </div>
-    <div class="skill-card">
-      <div class="skill-num">03</div>
-      <div class="skill-name">Data Science</div>
-      <ul class="skill-list">
-        <li>Pandas, NumPy, Scikit-learn</li>
-        <li>Data Wrangling & Feature Engineering</li>
-        <li>SQL & Database Design</li>
-        <li>Tableau, Excel Analytics</li>
-        <li>AWS (data pipelines & cloud)</li>
-      </ul>
-    </div>
-    <div class="skill-card">
-      <div class="skill-num">04</div>
-      <div class="skill-name">Tools</div>
-      <ul class="skill-list">
-        <li>Git & GitHub</li><li>Jupyter Notebook</li><li>VS Code</li>
-        <li>Linux / Bash</li><li>Gradio, Stable Diffusion</li>
-      </ul>
-    </div>
-    <div class="skill-card">
-      <div class="skill-num">05</div>
-      <div class="skill-name">Security</div>
-      <ul class="skill-list">
-        <li>Cryptographic Algorithms</li>
-        <li>Penetration Testing Basics</li>
-        <li>Network Security</li>
-        <li>Cybersecurity Principles</li>
-      </ul>
-    </div>
+    <div class="skill-card"><div class="skill-num">01</div><div class="skill-name">Programming</div><ul class="skill-list"><li>Python</li><li>C / C++</li><li>Java</li><li>R</li><li>MATLAB</li></ul></div>
+    <div class="skill-card"><div class="skill-num">02</div><div class="skill-name">AI &amp; ML</div><ul class="skill-list"><li>Deep Learning (CNNs, RNNs, Transformers)</li><li>NLP — sentiment, embeddings, intent</li><li>Geometric Deep Learning</li><li>Probabilistic Models</li><li>Model Optimization &amp; Evaluation</li></ul></div>
+    <div class="skill-card"><div class="skill-num">03</div><div class="skill-name">Data Science</div><ul class="skill-list"><li>Pandas, NumPy, Scikit-learn</li><li>Data Wrangling &amp; Feature Engineering</li><li>SQL &amp; Database Design</li><li>Tableau, Excel Analytics</li><li>AWS (data pipelines &amp; cloud)</li></ul></div>
+    <div class="skill-card"><div class="skill-num">04</div><div class="skill-name">Tools</div><ul class="skill-list"><li>Git &amp; GitHub</li><li>Jupyter Notebook</li><li>VS Code</li><li>Linux / Bash</li><li>Gradio, Stable Diffusion</li></ul></div>
+    <div class="skill-card"><div class="skill-num">05</div><div class="skill-name">Security</div><ul class="skill-list"><li>Cryptographic Algorithms</li><li>Penetration Testing Basics</li><li>Network Security</li><li>Cybersecurity Principles</li></ul></div>
   </div>
 </section>
 
 <div class="divider"></div>
 
-<!-- PROJECTS -->
+<!-- PROJECTS (all bars lime; tags mono) -->
 <div class="band">
-<section class="section reveal" id="projects">
-  <div class="section-label">Work</div>
-  <div class="section-title">Featured <em>projects</em></div>
-  <div class="projects-grid">
-
-    <div class="project-card">
-      <div class="project-top"></div>
-      <div class="project-body">
-        <h3>MozeAI: Intelligent Autonomous Agent</h3>
-        <p>Multi-modal AI assistant with real-time web search, document analysis (PDF, DOCX, TXT, CSV, JSON), file comparison, conversation memory, and work evaluation. Built with Streamlit and Groq's LLM API.</p>
-        <div class="project-tags">
-          <span class="ptag">Streamlit</span><span class="ptag">Groq LLM</span><span class="ptag">Sentence Transformers</span><span class="ptag">PyPDF2</span>
-        </div>
-        <a href="https://moze12432.github.io/mozeai.html" target="_blank" class="project-link">View Demo <i class="fas fa-arrow-right" style="font-size:0.75rem"></i></a>
-      </div>
+  <section class="section reveal" id="projects">
+    <div class="section-label">Work</div>
+    <div class="section-title">Featured <em>projects</em></div>
+    <div class="projects-grid">
+      <div class="project-card"><div class="project-top"></div><div class="project-body"><h3>MozeAI: Intelligent Autonomous Agent</h3><p>Multi-modal AI assistant with real-time web search, document analysis, conversation memory, and work evaluation. Built with Streamlit and Groq's LLM API.</p><div class="project-tags"><span class="ptag">Streamlit</span><span class="ptag">Groq LLM</span><span class="ptag">Sentence Transformers</span></div><a href="https://moze12432.github.io/mozeai.html" target="_blank" class="project-link">View Demo <i class="fas fa-arrow-right"></i></a></div></div>
+      <div class="project-card"><div class="project-top"></div><div class="project-body"><h3>✈️ Fly Moses Airport Simulation</h3><p>Web-based airport simulation modeling flight handling, runway management, and aircraft movement with interactive UI.</p><div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">JavaScript</span></div><a href="https://moze12432.github.io/fly-moses-airport/#home" target="_blank" class="project-link">View Demo <i class="fas fa-arrow-right"></i></a></div></div>
+      <div class="project-card"><div class="project-top"></div><div class="project-body"><h3>💰 Digital Wallet Pro</h3><p>Digital wallet web app supporting deposits, withdrawals, and peer-to-peer transfers with persistent storage and full transaction history using LocalStorage.</p><div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">JavaScript</span><span class="ptag">LocalStorage</span></div><a href="https://moze12432.github.io/wallet/" target="_blank" class="project-link">View Demo <i class="fas fa-arrow-right"></i></a></div></div>
+      <div class="project-card"><div class="project-top"></div><div class="project-body"><h3>AI-Based Emotional Support App</h3><p>AI system generating empathetic responses using NLP and sentiment analysis. Transformer-based models understand user emotions and provide context-aware replies.</p><div class="project-tags"><span class="ptag">Python</span><span class="ptag">NLP</span><span class="ptag">Transformers</span></div><span class="project-link" style="color:var(--text-secondary);cursor:default;">Research write-up <i class="fas fa-lock" style="font-size:0.7rem;margin-left:6px;"></i></span></div></div>
+      <div class="project-card"><div class="project-top"></div><div class="project-body"><h3>Social Media Sentiment Analysis</h3><p>Analytics pipeline with AWS tools processing 50,000+ social media posts — extracting insights, visualizing trends, and generating dashboards.</p><div class="project-tags"><span class="ptag">AWS</span><span class="ptag">Data Pipelines</span><span class="ptag">Visualization</span></div><span class="project-link" style="color:var(--text-secondary);cursor:default;">Private repo <i class="fas fa-lock" style="font-size:0.7rem;margin-left:6px;"></i></span></div></div>
+      <div class="project-card"><div class="project-top"></div><div class="project-body"><h3>Text-to-Image Generation Pipeline</h3><p>Gradio-powered interface for prompt-driven image generation using Stable Diffusion. Documented in a full research thesis, including model optimization techniques.</p><div class="project-tags"><span class="ptag">Stable Diffusion</span><span class="ptag">Gradio</span><span class="ptag">Research</span></div><span class="project-link" style="color:var(--text-secondary);cursor:default;">Research write-up <i class="fas fa-lock" style="font-size:0.7rem;margin-left:6px;"></i></span></div></div>
     </div>
-
-    <div class="project-card">
-      <div class="project-top teal"></div>
-      <div class="project-body">
-        <h3>✈️ Fly Moses Airport Simulation</h3>
-        <p>Web-based airport simulation modeling real-world operations - flight handling, runway management, and aircraft movement with interactive UI components.</p>
-        <div class="project-tags">
-          <span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">JavaScript</span>
-        </div>
-        <a href="https://moze12432.github.io/fly-moses-airport/#home" target="_blank" class="project-link">View Demo <i class="fas fa-arrow-right" style="font-size:0.75rem"></i></a>
-      </div>
-    </div>
-
-    <div class="project-card">
-      <div class="project-top gold"></div>
-      <div class="project-body">
-        <h3>💰 Digital Wallet Pro</h3>
-        <p>Digital wallet web app supporting deposits, withdrawals, and peer-to-peer transfers with persistent storage and full transaction history using LocalStorage.</p>
-        <div class="project-tags">
-          <span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">JavaScript</span><span class="ptag">LocalStorage</span>
-        </div>
-        <a href="https://moze12432.github.io/wallet/" target="_blank" class="project-link">View Demo <i class="fas fa-arrow-right" style="font-size:0.75rem"></i></a>
-      </div>
-    </div>
-
-    <div class="project-card">
-      <div class="project-top"></div>
-      <div class="project-body">
-        <h3>AI-Based Emotional Support App</h3>
-        <p>AI system generating empathetic responses using NLP and sentiment analysis. Transformer-based models understand user emotions and provide context-aware replies — making AI emotionally intelligent.</p>
-        <div class="project-tags">
-          <span class="ptag">Python</span><span class="ptag">NLP</span><span class="ptag">Transformer Models</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="project-card">
-      <div class="project-top teal"></div>
-      <div class="project-body">
-        <h3>Social Media Sentiment Analysis</h3>
-        <p>Analytics pipeline with AWS tools processing 50,000+ social media posts - extracting insights, visualizing trends, and generating dashboards for social trend interpretation.</p>
-        <div class="project-tags">
-          <span class="ptag">AWS</span><span class="ptag">Data Pipelines</span><span class="ptag">Visualization</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="project-card">
-      <div class="project-top gold"></div>
-      <div class="project-body">
-        <h3>Text-to-Image Generation Pipeline</h3>
-        <p>Gradio-powered interface for prompt-driven image generation using Stable Diffusion. Documented in a full research thesis, including model optimization techniques.</p>
-        <div class="project-tags">
-          <span class="ptag">Stable Diffusion</span><span class="ptag">Gradio</span><span class="ptag">Research</span>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</section>
+  </section>
 </div>
 
 <div class="divider"></div>
 
-<!-- LEADERSHIP -->
+<!-- LEADERSHIP (clarified date) -->
 <section class="section reveal" id="leadership">
   <div class="section-label">Experience</div>
-  <div class="section-title">Leadership & <em>community</em></div>
+  <div class="section-title">Leadership &amp; <em>community</em></div>
   <div class="leadership-grid">
-    <div class="lead-card">
-      <div class="lead-num">01</div>
-      <div class="lead-title">President — Programming Club, Kyungdong University (2022–2026)</div>
-      <div class="lead-desc">Organized AI workshops, led student teams, and designed coding curricula across four years.</div>
-    </div>
-    <div class="lead-card">
-      <div class="lead-num">02</div>
-      <div class="lead-title">Tech & Innovation Team Lead</div>
-      <div class="lead-desc">Directed tech projects and led mentoring sessions across technical and non-technical teams.</div>
-    </div>
-    <div class="lead-card">
-      <div class="lead-num">03</div>
-      <div class="lead-title">Community Tech Volunteer</div>
-      <div class="lead-desc">Taught AI & Python fundamentals to non-technical learners in community outreach programs.</div>
-    </div>
+    <div class="lead-card"><div class="lead-num">01</div><div class="lead-title">President — Programming Club, Kyungdong University (2022–2024)</div><div class="lead-desc">Organized AI workshops, led student teams, and designed coding curricula. (Role concluded 2024)</div></div>
+    <div class="lead-card"><div class="lead-num">02</div><div class="lead-title">Tech &amp; Innovation Team Lead</div><div class="lead-desc">Directed tech projects and led mentoring sessions across technical and non-technical teams.</div></div>
+    <div class="lead-card"><div class="lead-num">03</div><div class="lead-title">Community Tech Volunteer</div><div class="lead-desc">Taught AI &amp; Python fundamentals to non-technical learners in community outreach programs.</div></div>
   </div>
 </section>
 
@@ -777,19 +1252,19 @@
 
 <!-- CERTIFICATIONS -->
 <div class="band">
-<section class="section reveal" id="certifications">
-  <div class="section-label">Credentials</div>
-  <div class="section-title">Certifications</div>
-  <div class="cert-grid">
-    <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Cisco Data Analytics Essentials</span><span class="cert-year">2026</span></div>
-    <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Cisco Introduction to Modern AI</span><span class="cert-year">2026</span></div>
-    <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Cisco & OpenEDG Python Essentials 2</span><span class="cert-year">2026</span></div>
-    <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Introduction to Cyber Security: Stay Safe Online</span><span class="cert-year">2026</span></div>
-    <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Dremio-powered AI Agents</span><span class="cert-year">2026</span></div>
-    <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Inclusive Open Source Community Orientation</span><span class="cert-year">2026</span></div>
-    <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">ISO/IEC 42001:2023 — AI Management System (AIMS) — Alison</span><span class="cert-year">2026</span></div>
-  </div>
-</section>
+  <section class="section reveal" id="certifications">
+    <div class="section-label">Credentials</div>
+    <div class="section-title">Certifications</div>
+    <div class="cert-grid">
+      <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Cisco Data Analytics Essentials</span><span class="cert-year">2026</span></div>
+      <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Cisco Introduction to Modern AI</span><span class="cert-year">2026</span></div>
+      <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Cisco &amp; OpenEDG Python Essentials 2</span><span class="cert-year">2026</span></div>
+      <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Introduction to Cyber Security: Stay Safe Online</span><span class="cert-year">2026</span></div>
+      <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Dremio-powered AI Agents</span><span class="cert-year">2026</span></div>
+      <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">Inclusive Open Source Community Orientation</span><span class="cert-year">2026</span></div>
+      <div class="cert-item"><div class="cert-dot"></div><span class="cert-name">ISO/IEC 42001:2023 — AI Management System (AIMS) — Alison</span><span class="cert-year">2026</span></div>
+    </div>
+  </section>
 </div>
 
 <div class="divider"></div>
@@ -799,11 +1274,11 @@
   <div class="section-label">Achievements</div>
   <div class="section-title">Badges</div>
   <div class="badge-flex">
-    <div class="badge-card"><img src="data.png" alt="Data Analytics Essentials"></div>
-    <div class="badge-card"><img src="python.png" alt="Python Essentials 2"></div>
-    <div class="badge-card"><img src="ai.png" alt="Modern AI"></div>
-    <div class="badge-card"><img src="cyber.png" alt="Cyber Security"></div>
-    <div class="badge-card"><img src="blob.png" alt="Badge"></div>
+    <div class="badge-card"><img src="data.png" alt="Data Analytics Essentials" /></div>
+    <div class="badge-card"><img src="python.png" alt="Python Essentials 2" /></div>
+    <div class="badge-card"><img src="ai.png" alt="Modern AI" /></div>
+    <div class="badge-card"><img src="cyber.png" alt="Cyber Security" /></div>
+    <div class="badge-card"><img src="blob.png" alt="Badge" /></div>
   </div>
 </section>
 
@@ -811,16 +1286,16 @@
 
 <!-- FAQ -->
 <div class="band">
-<section class="section reveal" id="faq">
-  <div class="section-label">FAQ</div>
-  <div class="section-title">Common <em>questions</em></div>
-  <div class="faq-list">
-    <div class="faq-item"><div class="faq-q">What does Mukiibi Moses specialize in?</div><div class="faq-a">He specializes in artificial intelligence, machine learning, and data science — with a focus on emotion-aware systems and NLP.</div></div>
-    <div class="faq-item"><div class="faq-q">What projects has he worked on?</div><div class="faq-a">Emotional support AI, sentiment analysis pipelines, generative AI models, an airport simulation, and a digital wallet system.</div></div>
-    <div class="faq-item"><div class="faq-q">What technologies does he use?</div><div class="faq-a">Python, AWS, NLP models, Stable Diffusion, Streamlit, Groq LLM API, and various data engineering tools.</div></div>
-    <div class="faq-item"><div class="faq-q">Where can I find his research work?</div><div class="faq-a">His research is published on Google Scholar, ResearchGate, and Academia.edu.</div></div>
-  </div>
-</section>
+  <section class="section reveal" id="faq">
+    <div class="section-label">FAQ</div>
+    <div class="section-title">Common <em>questions</em></div>
+    <div class="faq-list">
+      <div class="faq-item"><div class="faq-q">What does Mukiibi Moses specialize in?</div><div class="faq-a">He specializes in artificial intelligence, machine learning, and data science — with a focus on emotion-aware systems and NLP.</div></div>
+      <div class="faq-item"><div class="faq-q">What projects has he worked on?</div><div class="faq-a">Emotional support AI, sentiment analysis pipelines, generative AI models, an airport simulation, and a digital wallet system.</div></div>
+      <div class="faq-item"><div class="faq-q">What technologies does he use?</div><div class="faq-a">Python, AWS, NLP models, Stable Diffusion, Streamlit, Groq LLM API, and various data engineering tools.</div></div>
+      <div class="faq-item"><div class="faq-q">Where can I find his research work?</div><div class="faq-a">His research is published on Google Scholar, ResearchGate, and Academia.edu.</div></div>
+    </div>
+  </section>
 </div>
 
 <div class="divider"></div>
@@ -829,15 +1304,15 @@
 <section class="section reveal" id="learn">
   <div class="section-label">Resources</div>
   <div class="section-title">Learn <em>AI</em></div>
-  <p style="font-family:var(--ff-ui);font-size:0.95rem;color:var(--muted);margin-bottom:28px;max-width:560px;">Explore foundational concepts in artificial intelligence, machine learning, and data science — clear explanations with real-world applications.</p>
+  <p style="font-size:0.95rem;color:var(--text-secondary);margin-bottom:28px;max-width:560px;">Explore foundational concepts in artificial intelligence, machine learning, and data science — clear explanations with real-world applications.</p>
   <div class="learn-grid">
-    <a href="ai-emotional-response-systems.html" class="learn-card"><div class="learn-icon"><i class="fas fa-heart"></i></div><div class="learn-text">What Are AI Emotional Response Systems?</div><div class="learn-arrow"><i class="fas fa-chevron-right"></i></div></a>
-    <a href="what-is-artificial-intelligence.html" class="learn-card"><div class="learn-icon"><i class="fas fa-brain"></i></div><div class="learn-text">What is Artificial Intelligence?</div><div class="learn-arrow"><i class="fas fa-chevron-right"></i></div></a>
-    <a href="natural-language-processing.html" class="learn-card"><div class="learn-icon"><i class="fas fa-comment-dots"></i></div><div class="learn-text">What is Natural Language Processing?</div><div class="learn-arrow"><i class="fas fa-chevron-right"></i></div></a>
-    <a href="machine-learning-basics.html" class="learn-card"><div class="learn-icon"><i class="fas fa-cogs"></i></div><div class="learn-text">Machine Learning Basics</div><div class="learn-arrow"><i class="fas fa-chevron-right"></i></div></a>
-    <a href="generative-ai-optimization.html" class="learn-card"><div class="learn-icon"><i class="fas fa-magic"></i></div><div class="learn-text">Generative AI Optimized-Research</div><div class="learn-arrow"><i class="fas fa-chevron-right"></i></div></a>
-    <a href="generative-ai-explained.html" class="learn-card"><div class="learn-icon"><i class="fas fa-robot"></i></div><div class="learn-text">Generative AI Explained</div><div class="learn-arrow"><i class="fas fa-chevron-right"></i></div></a>
-    <a href="deep-learning-explained.html" class="learn-card"><div class="learn-icon"><i class="fas fa-project-diagram"></i></div><div class="learn-text">Deep Learning Explained</div><div class="learn-arrow"><i class="fas fa-chevron-right"></i></div></a>
+    <a href="ai-emotional-response-systems.html" class="learn-card"><div class="learn-icon"><i class="fas fa-heart"></i></div><span class="learn-text">What Are AI Emotional Response Systems?</span><span class="learn-arrow"><i class="fas fa-chevron-right"></i></span></a>
+    <a href="what-is-artificial-intelligence.html" class="learn-card"><div class="learn-icon"><i class="fas fa-brain"></i></div><span class="learn-text">What is Artificial Intelligence?</span><span class="learn-arrow"><i class="fas fa-chevron-right"></i></span></a>
+    <a href="natural-language-processing.html" class="learn-card"><div class="learn-icon"><i class="fas fa-comment-dots"></i></div><span class="learn-text">What is Natural Language Processing?</span><span class="learn-arrow"><i class="fas fa-chevron-right"></i></span></a>
+    <a href="machine-learning-basics.html" class="learn-card"><div class="learn-icon"><i class="fas fa-cogs"></i></div><span class="learn-text">Machine Learning Basics</span><span class="learn-arrow"><i class="fas fa-chevron-right"></i></span></a>
+    <a href="generative-ai-optimization.html" class="learn-card"><div class="learn-icon"><i class="fas fa-magic"></i></div><span class="learn-text">Generative AI Optimized-Research</span><span class="learn-arrow"><i class="fas fa-chevron-right"></i></span></a>
+    <a href="generative-ai-explained.html" class="learn-card"><div class="learn-icon"><i class="fas fa-robot"></i></div><span class="learn-text">Generative AI Explained</span><span class="learn-arrow"><i class="fas fa-chevron-right"></i></span></a>
+    <a href="deep-learning-explained.html" class="learn-card"><div class="learn-icon"><i class="fas fa-project-diagram"></i></div><span class="learn-text">Deep Learning Explained</span><span class="learn-arrow"><i class="fas fa-chevron-right"></i></span></a>
   </div>
 </section>
 
@@ -845,66 +1320,64 @@
 
 <!-- CONTACT -->
 <div class="band">
-<section class="section reveal" id="contact">
-  <div class="section-label">Contact</div>
-  <div class="contact-layout">
-    <div>
-      <div class="contact-info-head">Let's build something <em>great</em></div>
-      <div class="contact-info-sub">Open to research collaborations, internships, and AI projects. Reach out through any platform below.</div>
-      <div class="contact-pills">
-        <a href="https://linkedin.com/in/mukiibi-moses-273121351" target="_blank" class="cpill"><div class="cpill-icon"><i class="fab fa-linkedin"></i></div><span class="cpill-name">LinkedIn</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
-        <a href="https://github.com/Moze12432" target="_blank" class="cpill"><div class="cpill-icon"><i class="fab fa-github"></i></div><span class="cpill-name">GitHub</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
-        <a href="https://www.credly.com/users/mukiibi-moses/badges#credly" target="_blank" class="cpill"><div class="cpill-icon"><i class="fas fa-certificate"></i></div><span class="cpill-name">Credly</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
-        <a href="https://orcid.org/0009-0009-7086-7113" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/orcid.svg" alt="ORCID"></div><span class="cpill-name">ORCID</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
-        <a href="https://www.researchgate.net/profile/Mukiibi-Moses" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/researchgate.svg" alt="RG"></div><span class="cpill-name">ResearchGate</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
-        <a href="https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/googlescholar.svg" alt="GS"></div><span class="cpill-name">Google Scholar</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
-        <a href="https://www.webofscience.com/wos/author/record/PXB-6271-2026" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/clarivate.svg" alt="WoS"></div><span class="cpill-name">Web of Science</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+  <section class="section reveal" id="contact">
+    <div class="section-label">Contact</div>
+    <div class="contact-layout">
+      <div>
+        <div class="contact-info-head">Let's build something <em>great</em></div>
+        <div class="contact-info-sub">Open to research collaborations, internships, and AI projects. Reach out through any platform below.</div>
+        <div class="contact-pills">
+          <a href="https://linkedin.com/in/mukiibi-moses-273121351" target="_blank" class="cpill"><div class="cpill-icon"><i class="fab fa-linkedin"></i></div><span class="cpill-name">LinkedIn</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+          <a href="https://github.com/Moze12432" target="_blank" class="cpill"><div class="cpill-icon"><i class="fab fa-github"></i></div><span class="cpill-name">GitHub</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+          <a href="https://www.credly.com/users/mukiibi-moses/badges#credly" target="_blank" class="cpill"><div class="cpill-icon"><i class="fas fa-certificate"></i></div><span class="cpill-name">Credly</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+          <a href="https://orcid.org/0009-0009-7086-7113" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/orcid.svg" alt="ORCID" /></div><span class="cpill-name">ORCID</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+          <a href="https://www.researchgate.net/profile/Mukiibi-Moses" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/researchgate.svg" alt="RG" /></div><span class="cpill-name">ResearchGate</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+          <a href="https://scholar.google.com/citations?user=na2PjYsAAAAJ&hl=en" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/googlescholar.svg" alt="GS" /></div><span class="cpill-name">Google Scholar</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+          <a href="https://www.webofscience.com/wos/author/record/PXB-6271-2026" target="_blank" class="cpill"><div class="cpill-icon"><img src="https://cdn.jsdelivr.net/npm/simple-icons@v9/icons/clarivate.svg" alt="WoS" /></div><span class="cpill-name">Web of Science</span><i class="fas fa-chevron-right cpill-arrow"></i></a>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="form-title">Send a message</div>
+        <form id="contact-form">
+          <div class="form-row">
+            <div class="form-group"><label for="name">Name</label><input type="text" id="name" name="name" placeholder="Your name" required autocomplete="name" /></div>
+            <div class="form-group"><label for="email">Email</label><input type="email" id="email" name="email" placeholder="your@email.com" required autocomplete="email" /></div>
+          </div>
+          <div class="form-group"><label for="message">Message</label><textarea id="message" name="message" placeholder="Tell me about your project or idea..." required></textarea></div>
+          <button type="submit">Send Message &nbsp;→</button>
+          <p id="form-status"></p>
+        </form>
       </div>
     </div>
-    <div class="form-card">
-      <div class="form-title">Send a message</div>
-      <form id="contact-form">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="name">Name</label>
-            <input type="text" id="name" name="name" placeholder="Your name" required autocomplete="name">
-          </div>
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" placeholder="your@email.com" required autocomplete="email">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="message">Message</label>
-          <textarea id="message" name="message" placeholder="Tell me about your project or idea..." required></textarea>
-        </div>
-        <button type="submit">Send Message &nbsp;→</button>
-        <p id="form-status"></p>
-      </form>
-    </div>
-  </div>
-</section>
+  </section>
 </div>
 
 <footer>
   <p>© 2026 <span>Mukiibi Moses</span> — AI & Data Science Portfolio · Last updated June 2026</p>
 </footer>
 
+<!-- EMAILJS (unchanged) -->
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
 <script>
+  (function() { emailjs.init("CnlDy4yJpDarBtkfQ"); })();
+</script>
+<script>
+  // reveal on scroll
   const reveals = document.querySelectorAll('.reveal');
   const io = new IntersectionObserver(entries => {
-    entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
-  }, { threshold:0.07 });
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.07 });
   reveals.forEach(el => io.observe(el));
   window.addEventListener('load', () => {
     reveals.forEach(el => {
-      if(el.getBoundingClientRect().top < window.innerHeight - 60) el.classList.add('visible');
+      if (el.getBoundingClientRect().top < window.innerHeight - 60) el.classList.add('visible');
     });
   });
 
+  // contact form
   window.addEventListener("load", function() {
     const form = document.getElementById("contact-form");
-    if(!form) return;
+    if (!form) return;
     form.addEventListener("submit", function(e) {
       e.preventDefault();
       const status = document.getElementById("form-status");
