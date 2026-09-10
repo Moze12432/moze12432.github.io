@@ -164,6 +164,102 @@ footer {
 
 <h2 id="research">Academic Research</h2>
 
+
+<!-- PAPER 1 -->
+<div class="research-item">
+  <h3>Explainable and cyber-resilient vision transformers for joint steering and collision-avoidance perception in autonomous drone navigation: a multi-task Grad-CAM framework</h3>
+  <div class="meta">Mukiibi Moses • Grace . C. Kennedy • Simeon Okechukwu Ajakwe • 2026</div>
+  <p>Micro aerial vehicles (MAVs) flying through indoor corridors and other GNSS-denied environments cannot 
+    rely on satellite positioning, so a single monocular RGB camera is often the only sensing modality available. The navigation objective addressed in this paper 
+    is reactive, map-free corridor following: from each camera frame the onboard perception stack must choose a discrete steering direction that keeps the vehicle advancing along 
+    the corridor while avoiding walls and obstacles, rather than tracking a pre-specified waypoint, route, or global path. Prior work (DroNet, PULP-DroNet) addresses 
+    this problem with lightweight convolutional networks that map camera frames directly to a steering command and a collision flag; this paper asks 
+    whether a Vision Transformer can perform the same mapping with higher accuracy while remaining auditable. We present ViTDrone, an 
+    explainable artificial intelligence (XAI) framework that couples a Vision Transformer (ViT-Base/16) backbone with multi-task learning and 
+    gradient-weighted class activation mapping (Grad-CAM). From a single shared backbone the model simultaneously predicts a three-class 
+    steering command (left/forward/right) and a binary collision label. We build a scalable data pipeline that aggregates 309 acquisition sequences of the 
+    PULP-DroNet v3 benchmark, yielding 195,455 training and 76,390 test frames annotated with yaw-rate commands and collision risk. After five epochs of 
+    AdamW fine-tuning from ImageNet-21k weights, ViTDrone attains 76.35% yaw classification accuracy and 60.77% collision accuracy. To make the model auditable we 
+    adapt Grad-CAM to the transformer with a reshape transform over the patch tokens. The resulting saliency maps are reassuring: the network looks where a 
+    human pilot would, at floor-wall boundaries when it decides to turn and at overhead structure when it senses a collision. However, aggregate 
+    accuracy conceals substantial variation across classes. A per-class analysis, combining loss curves, confusion matrices, and a comparison against 
+    convolutional baselines, shows that the reported accuracies are driven disproportionately by the two majority classes (forward steering and no-collision), 
+    while minority classes, sharp turns and imminent collisions, are recognized far less reliably. We attribute this shortfall to two measurable causes rather than 
+    to insufficient backbone capacity: severe label imbalance (78.6% forward, 60.7% no-collision) and a persistent gap between training and validation loss that is 
+    consistent with distribution shift across acquisition sequences. Relative to prior work, which has evaluated either convolutional navigation policies without 
+    explainability or Vision Transformer explainability outside the UAV navigation setting, this paper contributes (i) to our knowledge, the first integration of 
+    transformer-native Grad-CAM explainability with a multi-task steering-and-collision policy for MAV navigation, and (ii) a systematic diagnosis showing that 
+    class imbalance and domain shift, rather than model capacity, are the dominant factors limiting both accuracy and interpretability in this setting, together with a concrete research agenda for addressing them.</p>
+  <div class="links">
+     <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:UebtZRa9Y70C" class="btn-external">GoogleScholar</a>
+    <a href="Research papers/Drone paper.pdf" class="btn-pdf">PDF</a>
+    <a href="https://www.researchgate.net/publication/414129482_Explainable_and_cyber-resilient_vision_transformers_for_joint_steering_and_collision-avoidance_perception_in_autonomous_drone_navigation_a_multi-task_Grad-CAM_framework_OPEN_ACCESS_EDITED_BY" class="btn-external">ResearchGate</a>
+  </div>
+</div>
+
+  <!-- PAPER 2 -->
+<div class="research-item">
+  <h3>Confidence- Aware Empathic Conversation frameworks by Semantic Heuristic Gating and Anchoring Dynamics </h3>
+  <div class="meta">Mukiibi Moses • Tirop Meshack • Mohammed Abdulhakim Al-Absi • Alaa Nimer Abukhalifeh •  Ahmed Abdulhakim Al-Absi • 2026</div>
+  <p>In this paper, we design and propose a Confidence-Aware Empathic Conversation Framework to address the 
+limitations of smaller-parameter Large Language Models (LLMs) such as FLAN-T5-Large in affective and 
+mental health applications. We propose a novel architecture that gates LLM outputs through a dual-metric 
+scoring system combining keyword-based heuristic empathy checking and vector-space semantic relevance 
+evaluation, unified as Stotal = H + (3 × R). We implement a Dynamic Sentiment-Aware Anchoring strategy 
+that pre-fills assistant responses with emotionally appropriate anchors depending on detected user sentiment, 
+restricting the decoder search space to a corresponding emotional subspace. We further employ a Confidence 
+Gate with a strict threshold (τ = 2.5) that triggers a safe fallback response when no candidate meets the 
+required quality bar. We evaluate our system through a multi-turn interaction session on academic and work
+related stress scenarios using FLAN-T5-Large for generation and all-MiniLM-L6-v2 for semantic embedding 
+evaluation. Our experimental results show that the proposed Hard-Anchoring strategy effectively prevents 
+incoherent and emotionally misaligned outputs, with all generated responses remaining well above the 
+confidence threshold. We achieve a mean system confidence of 4.74 across five turns, with the highest 
+confidence score of 6.79 recorded when the system detected a user shift toward a positive emotional state and 
+reinforced it appropriately. These results demonstrate that our framework substantially improves empathic 
+coherence, response reliability, and emotional alignment in human-AI dialogue, offering a principled path 
+toward safer AI deployment in mental health support contexts. </p>
+  <div class="links">
+     <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:Se3iqnhoufwC" class="btn-external">GoogleScholar</a>
+    <a href="Confidence-AwareEmpathicCo2-nversationframeworksbySemantic-HeuristicGatingandAnchoringDynamics.pdf" class="btn-pdf">PDF</a>
+    <a href="https://www.researchgate.net/publication/403262126_Confidence-Aware_Empathic_Conversation_frameworks_by_Semantic-Heuristic_Gating_and_Anchoring_Dynamics" class="btn-external">ResearchGate</a>
+  </div>
+</div>
+
+  <!-- PAPER 3 -->
+<div class="research-item">
+  <h3>Real-Time Face Detection and Gender Prediction System Using Deep Learning with Webcam Integration</h3>
+  <div class="meta">Mukiibi Moses • Ahmed Abdulhakim Al-Absi2 • Alaa Nimer Abukhalifeh3 • Mohammed Abdulhakim. Al-Absi2 • 2026</div>
+  <p>Gender prediction and face detection are fundamental tasks done by computers to help with finding faces,
+determining genders, and using this information for things such as biometric authentication, access control IO
+property, analytics about an audience, or even interacting With human beings through machines. In this paper,
+we investigated the real-time processing flow Of a web-based application using a Haar Cascade face
+recognition system and a ResNet 50 classifier trained for gender identification. Achieving accurate results,
+while doing it effeciently (and With as little delay as possible) can be accomplished through real-time
+implementation that provides allfunctions required, including computingpower, accuracy of inference results,
+and latency through an entire system process. This paper describes the real-time processing flow of a web
+based application designed with a Haar Cascade face detection system along with a ResNet 50 classifier
+trained to identify gender. The system uses OpenCV's Haar Cascade tech to quicklyfindfaces, then use a
+ResNet-50 pre-trained to perform well on ImageNet andfine-tuned using a balanced combination ofdatafrom -
+Kaggle Gender Classification, CelebA and UTKFace datasets. Using transfer learning, the model converges
+quickly to a high level of generalizeability - achieving a validation accuracy of 94.65% after trainingfor only
+10 epochs. The detection, preprocessing and classificationfunctioms are contained in a modular system, which
+allows for independent upgrades to eachfunction. The entire processing pipeline has been wrapped in a web
+application in Flask using WebRTC technologv to enable real-time inference on any platform or
+browser, With total end-to-end latency Of 50 ms at 30 fps. Results from our experiments show that the system
+effectively mainlains high detection rates When lhere is good light, and it correctly classifies gender for purposes Of analyzing demographics. Limitations of the System exist because of the performance of a Haar
+Cascade detector on non-frontal faces and because the concept of binary genders limits how we can classify
+people by gender. The next steps in this research will be to use a different detector (CNN based) like MTCNN
+or RetinaFace to make the system more robust to pose and to extend the system from just detecting one
+parameter to detecting more parameters at once such as age and emotion. </p>
+  <div class="links">
+     <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:LkGwnXOMwfcC" class="btn-external">GoogleScholar</a>
+    <a href="Research papers/Real-TimeFaceDetectionandGenderPredictionSystemUsingDeepLearning.pdf" class="btn-pdf">PDF</a>
+    <a href="https://www.researchgate.net/publication/408316661_Real-Time_Face_Detection_and_Gender_Prediction_System_Using_Deep_Learning" class="btn-external">ResearchGate</a>
+  </div>
+</div>
+
+  
+
 <!-- PAPER 1 -->
 <div class="research-item">
   <h3>Emotion Recognition in Smart Assistants: An Empirical Investigation</h3>
