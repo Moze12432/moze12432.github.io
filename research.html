@@ -10,382 +10,595 @@
 
 <link rel="icon" href="profile.JPG">
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 <!-- Google Scholar Metadata -->
 <meta name="citation_author" content="Mukiibi Moses">
 <meta name="citation_publication_date" content="2026">
 
 <style>
+  :root {
+    --ink: #0c1222;
+    --ink-soft: #1e293b;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --paper: #ffffff;
+    --bg: #f8fafc;
+    --accent: #1e3a8a;
+    --accent-light: #3b5bdb;
+    --gold: #b8860b;
+  }
 
-body {
-  margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
-  background: #f4f6fb;
-  color: #2c3e50;
-}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* Header */
-header {
-  background: linear-gradient(135deg, #0a0a23, #1b1b4d);
-  color: white;
-  text-align: center;
-  padding: 60px 20px;
-}
+  html { scroll-behavior: smooth; }
 
-header h1 {
-  margin: 0;
-  font-size: 2.8rem;
-}
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--ink-soft);
+    line-height: 1.65;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-header p {
-  opacity: 0.85;
-  margin-top: 10px;
-}
+  /* ===== HEADER ===== */
+  header {
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    padding: 4rem 2rem 3rem;
+    position: relative;
+  }
 
-/* Navigation */
-nav {
-  background: #0a0a23;
-  text-align: center;
-  padding: 12px;
-}
+  .header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+  }
 
-nav a {
-  color: white;
-  margin: 0 15px;
-  text-decoration: none;
-  font-weight: bold;
-}
+  .avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 8px 24px -8px rgba(30, 58, 138, 0.4);
+    border: 3px solid #ffffff;
+    background: #e2e8f0;
+  }
 
-nav a:hover {
-  color: #76a8ff;
-}
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
 
-/* Container */
-.container {
-  max-width: 1000px;
-  margin: 40px auto;
-  padding: 0 20px;
-}
+  .header-text { flex: 1; min-width: 280px; }
 
-/* Title */
-h2 {
-  font-size: 2rem;
-  margin-bottom: 20px;
-  color: #0a0a23;
-}
+  .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+  }
 
-/* Research Cards */
-.research-item {
-  background: white;
-  border-left: 5px solid #76a8ff;
-  padding: 20px;
-  margin-bottom: 25px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transition: all 0.25s ease;
-}
+  header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2rem, 4.5vw, 3rem);
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-bottom: 0.75rem;
+  }
 
-.research-item:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 22px rgba(0,0,0,0.12);
-}
+  header .subtitle {
+    font-size: 1.05rem;
+    color: var(--muted);
+    max-width: 620px;
+    line-height: 1.6;
+  }
 
-.research-item h3 {
-  margin-top: 0;
-  color: #0a0a23;
-}
+  /* ===== NAV ===== */
+  nav {
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    padding: 0 2rem;
+  }
 
-.meta {
-  font-size: 0.9rem;
-  color: #777;
-  margin-bottom: 10px;
-}
+  .nav-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    height: 60px;
+  }
 
-/* Buttons */
-.links {
-  margin-top: 12px;
-}
+  nav a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 0.5rem 0;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
 
-.links a {
-  display: inline-block;
-  margin: 5px 8px 5px 0;
-  padding: 8px 14px;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  text-decoration: none;
-  font-weight: bold;
-  transition: 0.2s;
-}
+  nav a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
 
-/* Button Types */
-.btn-pdf {
-  background: #e74c3c;
-  color: white;
-}
+  /* ===== MAIN ===== */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 3.5rem 2rem 4rem;
+  }
 
-.btn-article {
-  background: #3498db;
-  color: white;
-}
+  .section-header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--line);
+  }
 
-.btn-external {
-  background: #2ecc71;
-  color: white;
-}
+  .section-header h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.015em;
+    margin-bottom: 0.35rem;
+  }
 
-.links a:hover {
-  opacity: 0.85;
-}
+  .section-header p {
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
 
-/* Footer */
-footer {
-  background: #0a0a23;
-  color: white;
-  text-align: center;
-  padding: 20px;
-  margin-top: 50px;
-}
+  /* ===== PUBLICATION LIST ===== */
+  .pub-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
 
+  .pub {
+    padding: 2.25rem 0;
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 2rem;
+    transition: background 0.2s ease;
+  }
+
+  .pub:last-child { border-bottom: none; }
+
+  .pub:hover { background: rgba(30, 58, 138, 0.015); }
+
+  .pub-year {
+    font-family: 'Fraunces', serif;
+    font-size: 1.35rem;
+    font-weight: 500;
+    color: var(--accent);
+    padding-top: 0.15rem;
+    letter-spacing: -0.01em;
+  }
+
+  .pub-body { min-width: 0; }
+
+  .pub-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.6rem;
+    transition: color 0.2s ease;
+  }
+
+  .pub:hover .pub-title { color: var(--accent); }
+
+  .pub-authors {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 0.9rem;
+    font-weight: 450;
+  }
+
+  .pub-authors strong {
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  .pub-abstract {
+    font-size: 0.94rem;
+    color: #475569;
+    line-height: 1.7;
+    margin-bottom: 1.15rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-align: justify;
+  }
+
+  .pub.expanded .pub-abstract {
+    -webkit-line-clamp: unset;
+    display: block;
+  }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 1.1rem;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .expand-btn:hover { text-decoration: underline; }
+
+  .expand-btn::after {
+    content: '↓';
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+  }
+
+  .pub.expanded .expand-btn::after {
+    transform: rotate(180deg);
+  }
+
+  /* ===== LINK PILLS ===== */
+  .pub-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .pub-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.42rem 0.95rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    letter-spacing: 0.01em;
+    transition: all 0.18s ease;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink-soft);
+  }
+
+  .pub-links a:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px -4px rgba(0,0,0,0.12);
+  }
+
+  .pub-links a.pdf {
+    background: #fef2f2;
+    color: #b91c1c;
+    border-color: #fecaca;
+  }
+  .pub-links a.pdf:hover { background: #b91c1c; color: white; border-color: #b91c1c; }
+
+  .pub-links a.article {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+  }
+  .pub-links a.article:hover { background: #1d4ed8; color: white; border-color: #1d4ed8; }
+
+  .pub-links a.external {
+    background: #f0fdf4;
+    color: #15803d;
+    border-color: #bbf7d0;
+  }
+  .pub-links a.external:hover { background: #15803d; color: white; border-color: #15803d; }
+
+  .pub-links a::before {
+    font-size: 0.75rem;
+  }
+  .pub-links a.pdf::before { content: '📄'; }
+  .pub-links a.article::before { content: '📝'; }
+  .pub-links a.external::before { content: '🔗'; }
+
+  /* ===== FOOTER ===== */
+  footer {
+    background: var(--ink);
+    color: #94a3b8;
+    text-align: center;
+    padding: 2.5rem 2rem;
+    font-size: 0.88rem;
+    margin-top: 4rem;
+  }
+
+  footer p { margin: 0; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 720px) {
+    header { padding: 3rem 1.5rem 2.5rem; }
+    .header-inner { gap: 1.5rem; }
+    .avatar { width: 72px; height: 72px; }
+    .avatar img { width: 100%; height: 100%; }
+    nav { padding: 0 1.5rem; }
+    .nav-inner { height: 54px; gap: 1.5rem; }
+    .container { padding: 2.5rem 1.5rem 3rem; }
+    .pub {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+      padding: 1.75rem 0;
+    }
+    .pub-year {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding-top: 0;
+    }
+    .pub-title { font-size: 1.15rem; }
+    .pub-abstract { font-size: 0.9rem; }
+  }
+
+  @media (max-width: 480px) {
+    .pub-links a { font-size: 0.78rem; padding: 0.38rem 0.8rem; }
+    .pub-links a::before { display: none; }
+  }
 </style>
 </head>
 
 <body>
 
 <header>
-  <h1>Research Publications</h1>
-  <p>Mukiibi Moses • Artificial Intelligence • Machine Learning • Data Science</p>
+  <div class="header-inner">
+    <div class="avatar">
+      <img src="profile.JPG" alt="Mukiibi Moses">
+    </div>
+    <div class="header-text">
+      <div class="eyebrow">Research Portfolio</div>
+      <h1>Mukiibi Moses</h1>
+      <p class="subtitle">Publications in artificial intelligence, machine learning, and data science — exploring explainable AI, conversational systems, computer vision, and autonomous navigation.</p>
+    </div>
+  </div>
 </header>
 
 <nav>
-  <a href="https://moze12432.github.io/">Home</a>
-  <a href="#research">Publications</a>
+  <div class="nav-inner">
+    <a href="https://moze12432.github.io/">Home</a>
+    <a href="#research">Publications</a>
+  </div>
 </nav>
 
 <div class="container">
 
-<h2 id="research">Academic Research</h2>
-
-
-<!-- PAPER 1 -->
-<div class="research-item">
-  <h3>Explainable and cyber-resilient vision transformers for joint steering and collision-avoidance perception in autonomous drone navigation: a multi-task Grad-CAM framework</h3>
-  <div class="meta">Mukiibi Moses • Grace . C. Kennedy • Simeon Okechukwu Ajakwe • 2026</div>
-  <p>Micro aerial vehicles (MAVs) flying through indoor corridors and other GNSS-denied environments cannot 
-    rely on satellite positioning, so a single monocular RGB camera is often the only sensing modality available. The navigation objective addressed in this paper 
-    is reactive, map-free corridor following: from each camera frame the onboard perception stack must choose a discrete steering direction that keeps the vehicle advancing along 
-    the corridor while avoiding walls and obstacles, rather than tracking a pre-specified waypoint, route, or global path. Prior work (DroNet, PULP-DroNet) addresses 
-    this problem with lightweight convolutional networks that map camera frames directly to a steering command and a collision flag; this paper asks 
-    whether a Vision Transformer can perform the same mapping with higher accuracy while remaining auditable. We present ViTDrone, an 
-    explainable artificial intelligence (XAI) framework that couples a Vision Transformer (ViT-Base/16) backbone with multi-task learning and 
-    gradient-weighted class activation mapping (Grad-CAM). From a single shared backbone the model simultaneously predicts a three-class 
-    steering command (left/forward/right) and a binary collision label. We build a scalable data pipeline that aggregates 309 acquisition sequences of the 
-    PULP-DroNet v3 benchmark, yielding 195,455 training and 76,390 test frames annotated with yaw-rate commands and collision risk. After five epochs of 
-    AdamW fine-tuning from ImageNet-21k weights, ViTDrone attains 76.35% yaw classification accuracy and 60.77% collision accuracy. To make the model auditable we 
-    adapt Grad-CAM to the transformer with a reshape transform over the patch tokens. The resulting saliency maps are reassuring: the network looks where a 
-    human pilot would, at floor-wall boundaries when it decides to turn and at overhead structure when it senses a collision. However, aggregate 
-    accuracy conceals substantial variation across classes. A per-class analysis, combining loss curves, confusion matrices, and a comparison against 
-    convolutional baselines, shows that the reported accuracies are driven disproportionately by the two majority classes (forward steering and no-collision), 
-    while minority classes, sharp turns and imminent collisions, are recognized far less reliably. We attribute this shortfall to two measurable causes rather than 
-    to insufficient backbone capacity: severe label imbalance (78.6% forward, 60.7% no-collision) and a persistent gap between training and validation loss that is 
-    consistent with distribution shift across acquisition sequences. Relative to prior work, which has evaluated either convolutional navigation policies without 
-    explainability or Vision Transformer explainability outside the UAV navigation setting, this paper contributes (i) to our knowledge, the first integration of 
-    transformer-native Grad-CAM explainability with a multi-task steering-and-collision policy for MAV navigation, and (ii) a systematic diagnosis showing that 
-    class imbalance and domain shift, rather than model capacity, are the dominant factors limiting both accuracy and interpretability in this setting, together with a concrete research agenda for addressing them.</p>
-  <div class="links">
-     <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:UebtZRa9Y70C" class="btn-external">GoogleScholar</a>
-    <a href="Research papers/Drone paper.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/414129482_Explainable_and_cyber-resilient_vision_transformers_for_joint_steering_and_collision-avoidance_perception_in_autonomous_drone_navigation_a_multi-task_Grad-CAM_framework_OPEN_ACCESS_EDITED_BY" class="btn-external">ResearchGate</a>
+  <div class="section-header" id="research">
+    <h2>Academic Research</h2>
+    <p>Peer-reviewed papers and preprints · 12 publications</p>
   </div>
-</div>
 
-  <!-- PAPER 2 -->
-<div class="research-item">
-  <h3>Confidence- Aware Empathic Conversation frameworks by Semantic Heuristic Gating and Anchoring Dynamics </h3>
-  <div class="meta">Mukiibi Moses • Tirop Meshack • Mohammed Abdulhakim Al-Absi • Alaa Nimer Abukhalifeh •  Ahmed Abdulhakim Al-Absi • 2026</div>
-  <p>In this paper, we design and propose a Confidence-Aware Empathic Conversation Framework to address the 
-limitations of smaller-parameter Large Language Models (LLMs) such as FLAN-T5-Large in affective and 
-mental health applications. We propose a novel architecture that gates LLM outputs through a dual-metric 
-scoring system combining keyword-based heuristic empathy checking and vector-space semantic relevance 
-evaluation, unified as Stotal = H + (3 × R). We implement a Dynamic Sentiment-Aware Anchoring strategy 
-that pre-fills assistant responses with emotionally appropriate anchors depending on detected user sentiment, 
-restricting the decoder search space to a corresponding emotional subspace. We further employ a Confidence 
-Gate with a strict threshold (τ = 2.5) that triggers a safe fallback response when no candidate meets the 
-required quality bar. We evaluate our system through a multi-turn interaction session on academic and work
-related stress scenarios using FLAN-T5-Large for generation and all-MiniLM-L6-v2 for semantic embedding 
-evaluation. Our experimental results show that the proposed Hard-Anchoring strategy effectively prevents 
-incoherent and emotionally misaligned outputs, with all generated responses remaining well above the 
-confidence threshold. We achieve a mean system confidence of 4.74 across five turns, with the highest 
-confidence score of 6.79 recorded when the system detected a user shift toward a positive emotional state and 
-reinforced it appropriately. These results demonstrate that our framework substantially improves empathic 
-coherence, response reliability, and emotional alignment in human-AI dialogue, offering a principled path 
-toward safer AI deployment in mental health support contexts. </p>
-  <div class="links">
-     <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:Se3iqnhoufwC" class="btn-external">GoogleScholar</a>
-    <a href="Research papers/Confidence-AwareEmpathicCo2-nversationframeworksbySemantic-HeuristicGatingandAnchoringDynamics.pdf.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/403262126_Confidence-Aware_Empathic_Conversation_frameworks_by_Semantic-Heuristic_Gating_and_Anchoring_Dynamics" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+  <div class="pub-list">
 
-  <!-- PAPER 3 -->
-<div class="research-item">
-  <h3>Real-Time Face Detection and Gender Prediction System Using Deep Learning with Webcam Integration</h3>
-  <div class="meta">Mukiibi Moses • Ahmed Abdulhakim Al-Absi2 • Alaa Nimer Abukhalifeh3 • Mohammed Abdulhakim. Al-Absi2 • 2026</div>
-  <p>Gender prediction and face detection are fundamental tasks done by computers to help with finding faces,
-determining genders, and using this information for things such as biometric authentication, access control IO
-property, analytics about an audience, or even interacting With human beings through machines. In this paper,
-we investigated the real-time processing flow Of a web-based application using a Haar Cascade face
-recognition system and a ResNet 50 classifier trained for gender identification. Achieving accurate results,
-while doing it effeciently (and With as little delay as possible) can be accomplished through real-time
-implementation that provides allfunctions required, including computingpower, accuracy of inference results,
-and latency through an entire system process. This paper describes the real-time processing flow of a web
-based application designed with a Haar Cascade face detection system along with a ResNet 50 classifier
-trained to identify gender. The system uses OpenCV's Haar Cascade tech to quicklyfindfaces, then use a
-ResNet-50 pre-trained to perform well on ImageNet andfine-tuned using a balanced combination ofdatafrom -
-Kaggle Gender Classification, CelebA and UTKFace datasets. Using transfer learning, the model converges
-quickly to a high level of generalizeability - achieving a validation accuracy of 94.65% after trainingfor only
-10 epochs. The detection, preprocessing and classificationfunctioms are contained in a modular system, which
-allows for independent upgrades to eachfunction. The entire processing pipeline has been wrapped in a web
-application in Flask using WebRTC technologv to enable real-time inference on any platform or
-browser, With total end-to-end latency Of 50 ms at 30 fps. Results from our experiments show that the system
-effectively mainlains high detection rates When lhere is good light, and it correctly classifies gender for purposes Of analyzing demographics. Limitations of the System exist because of the performance of a Haar
-Cascade detector on non-frontal faces and because the concept of binary genders limits how we can classify
-people by gender. The next steps in this research will be to use a different detector (CNN based) like MTCNN
-or RetinaFace to make the system more robust to pose and to extend the system from just detecting one
-parameter to detecting more parameters at once such as age and emotion. </p>
-  <div class="links">
-     <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:LkGwnXOMwfcC" class="btn-external">GoogleScholar</a>
-    <a href="Research papers/Real-TimeFaceDetectionandGenderPredictionSystemUsingDeepLearning.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/408316661_Real-Time_Face_Detection_and_Gender_Prediction_System_Using_Deep_Learning" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 1 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Explainable and cyber-resilient vision transformers for joint steering and collision-avoidance perception in autonomous drone navigation: a multi-task Grad-CAM framework</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Grace C. Kennedy · Simeon Okechukwu Ajakwe</div>
+        <p class="pub-abstract">Micro aerial vehicles (MAVs) flying through indoor corridors and other GNSS-denied environments cannot rely on satellite positioning, so a single monocular RGB camera is often the only sensing modality available. The navigation objective addressed in this paper is reactive, map-free corridor following: from each camera frame the onboard perception stack must choose a discrete steering direction that keeps the vehicle advancing along the corridor while avoiding walls and obstacles, rather than tracking a pre-specified waypoint, route, or global path. Prior work (DroNet, PULP-DroNet) addresses this problem with lightweight convolutional networks that map camera frames directly to a steering command and a collision flag; this paper asks whether a Vision Transformer can perform the same mapping with higher accuracy while remaining auditable. We present ViTDrone, an explainable artificial intelligence (XAI) framework that couples a Vision Transformer (ViT-Base/16) backbone with multi-task learning and gradient-weighted class activation mapping (Grad-CAM). From a single shared backbone the model simultaneously predicts a three-class steering command (left/forward/right) and a binary collision label. We build a scalable data pipeline that aggregates 309 acquisition sequences of the PULP-DroNet v3 benchmark, yielding 195,455 training and 76,390 test frames annotated with yaw-rate commands and collision risk. After five epochs of AdamW fine-tuning from ImageNet-21k weights, ViTDrone attains 76.35% yaw classification accuracy and 60.77% collision accuracy. To make the model auditable we adapt Grad-CAM to the transformer with a reshape transform over the patch tokens. The resulting saliency maps are reassuring: the network looks where a human pilot would, at floor-wall boundaries when it decides to turn and at overhead structure when it senses a collision. However, aggregate accuracy conceals substantial variation across classes. A per-class analysis, combining loss curves, confusion matrices, and a comparison against convolutional baselines, shows that the reported accuracies are driven disproportionately by the two majority classes (forward steering and no-collision), while minority classes, sharp turns and imminent collisions, are recognized far less reliably. We attribute this shortfall to two measurable causes rather than to insufficient backbone capacity: severe label imbalance (78.6% forward, 60.7% no-collision) and a persistent gap between training and validation loss that is consistent with distribution shift across acquisition sequences. Relative to prior work, which has evaluated either convolutional navigation policies without explainability or Vision Transformer explainability outside the UAV navigation setting, this paper contributes (i) to our knowledge, the first integration of transformer-native Grad-CAM explainability with a multi-task steering-and-collision policy for MAV navigation, and (ii) a systematic diagnosis showing that class imbalance and domain shift, rather than model capacity, are the dominant factors limiting both accuracy and interpretability in this setting, together with a concrete research agenda for addressing them.</p>
+        <button class="expand-btn">Read more</button>
+        <div class="pub-links">
+          <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:UebtZRa9Y70C" class="external">Google Scholar</a>
+          <a href="Research papers/Drone paper.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/414129482_Explainable_and_cyber-resilient_vision_transformers_for_joint_steering_and_collision-avoidance_perception_in_autonomous_drone_navigation_a_multi-task_Grad-CAM_framework_OPEN_ACCESS_EDITED_BY" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-  
+    <!-- PAPER 2 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Confidence-Aware Empathic Conversation frameworks by Semantic Heuristic Gating and Anchoring Dynamics</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Tirop Meshack · Mohammed Abdulhakim Al-Absi · Alaa Nimer Abukhalifeh · Ahmed Abdulhakim Al-Absi</div>
+        <p class="pub-abstract">In this paper, we design and propose a Confidence-Aware Empathic Conversation Framework to address the limitations of smaller-parameter Large Language Models (LLMs) such as FLAN-T5-Large in affective and mental health applications. We propose a novel architecture that gates LLM outputs through a dual-metric scoring system combining keyword-based heuristic empathy checking and vector-space semantic relevance evaluation, unified as Stotal = H + (3 × R). We implement a Dynamic Sentiment-Aware Anchoring strategy that pre-fills assistant responses with emotionally appropriate anchors depending on detected user sentiment, restricting the decoder search space to a corresponding emotional subspace. We further employ a Confidence Gate with a strict threshold (τ = 2.5) that triggers a safe fallback response when no candidate meets the required quality bar. We evaluate our system through a multi-turn interaction session on academic and work-related stress scenarios using FLAN-T5-Large for generation and all-MiniLM-L6-v2 for semantic embedding evaluation. Our experimental results show that the proposed Hard-Anchoring strategy effectively prevents incoherent and emotionally misaligned outputs, with all generated responses remaining well above the confidence threshold. We achieve a mean system confidence of 4.74 across five turns, with the highest confidence score of 6.79 recorded when the system detected a user shift toward a positive emotional state and reinforced it appropriately. These results demonstrate that our framework substantially improves empathic coherence, response reliability, and emotional alignment in human-AI dialogue, offering a principled path toward safer AI deployment in mental health support contexts.</p>
+        <button class="expand-btn">Read more</button>
+        <div class="pub-links">
+          <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:Se3iqnhoufwC" class="external">Google Scholar</a>
+          <a href="Research papers/Confidence-AwareEmpathicCo2-nversationframeworksbySemantic-HeuristicGatingandAnchoringDynamics.pdf.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/403262126_Confidence-Aware_Empathic_Conversation_frameworks_by_Semantic-Heuristic_Gating_and_Anchoring_Dynamics" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-<!-- PAPER 1 -->
-<div class="research-item">
-  <h3>Emotion Recognition in Smart Assistants: An Empirical Investigation</h3>
-  <div class="meta">Mukiibi Moses • Shema Nkindi Giscard • 2026</div>
-  <p>Investigates emotion recognition capabilities in conversational AI systems.</p>
-  <div class="links">
-     <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:9yKSN-GCB0IC" class="btn-external">GoogleScholar</a>
-    <a href="Research papers/Emotion Recognition in Smart Assistants.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/402204939_Emotion_Recognition_in_Smart_Assistants_An_Empirical_Investigation" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 3 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Real-Time Face Detection and Gender Prediction System Using Deep Learning with Webcam Integration</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Ahmed Abdulhakim Al-Absi · Alaa Nimer Abukhalifeh · Mohammed Abdulhakim Al-Absi</div>
+        <p class="pub-abstract">Gender prediction and face detection are fundamental tasks done by computers to help with finding faces, determining genders, and using this information for things such as biometric authentication, access control IO property, analytics about an audience, or even interacting With human beings through machines. In this paper, we investigated the real-time processing flow Of a web-based application using a Haar Cascade face recognition system and a ResNet 50 classifier trained for gender identification. Achieving accurate results, while doing it effeciently (and With as little delay as possible) can be accomplished through real-time implementation that provides allfunctions required, including computingpower, accuracy of inference results, and latency through an entire system process. This paper describes the real-time processing flow of a web based application designed with a Haar Cascade face detection system along with a ResNet 50 classifier trained to identify gender. The system uses OpenCV's Haar Cascade tech to quicklyfindfaces, then use a ResNet-50 pre-trained to perform well on ImageNet andfine-tuned using a balanced combination ofdatafrom - Kaggle Gender Classification, CelebA and UTKFace datasets. Using transfer learning, the model converges quickly to a high level of generalizeability - achieving a validation accuracy of 94.65% after trainingfor only 10 epochs. The detection, preprocessing and classificationfunctioms are contained in a modular system, which allows for independent upgrades to eachfunction. The entire processing pipeline has been wrapped in a web application in Flask using WebRTC technologv to enable real-time inference on any platform or browser, With total end-to-end latency Of 50 ms at 30 fps. Results from our experiments show that the system effectively mainlains high detection rates When there is good light, and it correctly classifies gender for purposes Of analyzing demographics. Limitations of the System exist because of the performance of a Haar Cascade detector on non-frontal faces and because the concept of binary genders limits how we can classify people by gender. The next steps in this research will be to use a different detector (CNN based) like MTCNN or RetinaFace to make the system more robust to pose and to extend the system from just detecting one parameter to detecting more parameters at once such as age and emotion.</p>
+        <button class="expand-btn">Read more</button>
+        <div class="pub-links">
+          <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:LkGwnXOMwfcC" class="external">Google Scholar</a>
+          <a href="Research papers/Real-TimeFaceDetectionandGenderPredictionSystemUsingDeepLearning.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/408316661_Real-Time_Face_Detection_and_Gender_Prediction_System_Using_Deep_Learning" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-<!-- PAPER 2 -->
-<div class="research-item">
-  <h3>Fine-Tuning DistilGPT2 for Open-Domain Conversational AI</h3>
-  <div class="meta">Mukiibi Moses • 2026</div>
-  <p>Explores efficient fine-tuning strategies for compact transformer models.</p>
-  <div class="links">
-    <a href="Research papers/Fine-Tuning a Compact Language Model for Open-Domain Conversational AI.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/401718684_Fine-Tuning_a_Compact_Language_Model_for_Open-Domain_Conversational_AI_A_Case_Study_Using_DistilGPT2" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 4 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Emotion Recognition in Smart Assistants: An Empirical Investigation</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Shema Nkindi Giscard</div>
+        <p class="pub-abstract">Investigates emotion recognition capabilities in conversational AI systems.</p>
+        <div class="pub-links">
+          <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:9yKSN-GCB0IC" class="external">Google Scholar</a>
+          <a href="Research papers/Emotion Recognition in Smart Assistants.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/402204939_Emotion_Recognition_in_Smart_Assistants_An_Empirical_Investigation" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-<!-- PAPER 3 -->
-<div class="research-item">
-  <h3>Artificial Intelligence in the modern Era</h3>
-  <div class="meta">Mukiibi Moses • 2026</div>
-  <p>Artificial Intelligence (AI) has rapidly evolved into a transformative technology influencing numerous 
-aspects of modern society. Advances in machine learning, deep learning, and generative models 
-have enabled machines to perform complex tasks such as natural language understanding, image 
-recognition, and predictive analytics. This review article synthesizes current research on the 
-foundations of artificial intelligence and its major technological components, including machine 
-learning, deep learning, natural language processing, and computer vision. The article also examines 
-major applications of AI in sectors such as healthcare, finance, and transportation. In addition, key 
-challenges such as algorithmic bias, interpretability, and computational requirements are discussed. 
-By reviewing existing literature, this article highlights the progress made in AI research and identifies 
-future directions for developing more reliable, transparent, and human-centered AI systems. </p>
-  <div class="links">
-    <a href="Research papers/AIreview.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/401676098_Artificial_Intelligence_in_the_modern_Era" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 5 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Fine-Tuning DistilGPT2 for Open-Domain Conversational AI</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong></div>
+        <p class="pub-abstract">Explores efficient fine-tuning strategies for compact transformer models.</p>
+        <div class="pub-links">
+          <a href="Research papers/Fine-Tuning a Compact Language Model for Open-Domain Conversational AI.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/401718684_Fine-Tuning_a_Compact_Language_Model_for_Open-Domain_Conversational_AI_A_Case_Study_Using_DistilGPT2" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-<!-- PAPER 4 -->
-<div class="research-item">
-  <h3>Image Restoration Using Image Processing Techniques</h3>
-  <div class="meta">Mukiibi Moses • Nur Alam • 2026</div>
-  <p>This project aims to restore old or damaged photographs using advanced image processing 
-techniques. The methodologies include inpainting for region filling, noise reduction using 
-Gaussian blur, contrast enhancement through histogram equalization, bilateral filtering for 
-preserving details, and Roberts edge detection for edge highlighting. The application of these 
-techniques is demonstrated through a structured approach, with results visualized using 
-Matplotlib to illustrate the effectiveness of each step in revitalizing aged images.</p>
-  <div class="links">
-    <a href="Research papers/Imagerestoration11.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/401649018_Image_Restoration_Using_Image_Processing_Techniques" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 6 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Artificial Intelligence in the modern Era</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong></div>
+        <p class="pub-abstract">Artificial Intelligence (AI) has rapidly evolved into a transformative technology influencing numerous aspects of modern society. Advances in machine learning, deep learning, and generative models have enabled machines to perform complex tasks such as natural language understanding, image recognition, and predictive analytics. This review article synthesizes current research on the foundations of artificial intelligence and its major technological components, including machine learning, deep learning, natural language processing, and computer vision. The article also examines major applications of AI in sectors such as healthcare, finance, and transportation. In addition, key challenges such as algorithmic bias, interpretability, and computational requirements are discussed. By reviewing existing literature, this article highlights the progress made in AI research and identifies future directions for developing more reliable, transparent, and human-centered AI systems.</p>
+        <div class="pub-links">
+          <a href="Research papers/AIreview.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/401676098_Artificial_Intelligence_in_the_modern_Era" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-<!-- PAPER 5 -->
-<div class="research-item">
-  <h3>Low-Resource Optimization for Diffusion Models</h3>
-  <div class="meta">Mukiibi Moses • Hussein Fouad Mohamed Ali • 2026</div>
-  <p>Improves diffusion model performance under memory constraints.</p>
-  <div class="links">
-    <a href="generative-ai-optimization.html" class="btn-article">Article</a>
-    <a href="Research papers/Thesis2.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/401640141_A_Unified_Low-Resource_Optimization_Framework_for_Improving_Diffusion_Model_Image_Generation_Under_Memory_Constraints" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 7 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Image Restoration Using Image Processing Techniques</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Nur Alam</div>
+        <p class="pub-abstract">This project aims to restore old or damaged photographs using advanced image processing techniques. The methodologies include inpainting for region filling, noise reduction using Gaussian blur, contrast enhancement through histogram equalization, bilateral filtering for preserving details, and Roberts edge detection for edge highlighting. The application of these techniques is demonstrated through a structured approach, with results visualized using Matplotlib to illustrate the effectiveness of each step in revitalizing aged images.</p>
+        <div class="pub-links">
+          <a href="Research papers/Imagerestoration11.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/401649018_Image_Restoration_Using_Image_Processing_Techniques" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-<!-- PAPER 6 -->
-<div class="research-item">
-  <h3>Emerging Trends in AI (2025-2026)</h3>
-  <div class="meta">Mukiibi Moses • 2026</div>
-  <p>Analysis of modern AI developments and future trends.</p>
-  <div class="links">
-    <a href="Research papers/Emerging Trends in Artificial Intelligence (2025-2026).pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/402541035_Emerging_Trends_in_Artificial_Intelligence_2025-2026_A_Comprehensive_Review" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 8 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Low-Resource Optimization for Diffusion Models</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Hussein Fouad Mohamed Ali</div>
+        <p class="pub-abstract">Improves diffusion model performance under memory constraints.</p>
+        <div class="pub-links">
+          <a href="generative-ai-optimization.html" class="article">Article</a>
+          <a href="Research papers/Thesis2.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/401640141_A_Unified_Low-Resource_Optimization_Framework_for_Improving_Diffusion_Model_Image_Generation_Under_Memory_Constraints" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-<!-- PAPER 9 -->
-<div class="research-item">
-  <h3>Robotics and Automation: A Comprehensive Study</h3>
-  <div class="meta">Mukiibi Moses • Jean Pierre • Mikael Gombe • Johnson Samuel • Clara Cheila • Baseem Taher • 2026</div>
-  <p>Overview of robotics systems and automation technologies.</p>
-  <div class="links">
-    <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:2osOgNQ5qMEC" class="btn-external">GoogleScholar</a>
-    <a href="Research papers/RoboticsandAutomation.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/401665593_Robotics_and_Automation_A_Comprehensive_Study_Robotics_Automation" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 9 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Emerging Trends in AI (2025-2026)</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong></div>
+        <p class="pub-abstract">Analysis of modern AI developments and future trends.</p>
+        <div class="pub-links">
+          <a href="Research papers/Emerging Trends in Artificial Intelligence (2025-2026).pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/402541035_Emerging_Trends_in_Artificial_Intelligence_2025-2026_A_Comprehensive_Review" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-  <!-- PAPER 10 -->
-<div class="research-item">
-  <h3>Emotional State Engine: A Dynamic Emotion Modeling Framework for Emotion- Conditioned Conversational AI</h3>
-  <div class="meta">Mukiibi Moses • Giscard Shema Nkindi • Johnson Samuel • Meshack Tirop • 2026</div>
-  <p>The paper proposes an Emotional State Engine (ESE) that models user emotions dynamically using a Valence–Arousal–Dominance (VAD) framework instead of static emotion labels.
-It integrates emotion detection with a dialogue model to maintain emotional continuity and generate more contextually appropriate, empathetic responses.</p>
-  <div class="links">
-    <a href="https://moze12432.github.io/ai-emotional-response-systems.html" class="btn-article">Article</a>
-    <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:Tyk-4Ss8FVUC" class="btn-external">GoogleScholar</a>
-    <a href="Research papers/Emotion State Engine.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/402208953_Emotional_State_Engine_A_Dynamic_Emotion_Modeling_Framework_for_Emotion-_Conditioned_Conversational_AI" class="btn-external">ResearchGate</a>
-  </div>
-</div>
+    <!-- PAPER 10 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Robotics and Automation: A Comprehensive Study</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Jean Pierre · Mikael Gombe · Johnson Samuel · Clara Cheila · Baseem Taher</div>
+        <p class="pub-abstract">Overview of robotics systems and automation technologies.</p>
+        <div class="pub-links">
+          <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:2osOgNQ5qMEC" class="external">Google Scholar</a>
+          <a href="Research papers/RoboticsandAutomation.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/401665593_Robotics_and_Automation_A_Comprehensive_Study_Robotics_Automation" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
     <!-- PAPER 11 -->
-<div class="research-item">
-  <h3>MozeAI: A Multi-Modal Intelligent Assistant with Real-Time Web Search, Document Analysis, and Generative Capabilities</h3>
-  <div class="meta">Mukiibi Moses • 2026</div>
-  <p>This paper introduces MozeAI, an intelligent assistant built with Streamlit and Groq LLM that supports real-time web search, document analysis, file comparison, memory, and image generation.
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">Emotional State Engine: A Dynamic Emotion Modeling Framework for Emotion-Conditioned Conversational AI</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong> · Giscard Shema Nkindi · Johnson Samuel · Meshack Tirop</div>
+        <p class="pub-abstract">The paper proposes an Emotional State Engine (ESE) that models user emotions dynamically using a Valence–Arousal–Dominance (VAD) framework instead of static emotion labels. It integrates emotion detection with a dialogue model to maintain emotional continuity and generate more contextually appropriate, empathetic responses.</p>
+        <div class="pub-links">
+          <a href="https://moze12432.github.io/ai-emotional-response-systems.html" class="article">Article</a>
+          <a href="https://scholar.google.com/citations?view_op=view_citation&hl=en&user=na2PjYsAAAAJ&citation_for_view=na2PjYsAAAAJ:Tyk-4Ss8FVUC" class="external">Google Scholar</a>
+          <a href="Research papers/Emotion State Engine.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/402208953_Emotional_State_Engine_A_Dynamic_Emotion_Modeling_Framework_for_Emotion-_Conditioned_Conversational_AI" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
 
-It handles multiple file formats and can generate documents (PowerPoint, Excel, Word), demonstrating practical AI applications for education and professional tasks.</p>
-  <div class="links">
-    <a href="Research papers/MozeAI-A Multi-Modal Intelligent Assistant with Real-Time Web Search, Document Analysis, and Generative Capabilities.pdf" class="btn-pdf">PDF</a>
-    <a href="https://www.researchgate.net/publication/403947634_MozeAI_A_Multi-Modal_Intelligent_Assistant_with_Real-Time_Web_Search_Document_Analysis_and_Generative_Capabilities" class="btn-external">ResearchGate</a>
+    <!-- PAPER 12 -->
+    <article class="pub">
+      <div class="pub-year">2026</div>
+      <div class="pub-body">
+        <h3 class="pub-title">MozeAI: A Multi-Modal Intelligent Assistant with Real-Time Web Search, Document Analysis, and Generative Capabilities</h3>
+        <div class="pub-authors"><strong>Mukiibi Moses</strong></div>
+        <p class="pub-abstract">This paper introduces MozeAI, an intelligent assistant built with Streamlit and Groq LLM that supports real-time web search, document analysis, file comparison, memory, and image generation. It handles multiple file formats and can generate documents (PowerPoint, Excel, Word), demonstrating practical AI applications for education and professional tasks.</p>
+        <div class="pub-links">
+          <a href="Research papers/MozeAI-A Multi-Modal Intelligent Assistant with Real-Time Web Search, Document Analysis, and Generative Capabilities.pdf" class="pdf">PDF</a>
+          <a href="https://www.researchgate.net/publication/403947634_MozeAI_A_Multi-Modal_Intelligent_Assistant_with_Real-Time_Web_Search_Document_Analysis_and_Generative_Capabilities" class="external">ResearchGate</a>
+        </div>
+      </div>
+    </article>
+
   </div>
-</div>
 
 </div>
 
 <footer>
-  <p>© 2026 Mukiibi Moses | Research and publications</p>
+  <p>© 2026 Mukiibi Moses · Research and publications</p>
 </footer>
+
+<script>
+  document.querySelectorAll('.expand-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pub = btn.closest('.pub');
+      pub.classList.toggle('expanded');
+      btn.textContent = pub.classList.contains('expanded') ? 'Read less' : 'Read more';
+    });
+  });
+</script>
 
 </body>
 </html>
