@@ -1,962 +1,886 @@
-"""
-MOZEAI DOCUMENT STUDIO - Claude-Style Interface
-Valid Groq models, proper streaming, Claude-identical UI/UX
-"""
-
 import streamlit as st
 from groq import Groq
+import requests
 import re
-import time
-import uuid
+import numpy as np
+from bs4 import BeautifulSoup
+import PyPDF2
+import docx
+from io import StringIO
+import csv
+import json
 from datetime import datetime
-from typing import Dict, List, Optional, Generator
-from dataclasses import dataclass, field
-from enum import Enum
-import os
-from io import BytesIO
-import difflib
+import pytz
+import time
+import hashlib
+from collections import defaultdict
 
-# ============================================================================
-# CONSTANTS
-# ============================================================================
+# ============================================
+# FILE PROCESSING FUNCTIONS
+# ============================================
 
-VALID_GROQ_MODELS = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-70b-versatile",
-    "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it",
-]
-
-MODEL_PRIORITY = VALID_GROQ_MODELS
-MAX_DOC_CHARS = 12000
-
-SYSTEM_PROMPT = """You are MozeAI, a helpful AI writing assistant integrated into a document editor.
-
-CRITICAL RULES FOR DOCUMENT EDITING:
-1. When asked to EDIT a document, wrap the COMPLETE edited document in <document>...</document> tags.
-2. Do NOT add any preamble like "Sure!" or "Here's your edited document:" before the <document> tag.
-3. If you're just answering a question (not editing), respond normally without <document> tags.
-4. Be concise and helpful in regular responses.
-5. Preserve the original meaning unless instructed otherwise.
-
-EXAMPLE EDIT RESPONSE:
-<document>The completely edited document content goes here...</document>
-
-EXAMPLE QUESTION RESPONSE:
-Yes, you can improve passive voice by using active voice."""
-
-# ============================================================================
-# DATA CLASSES
-# ============================================================================
-
-class ArtifactType(Enum):
-    DOCUMENT = "document"
-    CODE = "code"
-    ANALYSIS = "analysis"
-    SUMMARY = "summary"
-
-@dataclass
-class Message:
-    role: str
-    content: str
-    timestamp: float = field(default_factory=time.time)
-
-@dataclass
-class Artifact:
-    id: str
-    title: str
-    content: str
-    type: ArtifactType
-    created_at: float = field(default_factory=time.time)
-
-@dataclass
-class Conversation:
-    id: str
-    title: str
-    messages: List[Message]
-    artifacts: List[Artifact]
-    current_document: str = ""
-    document_title: str = "Untitled Document"
-    document_versions: list = field(default_factory=list)
-    seen_files: set = field(default_factory=set)
-    active_diff: str = ""
-    created_at: float = field(default_factory=time.time)
-
-# ============================================================================
-# GROQ ROUTER
-# ============================================================================
-
-class GroqRouter:
-    def __init__(self, api_key: str):
-        self.client = Groq(api_key=api_key)
-        self.current_model = MODEL_PRIORITY[0]
-        self.last_error = None
-
-    def stream_chat(self, messages, temperature=0.7, max_tokens=4000):
-        last_error = None
-        for model in MODEL_PRIORITY:
-            try:
-                stream = self.client.chat.completions.create(
-                    model=model, messages=messages,
-                    max_tokens=max_tokens, temperature=temperature, stream=True
-                )
-                self.current_model = model
-                self.last_error = None
-                for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
-                return
-            except Exception as e:
-                last_error = f"{model}: {str(e)}"
-                self.last_error = last_error
-        raise RuntimeError(f"All models failed. Last error: {last_error}")
-
-    def complete_chat(self, messages, temperature=0.7, max_tokens=4000):
-        last_error = None
-        for model in MODEL_PRIORITY:
-            try:
-                response = self.client.chat.completions.create(
-                    model=model, messages=messages,
-                    max_tokens=max_tokens, temperature=temperature, stream=False
-                )
-                self.current_model = model
-                self.last_error = None
-                return response.choices[0].message.content
-            except Exception as e:
-                last_error = f"{model}: {str(e)}"
-                self.last_error = last_error
-        raise RuntimeError(f"All models failed. Last error: {last_error}")
-
-# ============================================================================
-# UTILITIES
-# ============================================================================
-
-def extract_document_from_response(response: str):
-    doc_match = re.search(r'<document>(.*?)</document>', response, re.DOTALL)
-    if doc_match:
-        return doc_match.group(1).strip(), True
-    return response, False
-
-def truncate_for_context(text: str, max_chars: int = MAX_DOC_CHARS):
-    if len(text) <= max_chars:
-        return text
-    half = max_chars // 2
-    return text[:half] + "\n\n[... content truncated ...]\n\n" + text[-half:]
-
-def show_diff(old_content: str, new_content: str):
-    diff = difflib.unified_diff(old_content.splitlines(), new_content.splitlines(), lineterm='', n=2)
-    return "\n".join(diff)
-
-def extract_file_text(uploaded_file):
+def extract_text_from_pdf(file):
     try:
-        if uploaded_file.type == "application/pdf":
-            try:
-                import pypdf
-                reader = pypdf.PdfReader(BytesIO(uploaded_file.getvalue()))
-                return "\n".join(page.extract_text() or "" for page in reader.pages)
-            except ImportError:
-                return "PDF support requires pypdf."
-        elif "wordprocessingml" in uploaded_file.type or uploaded_file.name.endswith('.docx'):
-            try:
-                import docx
-                doc = docx.Document(BytesIO(uploaded_file.getvalue()))
-                return "\n".join(p.text for p in doc.paragraphs)
-            except ImportError:
-                return "DOCX support requires python-docx."
-        elif uploaded_file.type == "text/plain":
-            return uploaded_file.getvalue().decode('utf-8')
-        else:
-            return uploaded_file.getvalue().decode('utf-8', errors='ignore')
+        file.seek(0)
+        pdf_reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page_num, page in enumerate(pdf_reader.pages):
+            page_text = page.extract_text()
+            if page_text and page_text.strip():
+                text += f"\n--- Page {page_num + 1} ---\n"
+                text += page_text.strip() + "\n"
+        return text[:5000] if text.strip() else "No extractable text in PDF"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error reading PDF: {str(e)}"
 
-# ============================================================================
-# CLAUDE-STYLE CSS
-# ============================================================================
+def extract_text_from_docx(file):
+    try:
+        file.seek(0)
+        doc = docx.Document(file)
+        text = ""
+        for para in doc.paragraphs:
+            if para.text and para.text.strip():
+                text += para.text.strip() + "\n\n"
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    if cell.text and cell.text.strip():
+                        row_text.append(cell.text.strip())
+                if row_text:
+                    text += " | ".join(row_text) + "\n"
+        return text[:5000] if text.strip() else "No extractable text in document"
+    except Exception as e:
+        return f"Error reading Word document: {str(e)}"
 
-CLAUDE_CSS = """
+def extract_text_from_txt(file):
+    try:
+        file.seek(0)
+        content = file.read().decode('utf-8')
+        return content[:5000] if content.strip() else "File is empty"
+    except UnicodeDecodeError:
+        try:
+            file.seek(0)
+            content = file.read().decode('latin-1')
+            return content[:5000]
+        except:
+            return "Error decoding text file"
+    except Exception as e:
+        return f"Error reading text file: {str(e)}"
+
+def extract_text_from_csv(file):
+    try:
+        file.seek(0)
+        content = file.read().decode('utf-8')
+        csv_reader = csv.reader(StringIO(content))
+        text = "CSV Data:\n\n"
+        rows = list(csv_reader)
+        if rows:
+            text += "Headers: " + " | ".join(rows[0]) + "\n\n"
+            for i, row in enumerate(rows[1:11], 1):
+                text += f"Row {i}: " + " | ".join(row) + "\n"
+            if len(rows) > 11:
+                text += f"\n... and {len(rows) - 11} more rows"
+        return text[:5000] if text.strip() else "CSV file appears empty"
+    except Exception as e:
+        return f"Error reading CSV: {str(e)}"
+
+def extract_text_from_json(file):
+    try:
+        file.seek(0)
+        content = file.read().decode('utf-8')
+        data = json.loads(content)
+        formatted = json.dumps(data, indent=2)
+        if len(formatted) > 3000:
+            text = "JSON Data Summary:\n\n"
+            text += f"Type: {type(data).__name__}\n"
+            if isinstance(data, dict):
+                text += f"Keys: {', '.join(list(data.keys())[:10])}\n"
+            elif isinstance(data, list):
+                text += f"Length: {len(data)}\n"
+            text += "\nFull JSON (truncated):\n" + formatted[:3000]
+        else:
+            text = formatted
+        return text[:5000]
+    except Exception as e:
+        return f"Error reading JSON: {str(e)}"
+
+def process_uploaded_file(uploaded_file):
+    file_type = uploaded_file.type
+    file_name = uploaded_file.name.lower()
+    
+    if file_type == "application/pdf" or file_name.endswith('.pdf'):
+        return extract_text_from_pdf(uploaded_file)
+    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or file_name.endswith('.docx'):
+        return extract_text_from_docx(uploaded_file)
+    elif file_type == "text/plain" or file_name.endswith('.txt'):
+        return extract_text_from_txt(uploaded_file)
+    elif file_type == "text/csv" or file_name.endswith('.csv'):
+        return extract_text_from_csv(uploaded_file)
+    elif file_type == "application/json" or file_name.endswith('.json'):
+        return extract_text_from_json(uploaded_file)
+    else:
+        return f"Unsupported file type: {file_type}"
+
+# ============================================
+# CONFIG
+# ============================================
+
+TEMPERATURE = 0
+MAX_TOKENS = 800
+
+st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
+
+# ============================================
+# CSS - FIXED CHAT INPUT AT BOTTOM
+# ============================================
+
+st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500&display=swap');
-
-/* ── Reset & Base ── */
-* { box-sizing: border-box; }
-
-html, body, [data-testid="stAppViewContainer"] {
-    background-color: #f5f0e8 !important;
-    font-family: 'Tiempos Text', Georgia, serif;
-    color: #1a1a1a;
-}
-
-/* ── Hide Streamlit chrome ── */
-#MainMenu, footer, header, [data-testid="stToolbar"],
-[data-testid="stDecoration"], [data-testid="stStatusWidget"] {
-    display: none !important;
-}
-
-/* ── Main content padding ── */
-.main .block-container {
-    padding: 0 !important;
-    max-width: 100% !important;
-}
-
-/* ── SIDEBAR — Claude dark panel ── */
-[data-testid="stSidebar"] {
-    background-color: #2d2d2d !important;
-    border-right: none !important;
-    width: 260px !important;
-}
-
-[data-testid="stSidebar"] * {
-    color: #e8e0d0 !important;
-}
-
-[data-testid="stSidebar"] .stMarkdown p,
-[data-testid="stSidebar"] .stMarkdown h3,
-[data-testid="stSidebar"] .stMarkdown h4 {
-    color: #e8e0d0 !important;
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif;
-}
-
-[data-testid="stSidebar"] hr {
-    border-color: #444 !important;
-    margin: 8px 0 !important;
-}
-
-/* Sidebar New Chat button — Claude orange/coral */
-[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-    background-color: #c96442 !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    padding: 8px 12px !important;
-    width: 100% !important;
-    cursor: pointer !important;
-    transition: background 0.15s !important;
-}
-
-[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
-    background-color: #b55538 !important;
-}
-
-/* Sidebar conversation buttons */
-[data-testid="stSidebar"] .stButton > button:not([kind="primary"]) {
-    background-color: transparent !important;
-    border: none !important;
-    color: #c8bfb0 !important;
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 13px !important;
-    text-align: left !important;
-    padding: 6px 8px !important;
-    border-radius: 6px !important;
-    width: 100% !important;
-    transition: background 0.1s !important;
-}
-
-[data-testid="stSidebar"] .stButton > button:not([kind="primary"]):hover {
-    background-color: #3d3d3d !important;
-    color: #fff !important;
-}
-
-/* Sidebar caption/small text */
-[data-testid="stSidebar"] .stCaption,
-[data-testid="stSidebar"] small {
-    color: #888 !important;
-    font-size: 11px !important;
-}
-
-/* Sidebar expander */
-[data-testid="stSidebar"] [data-testid="stExpander"] {
-    background: transparent !important;
-    border: 1px solid #444 !important;
-    border-radius: 6px !important;
-}
-
-/* Sidebar slider */
-[data-testid="stSidebar"] .stSlider [data-testid="stSliderThumb"] {
-    background-color: #c96442 !important;
-}
-
-/* ── MAIN AREA — cream/paper ── */
-[data-testid="stMain"] {
-    background-color: #f5f0e8 !important;
-}
-
-/* ── Column layout ── */
-[data-testid="column"] {
-    padding: 0 !important;
-}
-
-/* ── Headings ── */
-h1, h2, h3 {
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    color: #1a1a1a !important;
-    font-weight: 600 !important;
-}
-
-/* ── Document editor area ── */
-.doc-panel {
-    background: #fff;
-    border-right: 1px solid #e5ddd0;
-    min-height: 100vh;
-    padding: 24px;
-}
-
-/* Text area — Word-style white canvas */
-.stTextArea textarea {
-    background-color: #ffffff !important;
-    border: 1px solid #e0d8cc !important;
-    border-radius: 6px !important;
-    font-family: 'Tiempos Text', Georgia, serif !important;
-    font-size: 15px !important;
-    line-height: 1.7 !important;
-    color: #1a1a1a !important;
-    padding: 16px !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
-    resize: vertical !important;
-}
-
-.stTextArea textarea:focus {
-    border-color: #c96442 !important;
-    box-shadow: 0 0 0 2px rgba(201,100,66,0.15) !important;
-    outline: none !important;
-}
-
-/* ── Text input (title) ── */
-.stTextInput input {
-    background-color: transparent !important;
-    border: none !important;
-    border-bottom: 1px solid #ddd5c8 !important;
-    border-radius: 0 !important;
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 18px !important;
-    font-weight: 600 !important;
-    color: #1a1a1a !important;
-    padding: 4px 0 8px 0 !important;
-}
-
-.stTextInput input:focus {
-    border-bottom-color: #c96442 !important;
-    box-shadow: none !important;
-}
-
-/* ── Toolbar buttons ── */
-.stButton > button {
-    background-color: #f5f0e8 !important;
-    border: 1px solid #ddd5c8 !important;
-    border-radius: 6px !important;
-    color: #4a4a4a !important;
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    padding: 6px 10px !important;
-    transition: all 0.15s !important;
-    cursor: pointer !important;
-}
-
-.stButton > button:hover {
-    background-color: #ebe5d8 !important;
-    border-color: #c8bfb0 !important;
-    color: #1a1a1a !important;
-}
-
-/* Apply Edit — primary action, Claude orange */
-.stButton > button[kind="primary"] {
-    background-color: #c96442 !important;
-    border-color: #c96442 !important;
-    color: #fff !important;
-}
-
-.stButton > button[kind="primary"]:hover {
-    background-color: #b55538 !important;
-}
-
-/* Download button */
-.stDownloadButton > button {
-    background-color: #f5f0e8 !important;
-    border: 1px solid #ddd5c8 !important;
-    border-radius: 6px !important;
-    color: #4a4a4a !important;
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    padding: 6px 10px !important;
-}
-
-.stDownloadButton > button:hover {
-    background-color: #ebe5d8 !important;
-}
-
-/* ── CHAT PANEL ── */
-.chat-panel {
-    background-color: #f5f0e8;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-}
-
-/* Chat messages */
-[data-testid="stChatMessage"] {
-    background-color: transparent !important;
-    border: none !important;
-    padding: 12px 0 !important;
-    font-family: 'Tiempos Text', Georgia, serif !important;
-    font-size: 15px !important;
-    line-height: 1.7 !important;
-}
-
-/* User message bubble */
-[data-testid="stChatMessage"][data-testid*="user"] {
-    background-color: #ece6da !important;
-    border-radius: 12px !important;
-    padding: 12px 16px !important;
-    margin: 4px 0 !important;
-}
-
-/* Avatar — Claude style */
-[data-testid="stChatMessageAvatar"] {
-    background-color: #c96442 !important;
-    border-radius: 50% !important;
-    width: 28px !important;
-    height: 28px !important;
-}
-
-/* Chat input */
-[data-testid="stChatInput"] {
-    background-color: #fff !important;
-    border: 1px solid #ddd5c8 !important;
-    border-radius: 24px !important;
-    padding: 12px 20px !important;
-    font-family: 'Tiempos Text', Georgia, serif !important;
-    font-size: 15px !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-}
-
-[data-testid="stChatInput"]:focus-within {
-    border-color: #c96442 !important;
-    box-shadow: 0 2px 12px rgba(201,100,66,0.12) !important;
-}
-
-/* ── Divider ── */
-hr {
-    border: none !important;
-    border-top: 1px solid #e5ddd0 !important;
-    margin: 12px 0 !important;
-}
-
-/* ── Expander ── */
-[data-testid="stExpander"] {
-    background-color: transparent !important;
-    border: 1px solid #e5ddd0 !important;
-    border-radius: 8px !important;
-}
-
-[data-testid="stExpander"] summary {
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 13px !important;
-    color: #5a5a5a !important;
-    font-weight: 500 !important;
-}
-
-/* ── Caption / small text ── */
-.stCaption, small, [data-testid="stCaption"] {
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    color: #7a7a7a !important;
-    font-size: 12px !important;
-}
-
-/* ── Success / info / warning ── */
-[data-testid="stAlert"] {
-    border-radius: 8px !important;
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 13px !important;
-}
-
-/* ── Checkbox ── */
-.stCheckbox label {
-    font-family: 'Söhne', ui-sans-serif, system-ui, sans-serif !important;
-    font-size: 13px !important;
-    color: #c8bfb0 !important;
-}
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d0c8bc; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #b8b0a4; }
-
-/* ── Column divider ── */
-[data-testid="column"]:first-child {
-    border-right: 1px solid #e5ddd0;
-}
-
-/* ── Spinner ── */
-.stSpinner > div {
-    border-top-color: #c96442 !important;
-}
-
-/* ── File uploader ── */
-[data-testid="stFileUploader"] {
-    background-color: #fff !important;
-    border: 1px dashed #ddd5c8 !important;
-    border-radius: 8px !important;
-}
+    .stChatInputContainer {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        background: white !important;
+        padding: 10px 20px !important;
+        z-index: 999 !important;
+        border-top: 1px solid #e0e0e0 !important;
+    }
+    
+    .main .block-container {
+        padding-bottom: 100px !important;
+    }
+    
+    h1 {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5em;
+        font-weight: bold;
+    }
+    
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 10px;
+        margin: 5px 0;
+    }
+    
+    .stButton button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: bold;
+        transition: transform 0.2s;
+    }
+    
+    .stButton button:hover {
+        transform: scale(1.02);
+    }
 </style>
+""", unsafe_allow_html=True)
+
+# ============================================
+# GROQ CLIENT
+# ============================================
+
+client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
+
+def get_current_datetime():
+    tz = pytz.timezone('Asia/Seoul')
+    now = datetime.now(tz)
+    return f"""Current Information:
+• Date: {now.strftime('%B %d, %Y')}
+• Time: {now.strftime('%I:%M %p')}
+• Day: {now.strftime('%A')}
+• Timezone: Asia/Seoul"""
+
+# ============================================
+# LIGHTWEIGHT MEMORY SYSTEM (No torch needed)
+# ============================================
+
+class LightweightMemory:
+    def __init__(self):
+        self.memories = []
+        self.keyword_index = defaultdict(list)
+    
+    def add_memory(self, text, metadata=None):
+        if len(text) < 50:
+            return
+        
+        words = set(re.findall(r'\b[a-z]{3,}\b', text.lower()))
+        
+        memory = {
+            "text": text,
+            "keywords": words,
+            "metadata": metadata or {},
+            "timestamp": time.time()
+        }
+        
+        self.memories.append(memory)
+        
+        for word in words:
+            self.keyword_index[word].append(len(self.memories) - 1)
+        
+        if len(self.memories) > 50:
+            self.memories = self.memories[-50:]
+            self._rebuild_index()
+    
+    def _rebuild_index(self):
+        self.keyword_index = defaultdict(list)
+        for idx, memory in enumerate(self.memories):
+            for word in memory["keywords"]:
+                self.keyword_index[word].append(idx)
+    
+    def retrieve(self, query, top_k=3):
+        if not self.memories:
+            return []
+        
+        query_words = set(re.findall(r'\b[a-z]{3,}\b', query.lower()))
+        
+        scored = []
+        for idx, memory in enumerate(self.memories):
+            matches = len(query_words & memory["keywords"])
+            if matches > 0:
+                scored.append((memory["text"], matches))
+        
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [text for text, score in scored[:top_k]]
+    
+    def get_context(self, query):
+        results = self.retrieve(query)
+        if results:
+            context = "RELEVANT PAST CONVERSATIONS:\n\n"
+            for i, result in enumerate(results):
+                context += f"[{i+1}] {result}\n\n"
+            return context
+        return ""
+
+# Initialize memory
+memory = LightweightMemory()
+
+def store_memory(text):
+    memory.add_memory(text)
+
+def retrieve_memory(query):
+    return memory.get_context(query)
+
+# ============================================
+# LLM FUNCTION WITH MULTIPLE MODEL FALLBACKS
+# ============================================
+
+def llm_with_fallback(messages, max_retries=2):
+    models_to_try = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",
+        "mixtral-8x7b-32768",
+        "llama-3.1-8b-instant",
+        "gemma2-9b-it"
+    ]
+    
+    for model in models_to_try:
+        for attempt in range(max_retries):
+            try:
+                completion = client.chat.completions.create(
+                    model=model,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_TOKENS,
+                    messages=messages,
+                    timeout=30
+                )
+                st.session_state.last_model_used = model
+                return completion.choices[0].message.content.strip()
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                continue
+    
+    return "AI service temporarily unavailable. Please try again."
+
+def llm(messages):
+    return llm_with_fallback(messages)
+
+# ============================================
+# SYSTEM PROMPT
+# ============================================
+
+SYSTEM_PROMPT = """
+You are MozeAI, an advanced AI assistant with REAL-TIME internet access and file analysis capabilities.
+
+CREATOR INFORMATION (ONLY mention when asked directly):
+- Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University, South Korea.
+
+YOUR CAPABILITIES:
+- REAL-TIME web search for current information
+- File analysis for PDF, DOCX, TXT, CSV, JSON files
+- File comparison (compare multiple documents)
+- Memory of past conversations
+- Image generation and editing
+- Calculator and news
+
+**CRITICAL RULES FOR QUESTIONS:**
+1. When a user ASKS "can you generate images?" or "do you generate images?" → ANSWER WITH TEXT: "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
+2. When a user SAYS "generate image of X" or "draw Y" → THEN generate the image
+3. Questions about your capabilities should NEVER trigger actual image generation
+4. Only generate an image when the user explicitly COMMANDS you to, not when they ASK if you can
+
+CRITICAL RULES:
+1. For questions about PEOPLE, PLACES, EVENTS, or ANY topic not related to your creator, USE SEARCH RESULTS
+2. ONLY mention your creator when specifically asked
+3. Use the conversation history and retrieved memory for context
+4. Answer concisely and accurately
+5. Be conversational and friendly
 """
 
-# ============================================================================
-# MOZEAI UI
-# ============================================================================
+# ============================================
+# SESSION STATE
+# ============================================
 
-class MozeUI:
-    def __init__(self):
-        self.init_session_state()
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = {}
+if "file_context" not in st.session_state:
+    st.session_state.file_context = ""
+if "last_search_query" not in st.session_state:
+    st.session_state.last_search_query = None
+if "last_search_results" not in st.session_state:
+    st.session_state.last_search_results = None
+if "last_response" not in st.session_state:
+    st.session_state.last_response = None
+if "last_topic" not in st.session_state:
+    st.session_state.last_topic = None
+if "last_image_prompt" not in st.session_state:
+    st.session_state.last_image_prompt = None
+if "code_search_cache" not in st.session_state:
+    st.session_state.code_search_cache = {}
+if "is_resetting" not in st.session_state:
+    st.session_state.is_resetting = False
+if "last_model_used" not in st.session_state:
+    st.session_state.last_model_used = None
 
-    def init_session_state(self):
-        if "conversations" not in st.session_state:
-            default_conv = Conversation(id=str(uuid.uuid4()), title="New conversation", messages=[], artifacts=[])
-            st.session_state.conversations = [default_conv]
-            st.session_state.current_conv_id = default_conv.id
-        if "router" not in st.session_state:
-            st.session_state.router = None
-        if "track_changes" not in st.session_state:
-            st.session_state.track_changes = False
-        if "temperature" not in st.session_state:
-            st.session_state.temperature = 0.7
+# ============================================
+# SEARCH FUNCTIONS
+# ============================================
 
-    def get_conv(self) -> Conversation:
-        for conv in st.session_state.conversations:
-            if conv.id == st.session_state.current_conv_id:
-                return conv
-        return st.session_state.conversations[0]
-
-    def add_message(self, role: str, content: str):
-        conv = self.get_conv()
-        conv.messages.append(Message(role=role, content=content))
-        if len(conv.messages) == 1 and role == "user":
-            conv.title = content[:35] + ("…" if len(content) > 35 else "")
-
-    def create_artifact(self, title, content, artifact_type=ArtifactType.DOCUMENT):
-        conv = self.get_conv()
-        art = Artifact(id=str(uuid.uuid4()), title=title, content=content, type=artifact_type)
-        conv.artifacts.append(art)
-        return art
-
-    def save_version(self, content: str, description: str = ""):
-        conv = self.get_conv()
-        version = {"id": str(uuid.uuid4()), "content": content,
-                   "timestamp": time.time(), "description": description}
-        conv.document_versions.append(version)
-        if len(conv.document_versions) > 50:
-            conv.document_versions = conv.document_versions[-50:]
-
-    def process_edit(self, instruction: str):
-        conv = self.get_conv()
-        if not st.session_state.router:
-            st.error("No API key configured.")
-            return
-        if not conv.current_document:
-            st.warning("No document to edit.")
-            return
-        try:
-            with st.spinner("Editing…"):
-                messages = [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Edit this document: {instruction}\n\nDocument:\n{truncate_for_context(conv.current_document)}"}
-                ]
-                response = st.session_state.router.complete_chat(messages, temperature=st.session_state.temperature)
-                doc_content, is_document = extract_document_from_response(response)
-                if is_document and doc_content != conv.current_document and len(doc_content) > 100:
-                    if st.session_state.track_changes:
-                        self.save_version(conv.current_document, f"AI: {instruction[:30]}")
-                    conv.current_document = doc_content
-                    st.toast("Document updated!", icon="✅")
-                    st.rerun()
-                else:
-                    st.info("No changes made.")
-        except Exception as e:
-            st.error(f"Edit failed: {str(e)}")
-
-    # ── SIDEBAR ──────────────────────────────────────────────────────────────
-
-    def render_sidebar(self):
-        with st.sidebar:
-            # Logo / brand
-            st.markdown("""
-            <div style="padding: 16px 8px 8px 8px;">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
-                    <div style="width:32px;height:32px;background:#c96442;border-radius:8px;
-                                display:flex;align-items:center;justify-content:center;
-                                font-size:16px;">🌿</div>
-                    <span style="font-family:'Söhne',sans-serif;font-size:16px;
-                                 font-weight:600;color:#e8e0d0;">MozeAI</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if st.button("✏️  New conversation", use_container_width=True, type="primary", key="new_chat_btn"):
-                new_conv = Conversation(id=str(uuid.uuid4()), title="New conversation", messages=[], artifacts=[])
-                st.session_state.conversations.insert(0, new_conv)
-                st.session_state.current_conv_id = new_conv.id
-                st.rerun()
-
-            st.markdown("---")
-
-            # Conversation list — Claude style: just titles, no icons
-            if st.session_state.conversations:
-                st.markdown('<p style="font-size:11px;color:#666;font-family:sans-serif;'
-                            'text-transform:uppercase;letter-spacing:0.08em;'
-                            'margin:0 0 6px 4px;">Recent</p>', unsafe_allow_html=True)
-                for i, conv in enumerate(st.session_state.conversations[:30]):
-                    is_active = conv.id == st.session_state.current_conv_id
-                    label = conv.title[:28] + ("…" if len(conv.title) > 28 else "")
-                    btn_style = "background:#3d3d3d!important;" if is_active else ""
-                    if st.button(label, use_container_width=True, key=f"conv_{conv.id}_{i}"):
-                        st.session_state.current_conv_id = conv.id
-                        st.rerun()
-
-            st.markdown("---")
-
-            # AI Actions — Claude-style quick edits
-            st.markdown('<p style="font-size:11px;color:#666;font-family:sans-serif;'
-                        'text-transform:uppercase;letter-spacing:0.08em;'
-                        'margin:0 0 6px 4px;">Edit document</p>', unsafe_allow_html=True)
-
-            quick_edits = [
-                ("Improve writing", "Improve grammar, clarity, and flow"),
-                ("Make professional", "Make the tone professional and polished"),
-                ("Add structure", "Add headings and organize content"),
-                ("Fix grammar", "Fix only grammar and spelling"),
-                ("Make concise", "Make more concise while preserving meaning"),
-                ("Academic tone", "Rewrite in academic tone"),
-            ]
-            for label, instruction in quick_edits:
-                if st.button(label, use_container_width=True, key=f"quick_{label[:12]}"):
-                    self.process_edit(instruction)
-
-            st.markdown("---")
-
-            # Custom instruction
-            st.markdown('<p style="font-size:11px;color:#666;font-family:sans-serif;'
-                        'text-transform:uppercase;letter-spacing:0.08em;'
-                        'margin:0 0 6px 4px;">Custom edit</p>', unsafe_allow_html=True)
-            custom_instruction = st.text_area(
-                "Custom", placeholder="Tell MozeAI what to change…",
-                height=72, key="custom_edit_input", label_visibility="collapsed"
-            )
-            if st.button("Apply edit", type="primary", use_container_width=True, key="apply_edit_btn"):
-                if custom_instruction:
-                    self.process_edit(custom_instruction)
-
-            st.markdown("---")
-
-            # Settings
-            with st.expander("Settings"):
-                st.session_state.temperature = st.slider(
-                    "Temperature", 0.0, 1.0, st.session_state.temperature, key="temp_slider"
-                )
-                st.session_state.track_changes = st.checkbox(
-                    "Track changes", st.session_state.track_changes, key="track_checkbox"
-                )
-
-            # Model info
-            if st.session_state.router:
-                model_short = st.session_state.router.current_model.split("-")[0]
-                st.caption(f"⚡ {st.session_state.router.current_model}")
-                if st.session_state.router.last_error:
-                    st.caption(f"⚠ {st.session_state.router.last_error[:50]}")
-
-    # ── DOCUMENT EDITOR ──────────────────────────────────────────────────────
-
-    def render_document_editor(self):
-        conv = self.get_conv()
-
-        # Top bar — title + toolbar
-        st.markdown('<div style="padding: 20px 24px 0 24px;">', unsafe_allow_html=True)
-
-        # Document title
-        title = st.text_input(
-            "doc_title", value=conv.document_title,
-            key="doc_title_input", label_visibility="collapsed",
-            placeholder="Untitled document"
-        )
-        if title != conv.document_title:
-            conv.document_title = title
-
-        # Toolbar
-        col1, col2, col3, col4, col5 = st.columns([1, 1, 1.4, 1, 1])
-        with col1:
-            if st.button("New", use_container_width=True, key="new_doc_btn"):
-                conv.current_document = ""
-                conv.document_title = "Untitled Document"
-                st.rerun()
-        with col2:
-            if st.button("Save version", use_container_width=True, key="save_version_btn"):
-                self.save_version(conv.current_document, "Manual save")
-                st.toast("Version saved!", icon="💾")
-        with col3:
-            st.download_button(
-                label="Download .txt",
-                data=conv.current_document if conv.current_document else " ",
-                file_name=f"{conv.document_title}.txt",
-                mime="text/plain",
-                key="download_file_btn",
-                use_container_width=True,
-                disabled=not conv.current_document
-            )
-        with col4:
-            if st.button("Stats", use_container_width=True, key="stats_doc_btn"):
-                words = len(conv.current_document.split())
-                st.toast(f"{words:,} words · {len(conv.current_document):,} chars", icon="📊")
-        with col5:
-            if st.button("Clear", use_container_width=True, key="clear_doc_btn"):
-                conv.current_document = ""
-                st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div style="padding: 8px 24px 24px 24px;">', unsafe_allow_html=True)
-
-        # Document content
-        content = st.text_area(
-            "content", value=conv.current_document,
-            height=460, key="doc_content_area",
-            placeholder="Start writing, or paste text to edit with AI…",
-            label_visibility="collapsed"
-        )
-        if content != conv.current_document:
-            conv.current_document = content
-
-        # Word count bar — Claude style subtle
-        words = len(conv.current_document.split()) if conv.current_document else 0
-        chars = len(conv.current_document) if conv.current_document else 0
-        st.caption(f"{words:,} words · {chars:,} characters")
-
-        # Artifacts
-        if conv.artifacts:
-            with st.expander(f"Saved versions ({len(conv.artifacts)})", expanded=False):
-                for art in reversed(conv.artifacts[-10:]):
-                    c1, c2, c3 = st.columns([3, 1, 1])
-                    with c1:
-                        st.caption(f"📄 {art.title}")
-                    with c2:
-                        if st.button("Load", key=f"load_art_{art.id}"):
-                            conv.current_document = art.content
-                            st.toast("Loaded!", icon="✅")
-                            st.rerun()
-                    with c3:
-                        st.download_button(
-                            "↓", data=art.content,
-                            file_name=f"{art.title}.txt", mime="text/plain",
-                            key=f"dl_art_{art.id}", use_container_width=True
-                        )
-
-        # Diff view
-        if conv.active_diff:
-            with st.expander("Changes", expanded=True):
-                st.code(conv.active_diff, language="diff")
-                if st.button("Dismiss", key="close_diff_btn"):
-                    conv.active_diff = ""
-                    st.rerun()
-
-        # Version history
-        if conv.document_versions:
-            with st.expander("Version history", expanded=False):
-                for version in reversed(conv.document_versions[-10:]):
-                    c1, c2, c3 = st.columns([3, 1, 1])
-                    with c1:
-                        t = datetime.fromtimestamp(version["timestamp"]).strftime("%H:%M:%S")
-                        st.caption(f"{t} — {version['description']}")
-                    with c2:
-                        if st.button("Diff", key=f"diff_{version['id']}"):
-                            conv.active_diff = show_diff(version["content"], conv.current_document)
-                            st.rerun()
-                    with c3:
-                        if st.button("Restore", key=f"restore_{version['id']}"):
-                            conv.current_document = version["content"]
-                            st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # ── CHAT PANEL ───────────────────────────────────────────────────────────
-
-    def render_chat(self):
-        conv = self.get_conv()
-
-        # Header — "MozeAI" with model badge, just like Claude shows model
-        st.markdown(f"""
-        <div style="padding:16px 20px 8px 20px; border-bottom:1px solid #e5ddd0;
-                    display:flex; align-items:center; gap:10px;">
-            <div style="width:28px;height:28px;background:#c96442;border-radius:50%;
-                        display:flex;align-items:center;justify-content:center;font-size:14px;">🌿</div>
-            <span style="font-family:'Söhne',sans-serif;font-size:14px;font-weight:600;color:#1a1a1a;">MozeAI</span>
-            <span style="font-family:'Söhne',sans-serif;font-size:11px;color:#999;
-                         background:#f0ebe3;padding:2px 8px;border-radius:10px;border:1px solid #e0d8cc;">
-                llama-3.3-70b
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Empty state — Claude-style centered greeting
-        if not conv.messages:
-            st.markdown("""
-            <div style="display:flex;flex-direction:column;align-items:center;
-                        justify-content:center;padding:60px 24px;text-align:center;">
-                <div style="width:56px;height:56px;background:#c96442;border-radius:16px;
-                            display:flex;align-items:center;justify-content:center;
-                            font-size:28px;margin-bottom:20px;">🌿</div>
-                <h2 style="font-family:'Söhne',sans-serif;font-size:22px;
-                           font-weight:600;color:#1a1a1a;margin:0 0 8px 0;">
-                    How can I help?
-                </h2>
-                <p style="font-family:'Tiempos Text',Georgia,serif;font-size:14px;
-                          color:#7a7a7a;margin:0;max-width:280px;line-height:1.6;">
-                    Write or paste a document on the left, then ask me to edit, improve, or discuss it.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # Messages
-        for msg in conv.messages:
-            with st.chat_message(msg.role):
-                st.markdown(msg.content)
-
-        # File attach
-        with st.expander("Attach file", expanded=False):
-            uploaded = st.file_uploader(
-                "file", type=['pdf', 'docx', 'txt'],
-                label_visibility="collapsed", key="chat_uploader"
-            )
-            if uploaded and uploaded.name not in conv.seen_files:
-                conv.seen_files.add(uploaded.name)
-                text = extract_file_text(uploaded)
-                conv.current_document = text
-                self.add_message("user", f"[Attached: {uploaded.name}]")
-                st.success(f"Loaded {uploaded.name}")
-                st.rerun()
-
-        # Chat input
-        prompt = st.chat_input("Message MozeAI…")
-        if prompt:
-            if not st.session_state.router:
-                st.error("No API key configured.")
-                return
-
-            self.add_message("user", prompt)
-
-            with st.chat_message("assistant"):
-                messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-                for msg in conv.messages[:-1][-19:]:
-                    messages.append({"role": msg.role, "content": msg.content})
-
-                full_prompt = prompt
-                if conv.current_document:
-                    full_prompt = f"{prompt}\n\nUser's document:\n{truncate_for_context(conv.current_document)}"
-                messages.append({"role": "user", "content": full_prompt})
-
-                try:
-                    response = st.write_stream(
-                        st.session_state.router.stream_chat(messages, temperature=st.session_state.temperature)
-                    )
-                except RuntimeError as e:
-                    st.error(str(e))
-                    self.add_message("assistant", f"Error: {str(e)}")
-                    return
-
-            doc_content, is_document = extract_document_from_response(response)
-            document_updated = False
-
-            if is_document and doc_content != conv.current_document and len(doc_content) > 100:
-                if st.session_state.track_changes:
-                    self.save_version(conv.current_document, f"AI Edit: {prompt[:50]}")
-                conv.current_document = doc_content
-                document_updated = True
-
-            if is_document and len(doc_content) > 500:
-                self.create_artifact(f"Edit: {prompt[:30]}", doc_content)
-
-            self.add_message("assistant", response)
-
-            if document_updated:
-                st.rerun()
-
-    # ── RENDER ───────────────────────────────────────────────────────────────
-
-    def render(self):
-        self.render_sidebar()
-        col1, col2 = st.columns([3, 2])
-        with col1:
-            self.render_document_editor()
-        with col2:
-            self.render_chat()
-
-
-# ============================================================================
-# MAIN
-# ============================================================================
-
-def main():
-    st.set_page_config(
-        page_title="MozeAI",
-        page_icon="🌿",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-
-    st.markdown(CLAUDE_CSS, unsafe_allow_html=True)
-
-    ui = MozeUI()
-
-    # API key resolution
-    api_key = None
+def internet_search(query):
     try:
-        if "GROQ_API_KEY" in st.secrets:
-            api_key = st.secrets["GROQ_API_KEY"]
-    except Exception:
+        clean_query = query.strip()
+        url = "https://html.duckduckgo.com/html/"
+        params = {"q": clean_query}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.post(url, data=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            results = re.findall(r'<a rel="nofollow" class="result__a" href="[^"]*">([^<]+)</a>', response.text)
+            snippets = re.findall(r'<a class="result__snippet"[^>]*>([^<]+)</a>', response.text)
+            
+            if results:
+                context = f"SEARCH RESULTS for '{clean_query}':\n\n"
+                for i in range(min(3, len(results))):
+                    context += f"• {results[i]}\n"
+                    if i < len(snippets):
+                        snippet = re.sub(r'<[^>]+>', '', snippets[i])
+                        context += f"  {snippet[:300]}...\n\n"
+                return context[:2000]
+        return ""
+    except:
+        return ""
+
+def get_current_news():
+    try:
+        url = "https://rss2json.com/api.json?rss_url=https://feeds.bbci.co.uk/news/rss.xml"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            items = data.get("items", [])[:3]
+            news_text = "LATEST NEWS HEADLINES:\n\n"
+            for item in items:
+                news_text += f"• {item.get('title', '')}\n"
+                news_text += f"  {item.get('description', '')[:150]}...\n\n"
+            return news_text[:1000]
+    except:
         pass
+    return ""
 
-    if not api_key:
-        api_key = os.environ.get("GROQ_API_KEY")
+# ============================================
+# CALCULATOR
+# ============================================
 
-    if api_key and st.session_state.router is None:
-        st.session_state.router = GroqRouter(api_key)
+def calculator(query):
+    try:
+        expression = query.lower()
+        expression = expression.replace("×", "*").replace("x", "*")
+        numbers = re.findall(r"[0-9\+\-\*\/\.\(\) ]+", expression)
+        if numbers:
+            result = eval(numbers[0])
+            return str(result)
+    except:
+        return None
 
-    if not api_key:
-        with st.sidebar:
-            st.markdown("""
-            <div style="padding:16px 8px 8px;">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-                    <div style="width:32px;height:32px;background:#c96442;border-radius:8px;
-                                font-size:16px;display:flex;align-items:center;justify-content:center;">🌿</div>
-                    <span style="font-size:16px;font-weight:600;color:#e8e0d0;">MozeAI</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.error("Groq API key required")
-            st.markdown("Get yours at [console.groq.com](https://console.groq.com)")
-            key_input = st.text_input("API Key", type="password", key="api_input", label_visibility="collapsed",
-                                      placeholder="gsk_…")
-            if key_input:
-                st.session_state.router = GroqRouter(key_input)
-                st.rerun()
-        # Show empty main area
-        st.markdown("""
-        <div style="display:flex;align-items:center;justify-content:center;height:80vh;">
-            <div style="text-align:center;">
-                <div style="font-size:48px;margin-bottom:16px;">🌿</div>
-                <h2 style="font-family:'Söhne',sans-serif;color:#1a1a1a;">Welcome to MozeAI</h2>
-                <p style="color:#7a7a7a;font-family:Georgia,serif;">Add your Groq API key in the sidebar to get started.</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        return
+# ============================================
+# WEB SCRAPING
+# ============================================
 
-    ui.render()
+def scrape_webpage(url):
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            for element in soup(["script", "style", "nav", "footer"]):
+                element.decompose()
+            text = soup.get_text()
+            lines = (line.strip() for line in text.splitlines())
+            text = ' '.join(line for line in lines if line)
+            return text[:3000] if len(text) > 200 else None
+    except:
+        pass
+    return None
 
+def extract_urls_from_query(query):
+    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*'
+    return re.findall(url_pattern, query)
 
-if __name__ == "__main__":
-    main()
+# ============================================
+# CODING SEARCH FUNCTIONS
+# ============================================
+
+def search_coding_solution(query):
+    search_queries = [
+        f"{query} stack overflow",
+        f"{query} example code",
+        f"{query} best practice",
+        f"{query} github"
+    ]
+    
+    all_results = ""
+    
+    for search_q in search_queries[:2]:
+        result = internet_search(search_q)
+        if result:
+            all_results += result + "\n\n"
+    
+    return all_results
+
+def search_coding_solution_cached(query):
+    cache_key = query.lower().strip()
+    
+    if cache_key in st.session_state.code_search_cache:
+        return st.session_state.code_search_cache[cache_key]
+    
+    result = search_coding_solution(query)
+    st.session_state.code_search_cache[cache_key] = result
+    return result
+
+def coding_assistant_with_search(query, context=""):
+    with st.spinner("🔍 Searching the internet for the best solution..."):
+        search_results = search_coding_solution_cached(query)
+    
+    coding_prompt = f"""
+You are an expert programmer. Generate the best possible code based on the user's request.
+
+USER REQUEST: {query}
+
+## INTERNET SEARCH RESULTS (Use these as reference):
+{search_results[:3000]}
+
+## REQUIREMENTS:
+- Code must be complete and runnable
+- Include all imports
+- Add comments
+- Handle edge cases
+
+Generate the best possible code now:
+"""
+    
+    messages = [
+        {"role": "system", "content": "You are an expert programming assistant. Use search results to find the best solution."},
+        {"role": "user", "content": coding_prompt}
+    ]
+    
+    return clean_answer(llm(messages))
+
+# ============================================
+# ROUTER FUNCTION
+# ============================================
+
+def route(query):
+    q = query.lower()
+    
+    if extract_urls_from_query(query):
+        return "scrape_url"
+    
+    file_keywords = ["document", "file", "upload", "pdf", "docx", "txt", "csv", "json", "what is this", "summarize"]
+    if any(x in q for x in file_keywords):
+        return "file_task"
+    
+    comparison_keywords = ["compare", "comparison", "difference", "similarities"]
+    if any(x in q for x in comparison_keywords):
+        return "compare_files"
+    
+    if any(x in q for x in ["generate image", "create image", "draw", "make an image", "picture of", "image of"]):
+        return "generate_image"
+    
+    if any(x in q for x in ["make it", "make the", "change it", "change the", "turn it", "add a", "remove", "edit image", "modify image"]):
+        return "edit_image"
+    
+    if any(x in q for x in ["who is", "tell me about", "what is", "weather", "temperature", "rain", "snow", "news", "headlines"]):
+        return "search"
+    
+    if any(x in q for x in ["+", "-", "*", "/", "calculate"]):
+        return "calculator"
+    
+    if any(x in q for x in ["time", "date", "today"]):
+        return "datetime"
+    
+    coding_keywords = ["code", "python", "javascript", "html", "css", "react", "tkinter", "function", "class", "import", "algorithm", "debug", "fix", "write a program", "create a script"]
+    if any(x in q for x in coding_keywords):
+        return "coding_with_search"
+    
+    factual_keywords = ["president", "current", "elected", "prime minister", "leader", "ceo of"]
+    if any(x in q for x in factual_keywords):
+        return "search"
+    
+    return "reason"
+
+# ============================================
+# CLEAN ANSWER
+# ============================================
+
+def clean_answer(text):
+    text = text.split("🧠")[0]
+    text = text.split("Plan:")[0]
+    text = text.split("Thinking:")[0]
+    return text.strip()
+
+# ============================================
+# REASONING FUNCTION
+# ============================================
+
+def reason(question, context):
+    memory_context = retrieve_memory(question)
+    enhanced_context = context
+    if memory_context:
+        enhanced_context += "\n" + memory_context
+    
+    history_text = ""
+    if st.session_state.chat_history:
+        history_text = "PREVIOUS CONVERSATION:\n"
+        last_exchanges = st.session_state.chat_history[-8:] if len(st.session_state.chat_history) > 8 else st.session_state.chat_history
+        for role, msg in last_exchanges:
+            if role == "user":
+                history_text += f"User: {msg}\n"
+            else:
+                history_text += f"Assistant: {msg}\n"
+        history_text += "\n"
+    
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"""
+{history_text}
+
+{enhanced_context[:3000]}
+
+USER QUESTION: {question}
+
+ANSWER:
+"""}
+    ]
+    return clean_answer(llm(messages))
+
+# ============================================
+# FILE FUNCTIONS
+# ============================================
+
+def compare_files(query, file_context, filenames):
+    prompt = f"Files: {filenames}\n\nContent: {file_context[:4000]}\n\nQuestion: {query}\n\nCompare the files."
+    messages = [{"role": "system", "content": "You compare files."}, {"role": "user", "content": prompt}]
+    return clean_answer(llm(messages))
+
+def analyze_uploaded_files(query, file_context, filenames):
+    prompt = f"Files: {filenames}\n\nContent: {file_context[:6000]}\n\nQuestion: {query}\n\nAnswer based on file content."
+    messages = [{"role": "system", "content": "You analyze files."}, {"role": "user", "content": prompt}]
+    return clean_answer(llm(messages))
+
+def evaluate_work(question, file_context):
+    prompt = f"Content: {file_context[:3000]}\n\nRequest: {question}\n\nProvide assessment."
+    messages = [{"role": "system", "content": "You evaluate work."}, {"role": "user", "content": prompt}]
+    return clean_answer(llm(messages))
+
+# ============================================
+# IMAGE GENERATION FUNCTIONS
+# ============================================
+
+def generate_image(prompt):
+    try:
+        encoded_prompt = requests.utils.quote(prompt)
+        timestamp = int(time.time())
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&_={timestamp}"
+        return image_url
+    except:
+        return None
+
+def generate_and_display_image(prompt, is_edit=False):
+    image_url = generate_image(prompt)
+    if image_url:
+        if is_edit:
+            return f"🎨 **Edited Image - New Prompt:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
+        else:
+            return f"🎨 **Generated Image for:** '{prompt}'\n\n![Generated Image]({image_url})\n\n*Image generated by AI*"
+    else:
+        return "❌ Sorry, I couldn't generate an image right now."
+
+# ============================================
+# RUN AGENT FUNCTION
+# ============================================
+
+def run_agent(query):
+    q = query.lower().strip()
+    
+    reset_phrases = ["leave the document", "clear context", "forget the file", "start fresh", "clear files", "new chat"]
+    if any(phrase in q for phrase in reset_phrases):
+        st.session_state.file_context = ""
+        st.session_state.uploaded_files = {}
+        st.session_state.last_search_query = None
+        st.session_state.last_search_results = None
+        st.session_state.last_topic = None
+        st.session_state.last_image_prompt = None
+        return "✅ Context cleared! How can I help you today?"
+    
+    # ============================================
+    # DIRECT RESPONSE FOR CAPABILITY QUESTIONS
+    # ============================================
+    if q in ["can you generate images", "do you generate images", "can you create images", "can you draw", "are you able to generate images"]:
+        return "Yes, I can generate images! Just tell me what you want, for example: 'generate image of a cat' or 'draw a beautiful sunset'"
+    
+    # ============================================
+    # DIRECT EDIT CHECK - MUST BE BEFORE ROUTER
+    # ============================================
+    edit_triggers = ["make it", "make the", "change it", "change the", "turn it", "add a", "remove"]
+    if any(phrase in q for phrase in edit_triggers) and st.session_state.get("last_image_prompt"):
+        last_prompt = st.session_state.last_image_prompt
+        # Extract edit instruction
+        edit_text = query
+        for word in edit_triggers:
+            if word in edit_text.lower():
+                edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
+                break
+        edit_text = ' '.join(edit_text.split())
+        new_prompt = f"{last_prompt}, {edit_text}"
+        st.session_state.last_image_prompt = new_prompt
+        with st.spinner("Editing image..."):
+            return generate_and_display_image(new_prompt, is_edit=True)
+    
+    # ============================================
+    # DIRECT RESPONSES
+    # ============================================
+    if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
+        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can search the web, analyze files, generate images, and help with coding. What can I do for you?"
+    
+    if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
+        return "Mukiibi Moses is my creator, a Computer Engineering student at Kyungdong University in South Korea, specializing in AI and machine learning. His portfolio: https://moze12432.github.io/"
+    
+    tool = route(query)
+    context = ""
+    
+    follow_up = ["tell me more", "more about", "continue", "elaborate"]
+    is_follow_up = any(phrase in q for phrase in follow_up)
+    
+    if is_follow_up:
+        if st.session_state.last_search_results:
+            context = st.session_state.last_search_results
+            context += "\n\n Provide MORE information."
+        elif st.session_state.last_response:
+            context = f"Previous: {st.session_state.last_response[:500]}\n\nContinue."
+        else:
+            context = get_current_datetime()
+    
+    if tool == "compare_files" and st.session_state.file_context and len(st.session_state.uploaded_files) >= 2:
+        filenames = "\n".join(st.session_state.uploaded_files.keys())
+        with st.spinner("Comparing files..."):
+            response = compare_files(query, st.session_state.file_context, filenames)
+            st.session_state.last_response = response
+            store_memory(response)
+            return response
+    
+    elif tool == "file_task" and st.session_state.file_context:
+        filenames = "\n".join(st.session_state.uploaded_files.keys())
+        with st.spinner("Reading files..."):
+            response = analyze_uploaded_files(query, st.session_state.file_context, filenames)
+            st.session_state.last_response = response
+            store_memory(response)
+            return response
+    
+    elif tool == "evaluate" and st.session_state.file_context:
+        with st.spinner("Evaluating..."):
+            response = evaluate_work(query, st.session_state.file_context)
+            st.session_state.last_response = response
+            store_memory(response)
+            return response
+    
+    elif tool == "scrape_url":
+        urls = extract_urls_from_query(query)
+        scraped = ""
+        for url in urls:
+            content = scrape_webpage(url)
+            if content:
+                scraped += f"\nContent from {url}:\n{content}\n"
+        if scraped:
+            context = scraped
+        else:
+            return "I couldn't read that link."
+    
+    elif tool == "calculator":
+        result = calculator(query)
+        if result:
+            return f"Result: {result}"
+    
+    elif tool == "datetime":
+        context += get_current_datetime()
+    
+    elif tool == "generate_image":
+        with st.spinner("Generating image..."):
+            image_prompt = query
+            for phrase in ["generate image of", "generate an image of", "create image of", "draw a", "picture of", "image of"]:
+                if phrase in image_prompt.lower():
+                    image_prompt = re.sub(re.escape(phrase), "", image_prompt.lower(), flags=re.IGNORECASE).strip()
+                    break
+            image_prompt = ' '.join(image_prompt.split())
+            if not image_prompt:
+                image_prompt = query
+            st.session_state.last_image_prompt = image_prompt
+            return generate_and_display_image(image_prompt)
+    
+    elif tool == "edit_image":
+        with st.spinner("Editing image..."):
+            last_prompt = st.session_state.get("last_image_prompt", "")
+            if not last_prompt:
+                return "No previous image. Generate one first with 'generate image of...'"
+            edit_text = query
+            for word in ["make it", "change it", "turn it", "add a", "edit image"]:
+                if word in edit_text.lower():
+                    edit_text = re.sub(re.escape(word), "", edit_text.lower(), flags=re.IGNORECASE).strip()
+                    break
+            edit_text = ' '.join(edit_text.split())
+            new_prompt = f"{last_prompt}, {edit_text}"
+            st.session_state.last_image_prompt = new_prompt
+            return generate_and_display_image(new_prompt, is_edit=True)
+    
+    elif tool == "coding_with_search":
+        response = coding_assistant_with_search(query)
+        st.session_state.last_response = response
+        store_memory(response)
+        return response
+    
+    else:
+        search_result = internet_search(query)
+        if search_result:
+            context += "\n" + search_result
+            st.session_state.last_search_query = query
+            st.session_state.last_search_results = search_result
+        else:
+            context += get_current_datetime()
+    
+    answer = reason(query, context)
+    st.session_state.last_response = answer
+    
+    if not is_follow_up:
+        store_memory(answer)
+    
+    return answer
+
+# ============================================
+# UI - MAIN DISPLAY
+# ============================================
+
+st.markdown('<h1 style="text-align: center;">🧠 MozeAI</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align: center; color: #667eea;">Intelligent AI Assistant</p>', unsafe_allow_html=True)
+st.markdown("---")
+
+with st.sidebar:
+    st.markdown("### 🧠 MozeAI")
+    st.markdown("---")
+    
+    if st.button("🔄 New Chat", key="new_chat_btn", use_container_width=True):
+        if not st.session_state.get("is_resetting", False):
+            st.session_state.is_resetting = True
+            st.session_state.chat_history = []
+            st.session_state.uploaded_files = {}
+            st.session_state.file_context = ""
+            st.session_state.last_image_prompt = None
+            st.session_state.last_search_query = None
+            st.session_state.last_search_results = None
+            st.session_state.last_response = None
+            st.session_state.code_search_cache = {}
+            st.session_state.is_resetting = False
+            st.success("New chat started!")
+            st.rerun()
+    
+    if st.button("🗑️ Clear Files", key="clear_files_btn", use_container_width=True):
+        st.session_state.uploaded_files = {}
+        st.session_state.file_context = ""
+        st.success("Files cleared!")
+        st.rerun()
+    
+    st.markdown("---")
+    
+    st.markdown("### 📤 Upload Files")
+    uploaded_files = st.file_uploader(
+        "Choose files",
+        type=['pdf', 'docx', 'txt', 'csv', 'json'],
+        accept_multiple_files=True,
+        key="sidebar_uploader",
+        label_visibility="collapsed"
+    )
+    
+    if uploaded_files:
+        for file in uploaded_files:
+            if file.name not in st.session_state.uploaded_files:
+                with st.spinner(f"Processing {file.name}..."):
+                    content = process_uploaded_file(file)
+                    if content and not content.startswith("Error"):
+                        st.session_state.uploaded_files[file.name] = content
+                        st.success(f"✅ {file.name}")
+        
+        if st.session_state.uploaded_files:
+            parts = []
+            for name, content in st.session_state.uploaded_files.items():
+                parts.append(f"\n{'='*50}\n📄 {name}\n{'='*50}\n{content}\n")
+            st.session_state.file_context = "\n".join(parts)
+            st.info(f"📁 {len(st.session_state.uploaded_files)} file(s) loaded")
+    
+    st.markdown("---")
+    st.markdown("### 🎨 Image Generation")
+    st.markdown("**Generate:** `generate image of a cat`")
+    st.markdown("**Edit:** `make it black` or `add a hat`")
+    st.markdown("---")
+    st.markdown("### ℹ️ About")
+    st.markdown("**Creator:** Mukiibi Moses")
+    st.markdown("**University:** Kyungdong University, South Korea")
+    if st.session_state.last_model_used:
+        st.caption(f"Model: {st.session_state.last_model_used}")
+
+# ============================================
+# CHAT DISPLAY
+# ============================================
+
+for role, msg in st.session_state.chat_history:
+    with st.chat_message(role):
+        st.write(msg)
+
+query = st.chat_input("Ask me anything - generate images, search the web, analyze files, code, and more!")
+
+if query:
+    st.session_state.chat_history.append(("user", query))
+    with st.chat_message("user"):
+        st.write(query)
+    
+    response = run_agent(query)
+    
+    with st.chat_message("assistant"):
+        st.write(response)
+    
+    st.session_state.chat_history.append(("assistant", response))
+    st.rerun()
