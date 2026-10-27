@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/34010534/README.md)
 # MozeAI - Intelligent AI Assistant
 
 [![Streamlit App](https://img.shields.io/badge/🚀-Live_Demo-blue)](https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app)
@@ -19,6 +20,6 @@
 
 ## Author
 
-**Mukiibi Moses** - Computer Engineering student at Kyungdong University, South Korea
+**Mukiibi Moses** - Computer Engineering student and graduate researcher, BCML lab (Bio Computing and Machine Learning lab), Kwangwoon University, Seoul, South Korea
 
 [GitHub](https://github.com/moze12432) | [Portfolio](https://moze12432.github.io)
