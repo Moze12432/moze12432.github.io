@@ -13,6 +13,8 @@ from datetime import datetime
 import pytz
 import time
 import hashlib
+import ast
+import operator
 from collections import defaultdict
 
 # ============================================
@@ -306,7 +308,7 @@ def process_uploaded_file(uploaded_file):
 # ============================================
 
 TEMPERATURE = 0
-MAX_TOKENS = 800
+MAX_TOKENS = 2500  # room for the model's reasoning plus a full answer; longer answers continue automatically
 
 st.set_page_config(page_title="MozeAI", page_icon="🧠", layout="wide")
 
@@ -451,35 +453,221 @@ def retrieve_memory(query):
 # LLM FUNCTION WITH MULTIPLE MODEL FALLBACKS
 # ============================================
 
+def _extra_body(model, effort="medium"):
+    """Groq options for the gpt-oss reasoning models: how hard to think, and send the thinking back."""
+    if model.startswith("openai/gpt-oss"):
+        return {"reasoning_effort": effort, "include_reasoning": True}
+    return None
+
+def _stream_completion(model, messages, ui, effort):
+    """Stream one completion into the chat bubble. Returns Groq's finish_reason ("stop", "length", ...)."""
+    stream = client.chat.completions.create(
+        model=model,
+        temperature=TEMPERATURE,
+        max_tokens=MAX_TOKENS,
+        messages=messages,
+        timeout=60,
+        stream=True,
+        extra_body=_extra_body(model, effort)
+    )
+    finish = None
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        choice = chunk.choices[0]
+        delta = choice.delta
+        thought = getattr(delta, "reasoning", None)
+        if thought:
+            ui.think(thought)
+        if delta.content:
+            ui.write(delta.content)
+        if choice.finish_reason:
+            finish = choice.finish_reason
+    return finish
+
+def _stream_answer(model, messages, ui, effort):
+    """Stream an answer. If it reaches the token limit, ask the model to carry on (up to 2 more times)."""
+    ui.begin()
+    finish = _stream_completion(model, messages, ui, effort)
+    for _ in range(2):
+        if finish != "length" or not ui.answer.strip():
+            break
+        more = messages + [
+            {"role": "assistant", "content": ui.answer},
+            {"role": "user", "content": "Continue exactly where you stopped, mid-sentence if needed. Do not repeat anything and do not add a preamble."}
+        ]
+        try:
+            finish = _stream_completion(model, more, ui, "low")
+        except Exception as e:
+            print(f"[LLM] {model} continuation failed: {type(e).__name__}: {e}", flush=True)
+            break
+    if finish == "length" and ui.answer.strip():
+        ui.write("\n\n*(This answer is long - say **continue** to get the rest.)*")
+    return ui.answer.strip()
+
 def llm_with_fallback(messages, max_retries=2):
     models_to_try = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
-    
+    ui = st.session_state.get("_stream_ui")  # set by the chat UI; None in scripts and tests
+
     for model in models_to_try:
         for attempt in range(max_retries):
+            effort = "medium" if attempt == 0 else "low"
             try:
-                extra = {"reasoning_effort": "low"} if model.startswith("openai/gpt-oss") else None
-                completion = client.chat.completions.create(
-                    model=model,
-                    temperature=TEMPERATURE,
-                    max_tokens=MAX_TOKENS,
-                    messages=messages,
-                    timeout=30,
-                    extra_body=extra
-                )
-                content = (completion.choices[0].message.content or "").strip()
+                if ui is not None:
+                    content = _stream_answer(model, messages, ui, effort)
+                else:
+                    completion = client.chat.completions.create(
+                        model=model,
+                        temperature=TEMPERATURE,
+                        max_tokens=MAX_TOKENS,
+                        messages=messages,
+                        timeout=60,
+                        extra_body=_extra_body(model, effort)
+                    )
+                    content = (completion.choices[0].message.content or "").strip()
                 if not content:
                     raise ValueError("empty completion")
                 st.session_state.last_model_used = model
                 return content
             except Exception as e:
+                print(f"[LLM] {model} attempt {attempt + 1} failed: {type(e).__name__}: {e}", flush=True)
+                if ui is not None:
+                    ui.reset("Retrying…")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
                 continue
-    
+
     return "AI service temporarily unavailable. Please try again."
 
 def llm(messages):
     return llm_with_fallback(messages)
+
+
+# ============================================
+# MATHS FORMATTING + LIVE "THINKING" DISPLAY
+# ============================================
+
+def _math_segment(s):
+    """Convert LaTeX delimiters in plain (non-code) Markdown to the ones Streamlit renders."""
+    keep = []
+
+    def stash(text):
+        keep.append(text)
+        return f"\x00{len(keep) - 1}\x00"
+
+    def display(m):
+        body = "\n".join(line for line in m.group(1).strip().splitlines() if line.strip())
+        if not body:
+            return m.group(0)
+        start = m.string.rfind("\n", 0, m.start()) + 1
+        lead = re.match(r"[ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+)?", m.string[start:m.start()]).group(0)
+        pad = " " * len(lead)  # keep display maths inside list items
+        lines = [pad + "$$"] + [pad + line.strip() for line in body.splitlines()] + [pad + "$$"]
+        return stash("\n" + pad + "\n" + "\n".join(lines) + "\n" + pad + "\n")
+
+    s = re.sub(r"\\\[([\s\S]+?)\\\]", display, s)                      # \[ ... \]
+    s = re.sub(r"(?<!\\)\$\$([\s\S]+?)\$\$", display, s)                # $$ ... $$
+    s = re.sub(r"\\\(([\s\S]+?)\\\)",
+               lambda m: stash("$" + re.sub(r"\s*\n\s*", " ", m.group(1).strip()) + "$"), s)  # \( ... \)
+    # $...$ that is really maths (no space just inside the $ signs, not followed by a digit) is kept
+    s = re.sub(r"(?<![\\$])\$(?![\s$])([^$\n]+?)(?<![\s\\])\$(?![\d$])", lambda m: stash(m.group(0)), s)
+    s = re.sub(r"(?<!\\)\$", r"\\$", s)                                   # money: $5 -> \$5
+    return re.sub(r"\x00(\d+)\x00", lambda m: keep[int(m.group(1))], s)
+
+def format_math(text):
+    """Make the model's LaTeX show as formulas in Streamlit.
+
+    Streamlit renders $...$ and $$...$$ with KaTeX, but gpt-oss writes \\( \\) and \\[ \\].
+    Code blocks and inline code are left untouched, and dollar amounts such as $5 are escaped
+    so they are not mistaken for maths.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    parts = re.split(r"(```[\s\S]*?(?:```|$)|`[^`\n]+`)", text)
+    return "".join(p if i % 2 else _math_segment(p) for i, p in enumerate(parts))
+
+def _clip(text, limit=1500):
+    """Shorten a long chat message for the prompt, keeping its start and its end."""
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    half = limit // 2
+    return text[:half] + "\n[...]\n" + text[-half:]
+
+def _ui_step(label):
+    """Show what the assistant is doing (e.g. searching) in the live status line, if there is one."""
+    ui = st.session_state.get("_stream_ui")
+    if ui is not None:
+        ui.step(label)
+
+class StreamUI:
+    """Live view of one answer: a "Thinking…" panel with the model's reasoning, then the answer as it streams."""
+
+    def __init__(self, container):
+        self.think_slot = container.empty()
+        self.answer_slot = container.empty()
+        self.reset()
+
+    def reset(self, label="Thinking…"):
+        """Start (again) from an empty answer, e.g. before a retry or a fallback model."""
+        self.thinking = ""
+        self.answer = ""
+        self.seconds = 0.0
+        self._t0 = time.time()
+        self._answering = False
+        self._last_draw = 0.0
+        self.answer_slot.empty()
+        self._status = self.think_slot.container().status(label, expanded=True)
+        self._think_text = self._status.empty()
+
+    def step(self, label):
+        if self._status is not None and not self._answering:
+            self._status.update(label=label)
+
+    def begin(self):
+        """The model has been asked: time the thinking from here."""
+        self._t0 = time.time()
+        self.step("Thinking…")
+
+    def think(self, piece):
+        self.thinking += piece
+        self._draw()
+
+    def write(self, piece):
+        if not self._answering:
+            self._answering = True
+            self._close_thinking()
+        self.answer += piece
+        self._draw()
+
+    def _close_thinking(self):
+        self.seconds = time.time() - self._t0
+        if self.thinking.strip():
+            self._think_text.caption(format_math(self.thinking))
+            self._status.update(label=f"Thought for {max(1, round(self.seconds))}s", state="complete", expanded=False)
+        else:
+            self.think_slot.empty()
+            self._status = None
+
+    def _draw(self):
+        now = time.time()
+        if now - self._last_draw < 0.05:
+            return
+        self._last_draw = now
+        if self._answering:
+            self.answer_slot.markdown(format_math(self.answer) + " ▌")
+        elif self.thinking:
+            tail = self.thinking[-700:]
+            if len(self.thinking) > 700:
+                tail = "…" + tail[tail.find(" ") + 1:]
+            self._think_text.caption(format_math(tail))
+
+    def finish(self, response):
+        """Show the final answer (also used for replies that did not come from the model)."""
+        if not self._answering:
+            self._answering = True
+            self._close_thinking()
+        self.answer_slot.markdown(format_math(response))
 
 # ============================================
 # SYSTEM PROMPT
@@ -511,6 +699,12 @@ CRITICAL RULES:
 3. Use the conversation history and retrieved memory for context
 4. Answer concisely and accurately
 5. Be conversational and friendly
+
+FORMATTING:
+- Use Markdown: short paragraphs, headings and lists where they help, tables for comparisons, and code blocks with a language tag.
+- Write every formula in LaTeX: inline as \\( ... \\) and display equations as \\[ ... \\] on their own lines. Never use $ signs for maths.
+- For maths, physics, statistics or any multi-step problem, work through it step by step: state the formula, substitute the values, show the key steps, then give the final answer in bold.
+- Always finish your answer; never stop halfway through a list, derivation or code block.
 """
 
 # ============================================
@@ -539,6 +733,8 @@ if "is_resetting" not in st.session_state:
     st.session_state.is_resetting = False
 if "last_model_used" not in st.session_state:
     st.session_state.last_model_used = None
+if "thoughts" not in st.session_state:
+    st.session_state.thoughts = {}  # chat_history index -> (reasoning text, seconds)
 
 # Document download session states (from commit 08973a7)
 if "show_ppt_download" not in st.session_state:
@@ -625,15 +821,42 @@ def get_current_news():
 # ============================================
 
 def calculator(query):
-    try:
-        expression = query.lower()
-        expression = expression.replace("×", "*").replace("x", "*")
-        numbers = re.findall(r"[0-9\+\-\*\/\.\(\) ]+", expression)
-        if numbers:
-            result = eval(numbers[0])
-            return str(result)
-    except:
+    """Answer plain arithmetic such as '12*(3+4)' or 'calculate 2^10' directly.
+
+    Anything else (equations, formulas, word problems) returns None so the model works it out step by step.
+    """
+    expr = query.lower().strip()
+    expr = re.sub(r"^(please\s+)?(calculate|compute|evaluate|what is|what's)\s*", "", expr)
+    expr = expr.rstrip(" ?=.!").replace(",", "")
+    expr = expr.replace("×", "*").replace("÷", "/").replace("^", "**")
+    expr = re.sub(r"(?<=\d)\s*x\s*(?=\d)", "*", expr)
+    if not expr or not re.fullmatch(r"[0-9.\s+\-*/()%]+", expr) or not re.search(r"\d\s*[-+*/%]", expr):
         return None
+    ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
+           ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod, ast.Pow: operator.pow,
+           ast.USub: operator.neg, ast.UAdd: operator.pos}
+
+    def ev(node):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            a, b = ev(node.left), ev(node.right)
+            if isinstance(node.op, ast.Pow) and (abs(b) > 100 or abs(a) > 1e6):
+                raise ValueError("number too large")
+            return ops[type(node.op)](a, b)
+        if isinstance(node, ast.UnaryOp) and type(node.op) in ops:
+            return ops[type(node.op)](ev(node.operand))
+        raise ValueError("not plain arithmetic")
+
+    try:
+        result = ev(ast.parse(expr, mode="eval").body)
+    except Exception:
+        return None
+    if isinstance(result, float):
+        result = round(result, 10)
+        if result.is_integer():
+            result = int(result)
+    return f"{result:,}" if isinstance(result, int) and abs(result) >= 10000 else str(result)
 
 # ============================================
 # WEB SCRAPING
@@ -766,9 +989,8 @@ def route(query):
 # ============================================
 
 def clean_answer(text):
-    text = text.split("🧠")[0]
-    text = text.split("Plan:")[0]
-    text = text.split("Thinking:")[0]
+    # gpt-oss returns its reasoning separately, so the answer is kept whole
+    # (the old cuts at "Plan:" / "Thinking:" chopped real answers such as "Business Plan:").
     return text.strip()
 
 # ============================================
@@ -786,6 +1008,7 @@ def reason(question, context):
         history_text = "PREVIOUS CONVERSATION:\n"
         last_exchanges = st.session_state.chat_history[-8:] if len(st.session_state.chat_history) > 8 else st.session_state.chat_history
         for role, msg in last_exchanges:
+            msg = _clip(msg)  # long answers keep their start and end, so the prompt stays within Groq's limits
             if role == "user":
                 history_text += f"User: {msg}\n"
             else:
@@ -1078,17 +1301,33 @@ Conclusion
     # DIRECT RESPONSES
     # ============================================
     if any(phrase in q for phrase in ["who are you", "who is this", "what are you"]):
-        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses, a Computer Engineering student at Kyungdong University. I can search the web, analyze files, generate images, and help with coding. What can I do for you?"
+        return "I'm MozeAI, your AI assistant! Created by Mukiibi Moses, a Computer Engineering student and graduate researcher in the BCML lab (Bio Computing and Machine Learning lab) at Kwangwoon University, Seoul, South Korea. I can search the web, analyze files, generate images, and help with coding. What can I do for you?"
     
     if any(phrase in q for phrase in ["mukiibi moses", "who is moses", "your maker", "your creator", "who created you"]):
-        return "Mukiibi Moses is my creator, a Computer Engineering student at Kyungdong University in South Korea, specializing in AI and machine learning. His portfolio: https://moze12432.github.io/"
+        return "Mukiibi Moses is my creator, a Computer Engineering student and graduate researcher in the BCML lab (Bio Computing and Machine Learning lab) at Kwangwoon University in Seoul, South Korea, specializing in AI and machine learning. His portfolio: https://moze12432.github.io/"
     
     tool = route(query)
     context = ""
     
-    follow_up = ["tell me more", "more about", "continue", "elaborate"]
-    is_follow_up = any(phrase in q for phrase in follow_up)
-    
+    follow_up_re = r"\b(tell me more|more about|continue|go on|keep going|elaborate)\b"
+    is_follow_up = re.search(follow_up_re, q) is not None
+
+    # A bare "continue" / "tell me more" carries on from the last answer (no new web search).
+    filler = {"please", "pls", "it", "that", "this", "on", "about", "and", "the", "a", "more", "from", "where",
+              "you", "left", "off", "stopped", "can", "could", "further", "with", "answer", "your", "previous",
+              "last", "bit", "little", "detail", "details", "in", "explanation", "go", "ahead"}
+    leftover = [w for w in re.findall(r"[a-z0-9]+", re.sub(follow_up_re, " ", q)) if w not in filler]
+    if is_follow_up and not leftover and st.session_state.last_response:
+        context = "YOUR PREVIOUS ANSWER (most recent part):\n" + st.session_state.last_response[-2500:] + "\n\n"
+        if re.search(r"\b(continue|go on|keep going)\b", q):
+            context += ("If that answer was cut off, continue from exactly where it stopped without repeating anything. "
+                        "If it was complete, take it further with the next logical steps.")
+        else:
+            context += "Expand on it with more depth and examples, without repeating what was already said."
+        answer = reason(query, context)
+        st.session_state.last_response = answer
+        return answer
+
     if is_follow_up:
         if st.session_state.last_search_results:
             context = st.session_state.last_search_results
@@ -1176,6 +1415,7 @@ Conclusion
         return response
     
     else:
+        _ui_step("Searching the web…")
         search_result = internet_search(query)
         if search_result:
             context += "\n" + search_result
@@ -1215,6 +1455,7 @@ with st.sidebar:
             st.session_state.last_search_results = None
             st.session_state.last_response = None
             st.session_state.code_search_cache = {}
+            st.session_state.thoughts = {}
             st.session_state.is_resetting = False
             st.success("New chat started!")
             st.rerun()
@@ -1259,7 +1500,8 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### ℹ️ About")
     st.markdown("**Creator:** Mukiibi Moses")
-    st.markdown("**University:** Kyungdong University, South Korea")
+    st.markdown("**University:** Kwangwoon University, Seoul, South Korea")
+    st.markdown("**Lab:** BCML (Bio Computing and Machine Learning lab)")
     if st.session_state.last_model_used:
         st.caption(f"Model: {st.session_state.last_model_used}")
 
@@ -1267,23 +1509,33 @@ with st.sidebar:
 # CHAT DISPLAY
 # ============================================
 
-for role, msg in st.session_state.chat_history:
+for i, (role, msg) in enumerate(st.session_state.chat_history):
     with st.chat_message(role):
-        st.write(msg)
+        if role == "assistant" and i in st.session_state.thoughts:
+            thought, secs = st.session_state.thoughts[i]
+            with st.status(f"Thought for {max(1, round(secs))}s", state="complete", expanded=False):
+                st.caption(format_math(thought))
+        st.markdown(format_math(msg))
 
 query = st.chat_input("Ask me anything - generate images, search the web, analyze files, code, and more!")
 
 if query:
     st.session_state.chat_history.append(("user", query))
     with st.chat_message("user"):
-        st.write(query)
-    
-    response = run_agent(query)
-    
+        st.markdown(format_math(query))
+
     with st.chat_message("assistant"):
-        st.write(response)
-    
+        ui = StreamUI(st.container())
+        st.session_state["_stream_ui"] = ui  # llm_with_fallback() streams into this
+        try:
+            response = run_agent(query)
+        finally:
+            st.session_state["_stream_ui"] = None
+        ui.finish(response)
+
     st.session_state.chat_history.append(("assistant", response))
+    if ui.thinking.strip():
+        st.session_state.thoughts[len(st.session_state.chat_history) - 1] = (ui.thinking, ui.seconds)
     st.rerun()
 
 # ============================================
