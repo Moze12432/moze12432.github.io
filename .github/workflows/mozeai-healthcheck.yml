@@ -1,0 +1,193 @@
+name: MozeAI keep-awake and health check
+
+# Streamlit Community Cloud puts apps to sleep after 12 hours without visits.
+# Every 4 hours this opens the app in a real (headless) browser, clicks
+# "Yes, get this app back up!" if it is asleep, asks one test question and
+# fails - which emails you - if no proper answer comes back.
+
+on:
+  schedule:
+    - cron: "23 */4 * * *"   # every 4 hours, at minute 23 (UTC)
+  workflow_dispatch:          # adds a "Run workflow" button for manual checks
+
+permissions:
+  contents: write             # used only by the last step
+
+concurrency:
+  group: mozeai-healthcheck
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_URL: https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/
+      TEST_QUESTION: Suggest two ways a business can cut costs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install headless browser
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Open the app, wake it if asleep, ask a test question
+        shell: bash
+        run: |
+          cat > healthcheck.py <<'PYEOF'
+          """MozeAI health check: open the Streamlit app in a real browser, wake it if it is asleep,
+          ask one question and fail unless a real answer comes back."""
+          import os
+          import sys
+          import time
+
+          from playwright.sync_api import sync_playwright
+
+          URL = os.environ.get("APP_URL", "https://moze12432appio-a65t2vjq4b28fakzt6gzbf.streamlit.app/")
+          QUESTION = os.environ.get("TEST_QUESTION", "Suggest two ways a business can cut costs")
+          WAKE_TIMEOUT = int(os.environ.get("WAKE_TIMEOUT", "420"))     # seconds to wait for the app to load or boot
+          ANSWER_TIMEOUT = int(os.environ.get("ANSWER_TIMEOUT", "120"))  # seconds to wait for the answer
+          TRIES = int(os.environ.get("TRIES", "2"))                      # questions to ask before declaring failure
+          SHOT = os.environ.get("SCREENSHOT", "healthcheck.png")
+
+          WAKE_BUTTON = "Yes, get this app back up"
+          CHAT_INPUT = '[data-testid="stChatInputTextArea"], [data-testid="stChatInput"] textarea'
+          CHAT_MESSAGE = '[data-testid="stChatMessage"]'
+          BAD_TEXT = ["AI service temporarily unavailable", "Error running app", "Oh no."]
+          T0 = time.time()
+
+
+          def log(msg):
+              print(f"[{time.time() - T0:6.1f}s] {msg}", flush=True)
+
+
+          def find(page, selector):
+              """Return (frame, locator) for the first visible match in the page or any iframe."""
+              for frame in page.frames:
+                  try:
+                      loc = frame.locator(selector)
+                      if loc.count() and loc.first.is_visible():
+                          return frame, loc
+                  except Exception:
+                      pass
+              return None, None
+
+
+          def wait_for_app(page):
+              clicked = False
+              deadline = time.time() + WAKE_TIMEOUT
+              while time.time() < deadline:
+                  frame, box = find(page, CHAT_INPUT)
+                  if box is not None:
+                      log("app is awake: chat input found")
+                      return frame, box
+                  if not clicked:
+                      _, button = find(page, f'button:has-text("{WAKE_BUTTON}")')
+                      if button is not None:
+                          log("app was asleep: clicking 'Yes, get this app back up!'")
+                          button.first.click()
+                          clicked = True
+                  for bad in BAD_TEXT[1:]:
+                      _, err = find(page, f'text="{bad}"')
+                      if err is not None:
+                          raise RuntimeError(f"app shows an error page: {bad!r}")
+                  time.sleep(3)
+              raise RuntimeError(f"chat input did not appear within {WAKE_TIMEOUT}s")
+
+
+          def ask(page, frame, box):
+              before = frame.locator(CHAT_MESSAGE).count()
+              box.first.click()
+              box.first.fill(QUESTION)
+              box.first.press("Enter")
+              log(f"asked: {QUESTION!r}")
+              deadline = time.time() + ANSWER_TIMEOUT
+              while time.time() < deadline:
+                  time.sleep(2)
+                  msgs = frame.locator(CHAT_MESSAGE)
+                  n = msgs.count()
+                  if n >= before + 2:
+                      answer = msgs.nth(n - 1).inner_text().strip()
+                      for icon in ("smart_toy", "face"):  # avatar icon names that appear as text
+                          if answer.startswith(icon):
+                              answer = answer[len(icon):].strip()
+                      if answer and QUESTION not in answer:
+                          return answer
+              raise RuntimeError(f"no answer within {ANSWER_TIMEOUT}s")
+
+
+          def main():
+              log(f"checking {URL}")
+              with sync_playwright() as p:
+                  browser = p.chromium.launch()
+                  page = browser.new_page(viewport={"width": 1280, "height": 900})
+                  ok = False
+                  try:
+                      page.goto(URL, wait_until="domcontentloaded", timeout=120_000)
+                      for attempt in range(1, TRIES + 1):
+                          frame, box = wait_for_app(page)
+                          answer = ask(page, frame, box)
+                          short = " ".join(answer.split())[:160]
+                          if any(bad in answer for bad in BAD_TEXT):
+                              log(f"attempt {attempt}: app answered with an error: {short!r}")
+                              if attempt < TRIES:
+                                  time.sleep(30)
+                                  page.reload(wait_until="domcontentloaded")
+                              continue
+                          log(f"attempt {attempt}: OK, answer starts: {short!r}")
+                          _, model = find(page, 'text=/Model: /')
+                          if model is not None:
+                              log(f"served by -> {model.first.inner_text().strip()}")
+                          ok = True
+                          break
+                  except Exception as e:
+                      log(f"FAILED: {e}")
+                  finally:
+                      try:
+                          page.screenshot(path=SHOT, full_page=True)
+                          log(f"screenshot saved to {SHOT}")
+                      except Exception:
+                          pass
+                      browser.close()
+              if not ok:
+                  log("RESULT: FAIL - the app did not return a working answer")
+                  sys.exit(1)
+              log("RESULT: PASS - the app is awake and answering")
+
+
+          if __name__ == "__main__":
+              main()
+          PYEOF
+          python -u healthcheck.py 2>&1 | tee healthcheck.log
+
+      - name: Save screenshot and log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: healthcheck-${{ github.run_number }}
+          path: |
+            healthcheck.png
+            healthcheck.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Keep this schedule switched on
+        # GitHub switches off scheduled workflows in public repositories after
+        # 60 days without commits. If the last commit is 50 or more days old,
+        # this adds one empty commit; otherwise it does nothing.
+        if: always()
+        shell: bash
+        run: |
+          age_days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
+          echo "last commit was $age_days days ago"
+          if [ "$age_days" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "keepalive: keep the MozeAI health check schedule enabled"
+            git push
+          fi
