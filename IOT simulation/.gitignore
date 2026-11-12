@@ -1,0 +1,14 @@
+# datasets (large, separately licensed; download per README)
+data/*
+!data/.gitkeep
+# trained bundles contain the test split; regenerate with train.py
+models/*
+!models/.gitkeep
+# run logs
+logs/*
+!logs/.gitkeep
+__pycache__/
+*.pyc
+.venv/
+.streamlit/secrets.toml
+.DS_Store
