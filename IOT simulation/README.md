@@ -59,7 +59,7 @@ streamlit run app.py
 ```
 
 On a remote server: `streamlit run app.py --server.headless true --server.port 8501`, then
-`ssh -L 8501:localhost:8501 <user>@<server>` and open http://localhost:8501.
+`ssh -L 8501:localhost:8501 <Moze12432>@<server>` and open http://localhost:8501.
 
 ## Files
 
