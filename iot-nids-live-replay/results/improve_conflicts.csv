@@ -1,0 +1,27 @@
+dataset,stage,cls,rows,conflicting_pct,accuracy_ceiling,recall_ceiling,shares_vectors_with
+UNSW-NB15,before dedupe,ALL,250982,14.464782334988167,92.77717127124654,,
+UNSW-NB15,before dedupe,DoS,16353,77.40475753684339,,57.922093805417965,"Exploits (77.0% of rows), Fuzzers (76.1% of rows)"
+UNSW-NB15,before dedupe,Exploits,44525,37.03537338573835,,88.26277372262774,"DoS (36.6% of rows), Fuzzers (36.4% of rows)"
+UNSW-NB15,before dedupe,Fuzzers,24246,14.905551431163902,,87.63094943495834,"Exploits (11.4% of rows), DoS (11.2% of rows)"
+UNSW-NB15,before dedupe,Generic,58871,0.6318900647177728,,99.36810993528223,"Exploits (0.6% of rows), DoS (0.6% of rows)"
+UNSW-NB15,before dedupe,Normal,93000,0.9956989247311828,,99.53870967741935,Fuzzers (1.0% of rows)
+UNSW-NB15,before dedupe,Reconnaissance,13987,16.043468935440053,,84.12096947165224,"Exploits (15.7% of rows), DoS (15.4% of rows)"
+UNSW-NB15,after dedupe,ALL,157206,5.308321565334657,96.22978766713739,,
+UNSW-NB15,after dedupe,DoS,5500,34.01818181818182,,,"Exploits (33.5% of rows), Fuzzers (31.7% of rows)"
+UNSW-NB15,after dedupe,Exploits,27434,7.177225340817964,,,"DoS (6.7% of rows), Fuzzers (6.5% of rows)"
+UNSW-NB15,after dedupe,Fuzzers,20960,10.534351145038167,,,"Exploits (8.5% of rows), DoS (8.3% of rows)"
+UNSW-NB15,after dedupe,Generic,7599,4.145282273983419,,,"Exploits (4.0% of rows), DoS (3.8% of rows)"
+UNSW-NB15,after dedupe,Normal,85722,0.48062341055971636,,,Fuzzers (0.5% of rows)
+UNSW-NB15,after dedupe,Reconnaissance,9991,15.71414272845561,,,"Exploits (15.5% of rows), DoS (15.0% of rows)"
+WSN-DS,before dedupe,ALL,374661,0.001601447708728691,99.99919927614563,,
+WSN-DS,before dedupe,Blackhole,10049,0.0,,100.0,
+WSN-DS,before dedupe,Flooding,3312,0.0,,100.0,
+WSN-DS,before dedupe,Grayhole,14596,0.0,,100.0,
+WSN-DS,before dedupe,Normal,340066,0.0008821816941417253,,100.0,TDMA (0.0% of rows)
+WSN-DS,before dedupe,TDMA,6638,0.04519433564326605,,99.95480566435674,Normal (0.0% of rows)
+WSN-DS,after dedupe,ALL,365788,0.0016402943781644013,99.99917985281091,,
+WSN-DS,after dedupe,Blackhole,10049,0.0,,,
+WSN-DS,after dedupe,Flooding,3157,0.0,,,
+WSN-DS,after dedupe,Grayhole,13909,0.0,,,
+WSN-DS,after dedupe,Normal,332040,0.0009035056017347308,,,TDMA (0.0% of rows)
+WSN-DS,after dedupe,TDMA,6633,0.045228403437358664,,,Normal (0.0% of rows)

@@ -1,0 +1,131 @@
+model,test_set,label,seed,n,flagged_pct
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",BENIGN,42,19014,0.01577784790154623
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",DDoS,42,25603,99.99218841542007
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",BENIGN,42,83348,0.01199788837164659
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS GoldenEye,42,2057,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Hulk,42,34569,0.15331655529520669
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Slowhttptest,42,1046,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS slowloris,42,1077,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",Heartbleed,42,2,0.0
+Friday DDoS only (paper setup),Friday PM (PortScan),BENIGN,42,123083,0.008124598847931883
+Friday DDoS only (paper setup),Friday PM (PortScan),PortScan,42,90694,0.030873045625951
+Friday DDoS only (paper setup),Tuesday (brute force),BENIGN,42,412476,0.0007273150437843656
+Friday DDoS only (paper setup),Tuesday (brute force),FTP-Patator,42,5931,0.0
+Friday DDoS only (paper setup),Tuesday (brute force),SSH-Patator,42,3219,0.0
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",BENIGN,42,19014,0.042074261070789945
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",DDoS,42,25603,99.99218841542007
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",BENIGN,42,83348,0.03839324278926909
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS GoldenEye,42,2057,99.95138551288284
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Hulk,42,34569,99.91032427897828
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Slowhttptest,42,1046,99.80879541108987
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS slowloris,42,1077,99.62859795728876
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",Heartbleed,42,2,100.0
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),BENIGN,42,123083,0.03737315470048666
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),PortScan,42,90694,0.17090435971508589
+Friday DDoS + Wednesday DoS,Tuesday (brute force),BENIGN,42,412476,0.2892289490782494
+Friday DDoS + Wednesday DoS,Tuesday (brute force),FTP-Patator,42,5931,0.6238408362839318
+Friday DDoS + Wednesday DoS,Tuesday (brute force),SSH-Patator,42,3219,0.31065548306927615
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",BENIGN,43,19014,0.0
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",DDoS,43,25603,99.9882826231301
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",BENIGN,43,83348,0.032394298603445795
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS GoldenEye,43,2057,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Hulk,43,34569,0.09835401660447222
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Slowhttptest,43,1046,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS slowloris,43,1077,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",Heartbleed,43,2,0.0
+Friday DDoS only (paper setup),Friday PM (PortScan),BENIGN,43,123083,0.00974951861751826
+Friday DDoS only (paper setup),Friday PM (PortScan),PortScan,43,90694,0.061746091251902
+Friday DDoS only (paper setup),Tuesday (brute force),BENIGN,43,412476,0.0
+Friday DDoS only (paper setup),Tuesday (brute force),FTP-Patator,43,5931,0.0
+Friday DDoS only (paper setup),Tuesday (brute force),SSH-Patator,43,3219,0.0
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",BENIGN,43,19014,0.010518565267697486
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",DDoS,43,25603,99.9882826231301
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",BENIGN,43,83348,0.05639007534673897
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS GoldenEye,43,2057,99.90277102576567
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Hulk,43,34569,99.90453874858977
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Slowhttptest,43,1046,99.80879541108987
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS slowloris,43,1077,99.72144846796658
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",Heartbleed,43,2,100.0
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),BENIGN,43,123083,0.04062299423965942
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),PortScan,43,90694,0.16098088076388736
+Friday DDoS + Wednesday DoS,Tuesday (brute force),BENIGN,43,412476,0.2812284835966214
+Friday DDoS + Wednesday DoS,Tuesday (brute force),FTP-Patator,43,5931,0.016860563142808968
+Friday DDoS + Wednesday DoS,Tuesday (brute force),SSH-Patator,43,3219,0.4349176762969867
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",BENIGN,44,19014,0.0
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",DDoS,44,25603,99.98437683084013
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",BENIGN,44,83348,0.017996832557469884
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS GoldenEye,44,2057,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Hulk,44,34569,0.12438890335271487
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Slowhttptest,44,1046,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS slowloris,44,1077,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",Heartbleed,44,2,0.0
+Friday DDoS only (paper setup),Friday PM (PortScan),BENIGN,44,123083,0.007312138963138695
+Friday DDoS only (paper setup),Friday PM (PortScan),PortScan,44,90694,0.061746091251902
+Friday DDoS only (paper setup),Tuesday (brute force),BENIGN,44,412476,0.00048487669585624374
+Friday DDoS only (paper setup),Tuesday (brute force),FTP-Patator,44,5931,0.0
+Friday DDoS only (paper setup),Tuesday (brute force),SSH-Patator,44,3219,0.0
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",BENIGN,44,19014,0.01577784790154623
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",DDoS,44,25603,99.98437683084013
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",BENIGN,44,83348,0.046791764649421703
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS GoldenEye,44,2057,99.7569275644142
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Hulk,44,34569,99.90164598339553
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Slowhttptest,44,1046,100.0
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS slowloris,44,1077,99.62859795728876
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",Heartbleed,44,2,100.0
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),BENIGN,44,123083,0.03737315470048666
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),PortScan,44,90694,0.15987827199153196
+Friday DDoS + Wednesday DoS,Tuesday (brute force),BENIGN,44,412476,0.28680456559896816
+Friday DDoS + Wednesday DoS,Tuesday (brute force),FTP-Patator,44,5931,0.0
+Friday DDoS + Wednesday DoS,Tuesday (brute force),SSH-Patator,44,3219,0.12426219322771047
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",BENIGN,45,19014,0.005259282633848743
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",DDoS,45,25603,100.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",BENIGN,45,83348,0.021596199068963862
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS GoldenEye,45,2057,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Hulk,45,34569,0.1186033729642165
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Slowhttptest,45,1046,0.09560229445506692
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS slowloris,45,1077,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",Heartbleed,45,2,0.0
+Friday DDoS only (paper setup),Friday PM (PortScan),BENIGN,45,123083,0.007312138963138695
+Friday DDoS only (paper setup),Friday PM (PortScan),PortScan,45,90694,0.029770436853595608
+Friday DDoS only (paper setup),Tuesday (brute force),BENIGN,45,412476,0.00048487669585624374
+Friday DDoS only (paper setup),Tuesday (brute force),FTP-Patator,45,5931,0.0
+Friday DDoS only (paper setup),Tuesday (brute force),SSH-Patator,45,3219,0.0
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",BENIGN,45,19014,0.0368149784369412
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",DDoS,45,25603,99.98047103855016
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",BENIGN,45,83348,0.03719345395210443
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS GoldenEye,45,2057,99.90277102576567
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Hulk,45,34569,99.91610980936677
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Slowhttptest,45,1046,99.80879541108987
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS slowloris,45,1077,99.62859795728876
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",Heartbleed,45,2,100.0
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),BENIGN,45,123083,0.03818561458527985
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),PortScan,45,90694,0.15987827199153196
+Friday DDoS + Wednesday DoS,Tuesday (brute force),BENIGN,45,412476,0.2729855797670652
+Friday DDoS + Wednesday DoS,Tuesday (brute force),FTP-Patator,45,5931,0.0
+Friday DDoS + Wednesday DoS,Tuesday (brute force),SSH-Patator,45,3219,0.1863932898415657
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",BENIGN,46,19014,0.005259282633848743
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",DDoS,46,25603,99.99609420771003
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",BENIGN,46,83348,0.0203964102317992
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS GoldenEye,46,2057,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Hulk,46,34569,0.09256848621597386
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Slowhttptest,46,1046,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS slowloris,46,1077,0.0
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",Heartbleed,46,2,0.0
+Friday DDoS only (paper setup),Friday PM (PortScan),BENIGN,46,123083,0.008937058732725071
+Friday DDoS only (paper setup),Friday PM (PortScan),PortScan,46,90694,0.061746091251902
+Friday DDoS only (paper setup),Tuesday (brute force),BENIGN,46,412476,0.0007273150437843656
+Friday DDoS only (paper setup),Tuesday (brute force),FTP-Patator,46,5931,0.0
+Friday DDoS only (paper setup),Tuesday (brute force),SSH-Patator,46,3219,0.0
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",BENIGN,46,19014,0.005259282633848743
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",DDoS,46,25603,99.9882826231301
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",BENIGN,46,83348,0.03359408744061045
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS GoldenEye,46,2057,99.90277102576567
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Hulk,46,34569,99.92189533975527
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Slowhttptest,46,1046,99.80879541108987
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS slowloris,46,1077,99.9071494893222
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",Heartbleed,46,2,100.0
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),BENIGN,46,123083,0.030873475622141155
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),PortScan,46,90694,0.16098088076388736
+Friday DDoS + Wednesday DoS,Tuesday (brute force),BENIGN,46,412476,0.2654699909812935
+Friday DDoS + Wednesday DoS,Tuesday (brute force),FTP-Patator,46,5931,0.06744225257123587
+Friday DDoS + Wednesday DoS,Tuesday (brute force),SSH-Patator,46,3219,0.6834420627524076

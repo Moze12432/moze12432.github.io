@@ -1,0 +1,27 @@
+model,test_set,label,n,flagged_pct,flagged_std,meaning
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",BENIGN,19014.0,0.005259282633848743,0.006441279433005097,false-alarm rate
+Friday DDoS only (paper setup),"Friday PM (DDoS), same day",DDoS,25603.0,99.99218841542007,0.006175599851906782,detection rate
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",BENIGN,83348.0,0.020876325766665066,0.007425132431139706,false-alarm rate
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS GoldenEye,2057.0,0.0,0.0,detection rate
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Hulk,34569.0,0.11744626688651683,0.02408129293675536,detection rate
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS Slowhttptest,1046.0,0.019120458891013385,0.042754645841296166,detection rate
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",DoS slowloris,1077.0,0.0,0.0,detection rate
+Friday DDoS only (paper setup),"Wednesday (DoS), held-out 20%",Heartbleed,2.0,0.0,0.0,detection rate
+Friday DDoS only (paper setup),Friday PM (PortScan),BENIGN,123083.0,0.008287090824890521,0.0010593180870148836,false-alarm rate
+Friday DDoS only (paper setup),Friday PM (PortScan),PortScan,90694.0,0.04917635124705052,0.017216239437477084,detection rate
+Friday DDoS only (paper setup),Tuesday (brute force),BENIGN,412476.0,0.0004848766958562438,0.00029692512325361697,false-alarm rate
+Friday DDoS only (paper setup),Tuesday (brute force),FTP-Patator,5931.0,0.0,0.0,detection rate
+Friday DDoS only (paper setup),Tuesday (brute force),SSH-Patator,3219.0,0.0,0.0,detection rate
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",BENIGN,19014.0,0.02208898706216472,0.01637994267634105,false-alarm rate
+Friday DDoS + Wednesday DoS,"Friday PM (DDoS), same day",DDoS,25603.0,99.98672030621411,0.004453288384565932,detection rate
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",BENIGN,83348.0,0.042472524835628925,0.009160920079100191,false-alarm rate
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS GoldenEye,2057.0,99.88332523091881,0.0737275201171724,detection rate
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Hulk,34569.0,99.91090283201711,0.008283618885869823,detection rate
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS Slowhttptest,1046.0,99.8470363288719,0.085509291682589,detection rate
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",DoS slowloris,1077.0,99.70287836583101,0.12106225450701072,detection rate
+Friday DDoS + Wednesday DoS,"Wednesday (DoS), held-out 20%",Heartbleed,2.0,100.0,0.0,detection rate
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),BENIGN,123083.0,0.036885678769610755,0.003615218261057499,false-alarm rate
+Friday DDoS + Wednesday DoS,Friday PM (PortScan),PortScan,90694.0,0.1625245330451849,0.004716794856596352,detection rate
+Friday DDoS + Wednesday DoS,Tuesday (brute force),BENIGN,412476.0,0.2791435138044395,0.009869652935877724,false-alarm rate
+Friday DDoS + Wednesday DoS,Tuesday (brute force),FTP-Patator,5931.0,0.14162873039959534,0.27097815348465093,detection rate
+Friday DDoS + Wednesday DoS,Tuesday (brute force),SSH-Patator,3219.0,0.3479341410375893,0.2222869688722997,detection rate
