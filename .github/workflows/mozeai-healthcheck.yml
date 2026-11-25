@@ -41,8 +41,9 @@ jobs:
         run: |
           cat > healthcheck.py <<'PYEOF'
           """MozeAI health check: open the Streamlit app in a real browser, wake it if it is asleep,
-          ask one question and fail unless a real answer comes back."""
+          ask one question and fail unless a real answer comes back (waits for a streamed answer to finish)."""
           import os
+          import re
           import sys
           import time
 
@@ -58,7 +59,9 @@ jobs:
           WAKE_BUTTON = "Yes, get this app back up"
           CHAT_INPUT = '[data-testid="stChatInputTextArea"], [data-testid="stChatInput"] textarea'
           CHAT_MESSAGE = '[data-testid="stChatMessage"]'
-          BAD_TEXT = ["AI service temporarily unavailable", "Error running app", "Oh no."]
+          BAD_TEXT = ["AI service temporarily unavailable", "Error running app", "Oh no.", "something went wrong while answering"]
+          BUSY_TEXT = ["\u258c", "Thinking\u2026", "Retrying\u2026"]  # streaming cursor and live status labels
+          ICON_TEXT = {"smart_toy", "face", "check", "expand_more", "expand_less", "thumb_up", "thumb_down"}  # icon names that show up as text
           T0 = time.time()
 
 
@@ -100,6 +103,13 @@ jobs:
               raise RuntimeError(f"chat input did not appear within {WAKE_TIMEOUT}s")
 
 
+          def tidy(text):
+              """Answer text without icon names or the 'Thought for Ns' line."""
+              lines = [l for l in text.strip().splitlines()
+                       if l.strip() not in ICON_TEXT and not re.fullmatch(r"Thought for \d+s( · [\w ]+)*", l.strip())]
+              return "\n".join(lines).strip()
+
+
           def ask(page, frame, box):
               before = frame.locator(CHAT_MESSAGE).count()
               box.first.click()
@@ -107,18 +117,23 @@ jobs:
               box.first.press("Enter")
               log(f"asked: {QUESTION!r}")
               deadline = time.time() + ANSWER_TIMEOUT
+              last, stable = None, 0
               while time.time() < deadline:
                   time.sleep(2)
                   msgs = frame.locator(CHAT_MESSAGE)
                   n = msgs.count()
-                  if n >= before + 2:
-                      answer = msgs.nth(n - 1).inner_text().strip()
-                      for icon in ("smart_toy", "face"):  # avatar icon names that appear as text
-                          if answer.startswith(icon):
-                              answer = answer[len(icon):].strip()
-                      if answer and QUESTION not in answer:
-                          return answer
-              raise RuntimeError(f"no answer within {ANSWER_TIMEOUT}s")
+                  if n < before + 2:
+                      continue
+                  answer = tidy(msgs.nth(n - 1).inner_text())
+                  # The answer streams in: wait until it is finished (no cursor, no live status) and has stopped changing.
+                  # live status lines are short and end with "…" (Searching the web…, Running Python…, Writing the slides…)
+                  busy = (not answer or QUESTION in answer or any(mark in answer for mark in BUSY_TEXT)
+                          or any(len(l.strip()) < 40 and l.strip().endswith("\u2026") for l in answer.splitlines()))
+                  stable = stable + 1 if (answer == last and not busy) else 0
+                  last = answer
+                  if stable >= 2:
+                      return answer
+              raise RuntimeError(f"no finished answer within {ANSWER_TIMEOUT}s (last seen: {(last or '')[:80]!r})")
 
 
           def main():
