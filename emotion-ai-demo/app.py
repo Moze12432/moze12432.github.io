@@ -3,6 +3,7 @@ from groq import Groq
 import requests
 import re
 import math
+import random
 import numpy as np
 from bs4 import BeautifulSoup
 import PyPDF2
@@ -1208,6 +1209,8 @@ if "chat_id" not in st.session_state:
     st.session_state.chat_id = uuid.uuid4().hex[:8]
 if "answer_meta" not in st.session_state:
     st.session_state.answer_meta = {}         # chat_history index -> what the app did for that answer
+if "ab_arm" not in st.session_state:
+    st.session_state.ab_arm = None          # A/B test: "lessons" or "control", drawn per chat
 if "feedback_state" not in st.session_state:
     st.session_state.feedback_state = {}      # widget key -> {id, rating, sha, reasons_sent}
 
@@ -1823,7 +1826,7 @@ def build_messages(question, doc_block="", search_block="", extra_context="", no
     """System rules + lessons + memory, the recent conversation as real chat turns, then this message with its context."""
     recent, older = _history_for_prompt()
     system = SYSTEM_PROMPT + f"\nCurrent date and time: {_now_text()}."
-    lessons = _learned().get("rules")
+    lessons = _learned().get("rules") if _use_lessons() else ""
     if lessons:
         system += "\n\nLESSONS FROM USER FEEDBACK (follow these too):\n" + lessons
     if examples:
@@ -2155,7 +2158,7 @@ def run_agent(query):
     st.session_state["_current_query"] = query
     st.session_state["_search_sources"] = []
     st.session_state["_tool_sources"] = []
-    st.session_state["_turn"] = {"kind": None, "model": None}
+    st.session_state["_turn"] = {"kind": None, "model": None, "ab_arm": _ab_arm()}
     note_user_facts(query)
 
     if re.search(r"\bforget (everything|all of (it|that)|what you know|all about me|about me)\b|\bforget me\b", q):
@@ -2280,11 +2283,32 @@ def _learned():
     st.session_state["_learned"] = data
     return data
 
+def _ab_arm():
+    """A/B test group for this chat: "lessons" (learned rules, examples, settings) or "control" (none).
+
+    Drawn at random once per chat. learned/settings.json controls it:
+      "ab_test": {"enabled": true, "share_with_lessons": 0.5}
+    """
+    arm = st.session_state.get("ab_arm")
+    if arm not in ("lessons", "control"):
+        data = _learned()
+        ab = (data.get("settings") or {}).get("ab_test") or {}
+        if data.get("ok") and ab.get("enabled", True):
+            share = min(1.0, max(0.0, float(ab.get("share_with_lessons", 0.5))))
+            arm = "lessons" if random.random() < share else "control"
+        else:
+            arm = "lessons"
+        st.session_state.ab_arm = arm
+    return arm
+
+def _use_lessons():
+    return _ab_arm() == "lessons"
+
 def _feedback_examples(query, kind):
     """Up to two well-rated past answers to similar questions, as text for the system prompt."""
     data = _learned()
     examples = data.get("examples") or []
-    if not examples:
+    if not examples or not _use_lessons():
         return [], ""
     if "bm25" not in data:
         data["bm25"] = BM25([e.get("question", "") for e in examples])
@@ -2296,7 +2320,7 @@ def _feedback_examples(query, kind):
 
 def _learned_effort(kind, query):
     """Thinking effort the feedback favours for this kind of question (None = use the normal choice)."""
-    if st.session_state.get("deep_mode") or re.search(r"\b(think|in depth|in-depth|deep dive|quick(ly)?|brief(ly)?|short answer)\b", query.lower()):
+    if not _use_lessons() or st.session_state.get("deep_mode") or re.search(r"\b(think|in depth|in-depth|deep dive|quick(ly)?|brief(ly)?|short answer)\b", query.lower()):
         return None
     effort = ((_learned().get("settings") or {}).get("effort") or {}).get(kind)
     return effort if effort in ("low", "medium", "high") else None
@@ -2340,7 +2364,7 @@ def _feedback_record(i, rating, state):
         "kind": meta.get("kind"), "effort": meta.get("effort"), "model": meta.get("model"),
         "tools_offered": meta.get("tools_offered", []), "tools_used": meta.get("tools_used", []),
         "files_used": meta.get("files_used", False), "examples_used": meta.get("examples", []),
-        "learned_version": meta.get("learned_version", ""), "think_seconds": meta.get("think_seconds"),
+        "learned_version": meta.get("learned_version", ""), "ab_arm": meta.get("ab_arm"), "think_seconds": meta.get("think_seconds"),
         "app_version": meta.get("app_version", ""), "chat": st.session_state.get("chat_id"), "turn": i,
         "shared_text": share,
         "question": _redact(question)[:4000] if share else "",
@@ -2414,6 +2438,7 @@ with st.sidebar:
             st.session_state.convo_summary = ""
             st.session_state.summarized_upto = 0
             st.session_state.chat_id = uuid.uuid4().hex[:8]
+            st.session_state.ab_arm = None
             st.session_state.answer_meta = {}
             st.session_state.feedback_state = {}
             st.session_state.is_resetting = False
